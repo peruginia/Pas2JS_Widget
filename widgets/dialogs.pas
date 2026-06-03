@@ -42,6 +42,7 @@ type
   TMsgDlgType = (mtWarning, mtError, mtInformation, mtConfirmation, mtCustom);
   TMsgDlgBtn = (mbYes, mbNo, mbOK, mbCancel, mbAbort, mbRetry, mbIgnore, mbAll, mbNoToAll, mbYesToAll, mbHelp, mbClose);
   TMsgDlgButtons = set of TMsgDlgBtn;
+  TInputBoxResultProc = reference to procedure(const Value: String; ModalResult: TModalResult);
 
 const
   mbYesNoCancel = [mbYes, mbNo, mbCancel];
@@ -56,12 +57,18 @@ procedure MessageDlg(AOwner: TCustomForm; const AMessage: string; ADlgType: TMsg
 
 procedure ShowMessage(AOwner: TCustomForm; const AMessage: string); overload;
 procedure ShowMessage(const AMessage: string); overload;   
-procedure ShowMessageFmt(const AMessage: string; const AArguments: array of {$if PAS2JS_FULLVERSION > 20101}const{$else}JSValue{$endif}); overload;
+procedure ShowMessageFmt(const AMessage: string; const AArguments: array of JSValue); overload;
 
 procedure QuestionDlg(const ACaption, AMessage: string; AModalResultProc: TModalResultProc); overload;   
 procedure QuestionDlg(const AMessage: string; AModalResultProc: TModalResultProc); overload;
 
+//procedure ShowInputBox(AOwner: TCustomForm; const ACaption, APrompt, ADefault: String; AProc: TInputBoxProc);
+//function InputBox(const ACaption, APrompt, ADefault : string) : string;
+procedure InputBox(const ACaption, APrompt, ADefault: string; AOnClose: TInputBoxResultProc);
+
 implementation
+
+uses web;
 
 const
   {$ifdef lang_en}
@@ -502,9 +509,9 @@ begin
   MessageDlg(Application.ActiveForm, '', AMessage, mtInformation, [mbOK], nil);
 end;
 
-procedure ShowMessageFmt(const AMessage: string; const AArguments: array of {$if PAS2JS_FULLVERSION > 20101}const{$else}JSValue{$endif});
+procedure ShowMessageFmt(const AMessage: string; const AArguments: array of JSValue);
 begin
-  ShowMessage(Format(AMessage, AArguments));
+  ShowMessage(Format(AMessage, [AArguments]));
 end;
 
 procedure QuestionDlg(const ACaption, AMessage: string; AModalResultProc: TModalResultProc);
@@ -517,5 +524,222 @@ begin
   QuestionDlg('', AMessage, AModalResultProc);
 end;
 
+//procedure ShowInputBox(AOwner: TCustomForm; const ACaption, APrompt, ADefault: String; AProc: TInputBoxProc);
+//function InputBox(const ACaption, APrompt, ADefault : string) : string;
+{procedure InputBox(const ACaption, APrompt, ADefault: string; AOnClose: TInputBoxResultProc);
+  var Dlg: TWForm;
+      Lbl: TWLabel;
+      Memo: TWMemo;
+      PnlBottom: TWPanel;
+      BtnOk, BtnCancel: TWButton;
+      AOwner: TCustomForm;
+begin
+   AOwner := Application.ActiveForm;
 
+   // 1. Creazione Form al volo
+   Dlg := TWForm.Create(AOwner);
+   Dlg.Caption := ACaption;
+   Dlg.Width := 400; // Larghezza fissa (o calcolata)
+   Dlg.Height := 300;
+   //Dlg.Position := poScreenCenter; // (Se supportato dal tuo framework CSS, altrimenti usa i margini)
+
+   // Assegniamo una classe CSS se vuoi stilizzarlo (es. Bootstrap modal)
+   Dlg.HandleElement.classList.add('modal-dialog');
+
+   // 2. Pannello Bottoni (in basso)
+   PnlBottom := TWPanel.Create(Dlg);
+   PnlBottom.Parent := Dlg;
+   PnlBottom.Align := alBottom;
+   PnlBottom.Height := 50;
+   PnlBottom.BevelOuter := bvNone;
+
+   // 3. Bottone OK
+   BtnOk := TWButton.Create(Dlg);
+   BtnOk.Parent := PnlBottom;
+   BtnOk.Caption := 'Conferma';
+   BtnOk.Align := alRight;
+   BtnOk.Width := 100;
+   BtnOk.BorderSpacing.Around := 5;
+   // CSS opzionale: BtnOk.HandleElement.classList.add('btn', 'btn-success');
+
+   BtnOk.OnClick := TNotifyEvent(procedure(Sender: TObject)
+                    begin
+                      result := Memo.Lines.Text;
+                      Dlg.Close;
+                    end);
+
+   // 4. Bottone Annulla
+   BtnCancel := TWButton.Create(Dlg);
+   BtnCancel.Parent := PnlBottom;
+   BtnCancel.Caption := 'Annulla';
+   BtnCancel.Align := alRight;
+   BtnCancel.Width := 100;
+   BtnCancel.BorderSpacing.Around := 5;
+   // CSS opzionale: BtnCancel.HandleElement.classList.add('btn', 'btn-secondary');
+
+   BtnCancel.OnClick := TNotifyEvent(procedure(Sender: TObject)
+                        begin
+                          result := aDefault;
+                          Dlg.Close;
+                        end);
+
+   // 5. Label Prompt (in alto)
+   Lbl := TWLabel.Create(Dlg);
+   Lbl.Parent := Dlg;
+   Lbl.Align := alTop;
+   Lbl.Caption := APrompt;
+   Lbl.BorderSpacing.Around := 10;
+   Lbl.Font.Style := [fsBold];
+
+   // 6. Memo per input (al centro)
+   Memo := TWMemo.Create(Dlg);
+   Memo.Parent := Dlg;
+   Memo.Align := alClient;
+
+   // --- FIX 1: STILE CSS ESPLICITO ---
+   // Evita che il browser vada a capo in modo anomalo
+   Memo.HandleElement.style.setProperty('white-space', 'pre-wrap');
+   Memo.HandleElement.style.setProperty('overflow-wrap', 'break-word');
+
+   //Memo.Lines.Text := ADefault;
+   Memo.BorderSpacing.Left := 10;
+   Memo.BorderSpacing.Right := 10;
+   Memo.BorderSpacing.Bottom := 10;
+
+   // 7. Mostra la form
+   // Usiamo ShowModal passando una callback di chiusura per pulire la memoria
+   Dlg.ShowModal(TModalResultProc(procedure(Result: TModalResult)
+                 begin
+                    // Quando il form si chiude, lo liberiamo (opzionale, ma consigliato per non lasciare oggetti DOM orfani)
+                    // Nota: Free potrebbe dover essere chiamato in modo asincrono o lasciato all'Owner se AOwner è Self
+                    // Se lo crei spesso, meglio liberarlo.
+                    // Dlg.Free;
+                 end));
+
+   // --- FIX 2: TIMING (Il trucco magico) ---
+   // Impostiamo il testo e il focus SOLO dopo che il browser ha disegnato il form.
+   // Questo risolve il problema della visualizzazione "a colonna".
+   window.setTimeout(procedure
+   begin
+       if Assigned(Memo) and Assigned(Memo.HandleElement) then begin
+          Memo.Lines.Text := ADefault; // Assegna il testo ora che ha la larghezza giusta
+          Memo.SetFocus; // Porta il cursore dentro
+          console.log('bau1');
+       end;
+   end, 50); // 50ms di ritardo sono sufficienti per garantire il reflow
+end;  }
+
+
+procedure InputBox(const ACaption, APrompt, ADefault: string; AOnClose: TInputBoxResultProc);
+  var Dlg: TWForm;
+      Lbl: TWLabel;
+      Memo: TWMemo;
+      PnlBottom: TWPanel;
+      BtnOk, BtnCancel: TWButton;
+      AOwner: TCustomForm;
+begin
+   if Application.ActiveForm is TCustomForm then
+      AOwner := TCustomForm(Application.ActiveForm)
+   else
+      AOwner := nil;
+
+   // 1. Creazione Form
+   Dlg := TWForm.Create(AOwner);
+   Dlg.Caption := ACaption;
+   Dlg.Width := 400;
+   Dlg.Height := 300;
+   //Dlg.Position := poScreenCenter;
+   Dlg.HandleElement.classList.add('modal-dialog');
+
+   // 2. Pannello Bottoni
+   PnlBottom := TWPanel.Create(Dlg);
+   PnlBottom.Parent := Dlg;
+   PnlBottom.Align := alBottom;
+   PnlBottom.Height := 50;
+   PnlBottom.BevelOuter := bvNone;
+
+   // 3. Bottone OK
+   BtnOk := TWButton.Create(Dlg);
+   BtnOk.Parent := PnlBottom;
+   BtnOk.Caption := 'Conferma';
+   BtnOk.Align := alRight;
+   BtnOk.Width := 100;
+   BtnOk.BorderSpacing.Around := 5;
+
+   // FIX: Non assegniamo "result", ma chiamiamo la callback AOnClose
+   BtnOk.OnClick := TNotifyEvent(procedure(Sender: TObject)
+                      var RawText: String;
+                    begin
+                       RawText := Memo.Lines.Text;
+
+                       // Opzionale: TrimRight rimuove spazi/invio finali se non li vuoi
+                       // RawText := TrimRight(RawText);
+
+                       if Assigned(AOnClose) then AOnClose(RawText, mrOk);
+                       Dlg.Close;
+                    end);
+
+   // 4. Bottone Annulla
+   BtnCancel := TWButton.Create(Dlg);
+   BtnCancel.Parent := PnlBottom;
+   BtnCancel.Caption := 'Annulla';
+   BtnCancel.Align := alRight;
+   BtnCancel.Width := 100;
+   BtnCancel.BorderSpacing.Around := 5;
+
+   // FIX: Anche qui chiamiamo la callback
+   BtnCancel.OnClick := TNotifyEvent(procedure(Sender: TObject)
+                        begin
+                           if Assigned(AOnClose) then
+                              AOnClose(ADefault, mrCancel); // Passiamo il default
+                           Dlg.Close;
+                        end);
+
+   // 5. Label Prompt
+   Lbl := TWLabel.Create(Dlg);
+   Lbl.Parent := Dlg;
+   Lbl.Align := alTop;
+   Lbl.Caption := APrompt;
+   Lbl.BorderSpacing.Around := 10;
+   Lbl.Font.Style := [fsBold];
+
+   // 6. Memo
+   Memo := TWMemo.Create(Dlg);
+   Memo.Name:='Memo';
+   Memo.Parent := Dlg;
+   Memo.Align := alClient;
+   Memo.WantReturns:=False;
+   // FIX VISIVO:
+   // 1. box-sizing: border-box assicura che il padding non aumenti la larghezza
+   Memo.HandleElement.style.setProperty('box-sizing', 'border-box');
+   // 2. outline: none rimuove il bordo blu di selezione che a volte sballa le misure
+   Memo.HandleElement.style.setProperty('outline', 'none');
+   // 3. resize: none impedisce all'utente di rompere il layout
+   Memo.HandleElement.style.setProperty('resize', 'none');
+
+   // Questo serve per mandare a capo correttamente
+   Memo.HandleElement.style.setProperty('white-space', 'pre-wrap');
+   Memo.HandleElement.style.setProperty('overflow-wrap', 'break-word');
+
+   Memo.BorderSpacing.Left := 10;
+   Memo.BorderSpacing.Right := 10;
+   Memo.BorderSpacing.Bottom := 10;
+
+   // 7. Mostra
+   Dlg.ShowModal(TModalResultProc(procedure(Result: TModalResult)
+                 begin
+                    // Cleanup opzionale
+                 end));
+
+   // Timing Fix
+   window.setTimeout(procedure
+   begin
+       if Assigned(Memo) and Assigned(Memo.HandleElement) then begin
+          // FIX LOGICO: Scriviamo direttamente nella proprietà value JS
+          // Questo evita che TMemo.Lines aggiunga \r\n alla fine
+          Memo.Lines.Text := ADefault;
+          Memo.SetFocus;
+       end;
+   end, 50);
+end;
 end.

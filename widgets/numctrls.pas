@@ -73,32 +73,26 @@ begin
 end;
 
 procedure TCustomNumericEdit.DoInput(ANewValue: string);
-var
-  VDiff: string;
-  VOldValue: string;
+  var VDiff: string;
+      VOldValue: string;
 begin
-  VOldValue := RealGetText;
-  if (Length(ANewValue) >= Length(VOldValue)) then
-  begin
-    VDiff := StringReplace(ANewValue, VOldValue, '', []);
-    if (VDiff = DecimalSeparator) then
-    begin
-      if (FDecimals = 0) then
-      begin
-        VDiff := '';
+   VOldValue := RealGetText;
+   if (Length(ANewValue) >= Length(VOldValue)) then begin
+      VDiff := StringReplace(ANewValue, VOldValue, '', []);
+      if (VDiff = DecimalSeparator) then begin
+         if (FDecimals = 0) then begin
+            VDiff := '';
+         end;
+         if (Pos(VDiff, VOldValue) > 0) then begin
+            VDiff := '';
+         end;
       end;
-      if (Pos(VDiff, VOldValue) > 0) then
-      begin
-        VDiff := '';
+      if (not (VDiff[1] in ['0'..'9', DecimalSeparator])) then begin
+         TJSHTMLInputElement(HandleElement).Value := VOldValue;
+         ANewValue := VOldValue;
       end;
-    end;
-    if (not (VDiff[1] in ['0'..'9', DecimalSeparator])) then
-    begin
-      TJSHTMLInputElement(HandleElement).Value := VOldValue;
-      ANewValue := VOldValue;
-    end;
-  end;
-  inherited DoInput(ANewValue);
+   end;
+   inherited DoInput(ANewValue);
 end;
 
 procedure TCustomNumericEdit.Changed;
@@ -115,14 +109,14 @@ end;
 
 constructor TCustomNumericEdit.Create(AOwner: TComponent);
 begin
-  inherited Create(AOwner);
-  FDecimals := 2;
-  BeginUpdate;
-  try
-    Alignment := taRightJustify;
-  finally
-    EndUpdate;
-  end;
+   inherited Create(AOwner);
+   FDecimals := 2;
+   BeginUpdate;
+   try
+      Alignment := taRightJustify;
+   finally
+      EndUpdate;
+   end;
 end;
 
 end.

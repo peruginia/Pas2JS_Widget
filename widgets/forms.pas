@@ -684,26 +684,24 @@ end;
 
 procedure TCustomForm.Changed;
 begin
-  inherited Changed;
-  if (not IsUpdating) and not (csLoading in ComponentState) then
-  begin
-    with HandleElement do
-    begin
-      /// Focus highlight
-      Style.SetProperty('outline', 'none');
-      /// AphaBlend/Opacity
-      if (FAlphaBlend) then
-      begin
-        Style.SetProperty('opacity', FloatToStr(FAlphaBlendValue div 255));
-      end
-      else
-      begin
-        Style.RemoveProperty('opacity');
+   inherited Changed;
+   if (not IsUpdating) and not (csLoading in ComponentState) then begin
+      HandleElement.name := Name;
+      with HandleElement do begin
+         /// Focus highlight
+         Style.SetProperty('outline', 'none');
+         /// AphaBlend/Opacity
+         if (FAlphaBlend) then begin
+            Style.SetProperty('opacity', FloatToStr(FAlphaBlendValue div 255));
+         end else begin
+            Style.RemoveProperty('opacity');
+         end;
+         /// Scroll
+         Style.SetProperty('overflow', 'hidden');
+         //Style.SetProperty('overflow', 'auto');
       end;
-      /// Scroll
-      Style.SetProperty('overflow', 'auto');
-    end;
-  end;
+      HandleElement.setAttribute('name', Name );
+   end;
 end;
 
 function TCustomForm.CreateHandleElement: TJSHTMLElement;

@@ -101,6 +101,7 @@ const
   crAppStart = -19;
   crHelp = -20;
   crHandPoint = -21;
+  crMove = -31;
 
 type
   TIntegerList = TList<Integer>;
@@ -270,6 +271,7 @@ type
     procedure SetWidth(AValue: NativeInt);
   protected
     procedure SetBorderStyle(AValue: TBorderStyle);
+
   protected
     procedure Click; virtual;
     procedure DblClick; virtual;
@@ -862,6 +864,7 @@ begin
     crAppStart: Result := 'wait';
     crHelp: Result := 'help';
     crHandPoint: Result := 'pointer';
+    crMove: Result := 'move';
     else
       Result := '';
   end;
@@ -1524,9 +1527,11 @@ var
 
   function AdjustWithPPI(aValue: Integer): Integer;
   begin
-    if Assigned(form) then
-      Result := Trunc(96 * aValue / form.DesignTimePPI)
-    else
+    // 06/02/2025 (aperugini): Disabled for now - not used on web development in my opinion...
+
+    //if Assigned(form) then
+    //  Result := Trunc(96 * aValue / form.DesignTimePPI)
+    //else
       Result := aValue;
   end;
 
@@ -2716,7 +2721,7 @@ end;
 { Cursor translation function }
 
 const
-  CursorIdents: array[0..29] of TIdentMapEntry = (
+  CursorIdents: array[0..30] of TIdentMapEntry = (
     (Value: crDefault;      Name: 'crDefault'),
     (Value: crNone;         Name: 'crNone'),
     (Value: crArrow;        Name: 'crArrow'),
@@ -2746,7 +2751,8 @@ const
     (Value: crAppStart;     Name: 'crAppStart'),
     (Value: crHelp;         Name: 'crHelp'),
     (Value: crHandPoint;    Name: 'crHandPoint'),
-    (Value: crSizeAll;      Name: 'crSizeAll'));
+    (Value: crSizeAll;      Name: 'crSizeAll'),
+    (Value: crMove;         Name: 'crMove'));
 
 function CursorToIdent(aCursor: Longint; var aIdent: string): Boolean;
 begin

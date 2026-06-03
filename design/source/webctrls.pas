@@ -47,6 +47,58 @@ uses
   websocket;
 
 type
+  TJSTouch = class
+  private
+    FClientX: longint;
+    FClientY: longint;
+    FIDentifier: longint;
+    FPageX: longint;
+    FPageY: longint;
+    FScreenX: longint;
+    FScreenY: longint;
+    //FTarget: TJSElement;
+  Public
+    Property identifier : longint read FIDentifier;
+    Property ScreenX : longint Read FScreenX;
+    Property ScreenY : longint Read FScreenY;
+    Property ClientX : longint Read FClientX;
+    Property ClientY : longint Read FClientY;
+    Property PageX : longint Read FPageX;
+    Property PageY : longint Read FPageY;
+    //Property Target : TJSElement Read FTarget;
+  end;
+
+  TJSTouchList = class
+  private
+    FLength: NativeInt;
+  Public
+    item : array of TJSTouch;
+    length : NativeInt;
+    Touches :array of TJSTouch;
+  end;
+
+  TJSTouchEvent = Class
+  private
+    FAltKey: Boolean;
+    FChangedTouches: TJSTouchList;
+    FCtrlKey: Boolean;
+    FMetaKey: Boolean;
+    FShiftKey: Boolean;
+    FTargetTouches: TJSTouchList;
+    FTouches: TJSTouchList;
+
+  Public
+    altKey : Boolean;
+    ctrlKey : Boolean ;
+    metaKey : Boolean;
+    shiftKey : Boolean;
+    changedTouches : TJSTouchList;
+    touches : TJSTouchList;
+    targetTouches : TJSTouchList;
+  end;
+
+
+  TJSTouchEventHandler = procedure(aEvent : TJSTouchEvent) of object;
 
   { TWForm }
 
@@ -504,6 +556,12 @@ type
     FHandleClass: string;
     FHandleId: string;
     FURL: String;
+
+    // Touch
+    fontouchstart: TJSTouchEventHandler;
+    fontouchmove: TJSTouchEventHandler;
+    fontouchcancel: TJSTouchEventHandler;
+    fontouchend: TJSTouchEventHandler;
   published
     property Align;
     property Anchors;
@@ -533,6 +591,11 @@ type
     property OnPaint;
     property OnPictureChanged;
     property OnResize;
+
+    property ontouchstart: TJSTouchEventHandler read fontouchstart write fontouchstart;
+    property ontouchmove: TJSTouchEventHandler read fontouchmove write fontouchmove;
+    property ontouchcancel: TJSTouchEventHandler read fontouchcancel write fontouchcancel;
+    property ontouchend: TJSTouchEventHandler read fontouchend write fontouchend;
   end;
 
   { TWPanel }
@@ -541,6 +604,13 @@ type
   private
     FHandleClass: string;
     FHandleId: string;
+    FScrollvertical,fScrollHorizontal : Boolean;
+
+    // Touch
+    fontouchstart: TJSTouchEventHandler;
+    fontouchmove: TJSTouchEventHandler;
+    fontouchcancel: TJSTouchEventHandler;
+    fontouchend: TJSTouchEventHandler;
   published
     property Align;
     property Alignment;
@@ -579,6 +649,14 @@ type
     property OnMouseWheel;
     property OnPaint;
     property OnResize;
+    property ScrollVertical : boolean read FScrollVertical write FScrollVertical default false;
+    property ScrollHorizontal : boolean read fScrollHorizontal write fScrollHorizontal default false;
+
+    //touch
+    property ontouchstart: TJSTouchEventHandler read fontouchstart write fontouchstart;
+    property ontouchmove: TJSTouchEventHandler read fontouchmove write fontouchmove;
+    property ontouchcancel: TJSTouchEventHandler read fontouchcancel write fontouchcancel;
+    property ontouchend: TJSTouchEventHandler read fontouchend write fontouchend;
   end;
 
   { TWTimer }
@@ -890,6 +968,7 @@ type
     property TabStop;
     property Visible;
     property OnCellClick;
+    property OnCellDblClick;
     property OnEnter;
     property OnExit;
     property OnHeaderClick;
@@ -902,6 +981,16 @@ type
     property OnMouseMove;
     property OnMouseUp;
     property OnMouseWheel;
+
+    // DataSet
+    property DataJSon;
+
+    // Extend
+    property RowSelect;
+    property OnEndDraw;
+    property OnAddSeparator;
+    property OnDrawColumnCell;
+
   end;
 
   { TWPagination }

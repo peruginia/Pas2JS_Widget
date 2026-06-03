@@ -232,6 +232,8 @@ type
     FWantReturns: boolean;
     FWantTabs: boolean;
     FWordWrap: boolean;
+    FIsUserTyping: boolean;
+
     FOnChange: TNotifyEvent;
     function GetSelLength: NativeInt;
     function GetSelStart: NativeInt;
@@ -493,6 +495,7 @@ begin
   inherited Changed;
   HandleElement.style.setProperty('display','flex' );
   HandleElement.style.setProperty('align-items', 'center');
+  HandleElement.setAttribute('name', Name );
   fInput._type := 'radio';
   fInput.id := Name;
   fInput.name := Parent.Name;
@@ -594,6 +597,8 @@ begin
   inherited Changed;
   if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
+    HandleElement.setAttribute('name', Name );
+
     /// Remove old items
     for VIndex := (TJSHTMLSelectElement(HandleElement).Length - 1) downto 0 do
     begin
@@ -602,7 +607,7 @@ begin
     /// Add new items
     for VIndex := 0 to (FItems.Count - 1) do
     begin
-      VValue := FItems[VIndex];
+      VValue := FItems.Names[VIndex];
       VOptionElement := TJSHTMLOptionElement(Document.CreateElement('option'));
       VOptionElement.Value := VValue;
       VOptionElement.Text := VValue;
@@ -657,14 +662,14 @@ end;
 
 function TCustomComboBox.RealGetText: string;
 begin
-  Result := FItems[FItemIndex];
+  Result := FItems.Names[FItemIndex];
 end;
 
 procedure TCustomComboBox.RealSetText(const AValue: string);
 var
   VIndex: NativeInt;
 begin
-  VIndex := FItems.IndexOf(AValue);
+  VIndex := FItems.IndexOfName(AValue);
   if (VIndex > -1) and (VIndex < FItems.Count) then
   begin
     FItemIndex := VIndex;
@@ -884,7 +889,7 @@ begin
         v := FItems[idx];
         opt := TJSHTMLOptionElement(Document.CreateElement('option'));
         opt.Value := v;
-        opt.Text := StringReplace(v, ' ', #$A0, [rfReplaceAll]);
+        opt.Text := v;
         if FMultiselect then
           opt.Selected := FSelected[idx]
         else
@@ -892,6 +897,7 @@ begin
         Add(opt);
       end;
     end;
+    HandleElement.setAttribute('name', Name );
   end;
 end;
 
@@ -1218,73 +1224,64 @@ end;
 
 procedure TCustomEdit.Changed;
 begin
-  inherited Changed;
-  if (not IsUpdating) and not (csLoading in ComponentState) then
-  begin
-    with TJSHTMLInputElement(HandleElement) do
-    begin
-      /// Alignment
-      case Alignment of
-        taRightJustify: Style.SetProperty('text-align', 'right');
-        taCenter: Style.SetProperty('text-align', 'center');
-        else
-          Style.RemoveProperty('text-align');
+   inherited Changed;
+   if (not IsUpdating) and not (csLoading in ComponentState) then begin
+      TJSHTMLInputElement(HandleElement).Name := Name;
+      with TJSHTMLInputElement(HandleElement) do begin
+         /// Alignment
+         case Alignment of
+            taRightJustify: Style.SetProperty('text-align', 'right');
+            taCenter: Style.SetProperty('text-align', 'center');
+            else
+               Style.RemoveProperty('text-align');
+         end;
+         /// CharCase
+         case FCharCase of
+            ecLowerCase: Style.SetProperty('text-transform', 'lowercase');
+            ecUppercase: Style.SetProperty('text-transform', 'uppercase');
+            else
+               Style.RemoveProperty('text-transform');
+         end;
+         /// Max Length
+         if (FMaxLength > 0) then begin
+            MaxLength := FMaxLength;
+         end else begin
+            RemoveAttribute('maxlength');
+         end;
+         /// Pattern
+         if (FPattern <> '') then begin
+            Pattern := FPattern;
+         end else begin
+            RemoveAttribute('pattern');
+         end;
+         /// Placeholder
+         if (FTextHint <> '') then begin
+            Placeholder := FTextHint;
+         end else begin
+            RemoveAttribute('placeholder');
+         end;
+         /// ReadOnly
+         ReadOnly := FReadOnly;
+         /// Required
+         Required := FRequired;
+         /// Selection
+         case InputType of
+            'text',
+            'search',
+            'URL',
+            'tel',
+            'password': begin
+               SetSelectionRange(FSelStart, FSelStart + FSelLength);
+            end;
+         end;
+         /// Type
+         _Type := InputType;
+         /// Text
+         Value := RealGetText;
+         Autocomplete := 'new-password';
       end;
-      /// CharCase
-      case FCharCase of
-        ecLowerCase: Style.SetProperty('text-transform', 'lowercase');
-        ecUppercase: Style.SetProperty('text-transform', 'uppercase');
-        else
-          Style.RemoveProperty('text-transform');
-      end;
-      /// Max Length
-      if (FMaxLength > 0) then
-      begin
-        MaxLength := FMaxLength;
-      end
-      else
-      begin
-        RemoveAttribute('maxlength');
-      end;
-      /// Pattern
-      if (FPattern <> '') then
-      begin
-        Pattern := FPattern;
-      end
-      else
-      begin
-        RemoveAttribute('pattern');
-      end;
-      /// Placeholder
-      if (FTextHint <> '') then
-      begin
-        Placeholder := FTextHint;
-      end
-      else
-      begin
-        RemoveAttribute('placeholder');
-      end;
-      /// ReadOnly
-      ReadOnly := FReadOnly;
-      /// Required
-      Required := FRequired;
-      /// Selection
-      case InputType of
-        'text',
-        'search',
-        'URL',
-        'tel',
-        'password':
-        begin
-          SetSelectionRange(FSelStart, FSelStart + FSelLength);
-        end;
-      end;
-      /// Type
-      _Type := InputType;
-      /// Text
-      Value := RealGetText;
-    end;
-  end;
+      HandleElement.setAttribute('name', Name );
+   end;
 end;
 
 function TCustomEdit.CreateHandleElement: TJSHTMLElement;
@@ -1539,32 +1536,26 @@ begin
 end;
 
 procedure TCustomMemo.SetSelText(AValue: string);
-var
-  VText: string;
-  VLength: NativeInt;
-  VStart: NativeInt;
+  var VText: string;
+      VLength: NativeInt;
+      VStart: NativeInt;
 begin
-  if (not ReadOnly) then
-  begin
-    VText := RealGetText;
-    VLength := SelLength;
-    VStart := SelStart;
-    if (VLength = 0) then
-    begin
-      System.Insert(AValue, VText, VStart);
-    end
-    else
-    begin
-      System.Delete(VText, VStart + 1, VLength);
-      System.Insert(AValue, VText, VStart + 1);
-    end;
-    if (MaxLength > 0) then
-    begin
-      VText := Copy(VText, 1, MaxLength);
-    end;
-    RealSetText(VText);
-    { TODO: SelStart and SelLength }
-  end;
+   if (not ReadOnly) then begin
+      VText := RealGetText;
+      VLength := SelLength;
+      VStart := SelStart;
+      if (VLength = 0) then begin
+         System.Insert(AValue, VText, VStart);
+      end else begin
+         System.Delete(VText, VStart + 1, VLength);
+         System.Insert(AValue, VText, VStart + 1);
+      end;
+      if (MaxLength > 0) then begin
+         VText := Copy(VText, 1, MaxLength);
+      end;
+      RealSetText(VText);
+      { TODO: SelStart and SelLength }
+   end;
 end;
 
 procedure TCustomMemo.SetTextHint(AValue: string);
@@ -1609,100 +1600,98 @@ begin
 end;
 
 procedure TCustomMemo.KeyDown(var Key: NativeInt; Shift: TShiftState);
-var
-  StartPos: NativeInt;
-  NewText: String;
+  var StartPos: NativeInt;
+      NewText: String;
 begin
-  inherited KeyDown(Key, Shift);
-  if (not FWantReturns) and (Key = 13) then
-  begin
-    Key := 0;
-  end;
-  if (FWantTabs) and (Key = 9) then begin
-    StartPos := TJSHTMLTextAreaElement(HandleElement).selectionStart;
-    NewText := Text;
-    System.Insert(#9, NewText, StartPos + 1);
-    Text := NewText;
-    TJSHTMLTextAreaElement(HandleElement).selectionEnd := StartPos + 1;
-    Key := 0;
-  end;
+   inherited KeyDown(Key, Shift);
+   if (not FWantReturns) and (Key = 13) then begin
+      Key := 0;
+   end;
+   if (FWantTabs) and (Key = 9) then begin
+      StartPos := TJSHTMLTextAreaElement(HandleElement).selectionStart;
+      NewText := Text;
+      System.Insert(#9, NewText, StartPos + 1);
+      Text := NewText;
+      TJSHTMLTextAreaElement(HandleElement).selectionEnd := StartPos + 1;
+      Key := 0;
+   end;
 end;
 
 function TCustomMemo.HandleChange(AEvent: TJSEvent): boolean;
-var
-  VNewText: string;
-  VOldText: string;
+  var VNewText: string;
+      VOldText: string;
 begin
-  AEvent.StopPropagation;
-  VNewText := TJSHTMLTextAreaElement(HandleElement).Value;
-  VOldText := RealGetText;
-  if (VNewText <> VOldText) then
-  begin
-    FLines.Text := VNewText;
-    FModified := True;
-    Change;
-  end;
-  Result := True;
+   AEvent.StopPropagation;
+
+   // Blocchiamo gli aggiornamenti verso il browser perché è l'utente che scrive
+   FIsUserTyping := True;
+   try
+      VNewText := TJSHTMLTextAreaElement(HandleElement).Value;
+      // Nota: RealGetText usa FLines che usa la funzione GetTextStr che hai postato
+      VOldText := RealGetText;
+
+      if (VNewText <> VOldText) then begin
+         FLines.Text := VNewText;
+         FModified := True;
+         Change;
+      end;
+   finally
+      // Rilasciamo il blocco
+      FIsUserTyping := False;
+   end;
+
+   Result := True;
 end;
 
 procedure TCustomMemo.Changed;
 begin
-  inherited Changed;
-  if (not IsUpdating) and not (csLoading in ComponentState) then
-  begin
-    with TJSHTMLTextAreaElement(HandleElement) do
-    begin
-      /// Alignment
-      case Alignment of
-        taRightJustify: Style.SetProperty('text-align', 'right');
-        taCenter: Style.SetProperty('text-align', 'center');
-        else
-          Style.RemoveProperty('text-align');
-      end;
-      /// CharCase
-      case FCharCase of
-        ecLowerCase: Style.SetProperty('text-transform', 'lowercase');
-        ecUppercase: Style.SetProperty('text-transform', 'uppercase');
-        else
-          Style.RemoveProperty('text-transform');
-      end;
-      /// Max Length
-      if (FMaxLength > 0) then
-      begin
-        MaxLength := FMaxLength;
-      end
-      else
-      begin
-        RemoveAttribute('maxlength');
-      end;
-      /// Placeholder
-      if (FTextHint <> '') then
-      begin
-        Placeholder := FTextHint;
-      end
-      else
-      begin
-        RemoveAttribute('placeholder');
-      end;
-      /// ReadOnly
-      ReadOnly := FReadOnly;
-      /// Resize
-      Style.SetProperty('resize', 'none');
-      /// WordWrap
-      if (FWordWrap) then
-      begin
-        RemoveAttribute('wrap');
-      end
-      else
-      begin
-        Wrap := 'off';
-      end;
-      /// Scroll
-      Style.SetProperty('overflow', 'auto');
-      /// Text
-      Value := RealGetText;
-    end;
-  end;
+   inherited Changed;
+   if (not IsUpdating) and not (csLoading in ComponentState) then begin
+      with TJSHTMLTextAreaElement(HandleElement) do begin
+         /// Alignment
+         case Alignment of
+            taRightJustify: Style.SetProperty('text-align', 'right');
+            taCenter: Style.SetProperty('text-align', 'center');
+            else Style.RemoveProperty('text-align');
+         end;
+         /// CharCase
+         case FCharCase of
+            ecLowerCase: Style.SetProperty('text-transform', 'lowercase');
+            ecUppercase: Style.SetProperty('text-transform', 'uppercase');
+            else Style.RemoveProperty('text-transform');
+         end;
+         /// Max Length
+         if (FMaxLength > 0) then begin
+            MaxLength := FMaxLength;
+         end else begin
+            RemoveAttribute('maxlength');
+         end;
+         /// Placeholder
+         if (FTextHint <> '') then begin
+            Placeholder := FTextHint;
+         end else begin
+            RemoveAttribute('placeholder');
+         end;
+         /// ReadOnly
+         ReadOnly := FReadOnly;
+         /// Resize
+         Style.SetProperty('resize', 'none');
+         /// WordWrap
+         if (FWordWrap) then begin
+            RemoveAttribute('wrap');
+         end else begin
+            Wrap := 'off';
+         end;
+         /// Scroll
+         Style.SetProperty('overflow', 'auto');
+         /// Text
+         // AGGIORNA IL DOM SOLO SE NON STA SCRIVENDO L'UTENTE
+         if not FIsUserTyping then begin
+            Value := RealGetText;
+			end;
+		end;
+      HandleElement.setAttribute('name', Name );
+   end;
 end;
 
 function TCustomMemo.CreateHandleElement: TJSHTMLElement;
@@ -1759,7 +1748,17 @@ end;
 constructor TCustomMemo.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FIsUserTyping := False; // Inizializza a False
+
   FLines := TCustomMemoStrings.Create;
+  FLines.SkipLastLineBreak:=True;
+
+  // Impostiamo il LineBreak a #10 (LF) che è lo standard per i controlli Web/HTML
+  FLines.LineBreak := #10;
+  // StrictDelimiter := True impedisce a TStringList di aggiungere un LineBreak extra
+  // alla fine del testo se non è esplicitamente presente una riga vuota.
+  FLines.StrictDelimiter := True;
+
   TCustomMemoStrings(FLines).OnChange := HandleLinesChange;
   FMaxLength := 0;
   FModified := False;
@@ -1832,17 +1831,16 @@ end;
 
 procedure TCustomButton.Changed;
 begin
-  inherited Changed;
-  if (not IsUpdating) and not (csLoading in ComponentState) then
-  begin
-    with HandleElement do
-    begin
-      /// Normalize
-      Style.SetProperty('padding', '0');
-      /// Caption
-      InnerHTML := Self.Caption;
-    end;
-  end;
+   inherited Changed;
+   if (not IsUpdating) and not (csLoading in ComponentState) then begin
+      with HandleElement do begin
+         /// Normalize
+         Style.SetProperty('padding', '0');
+         /// Caption
+         InnerHTML := Self.Caption;
+      end;
+      HandleElement.setAttribute('name', Name );
+   end;
 end;
 
 function TCustomButton.CreateHandleElement: TJSHTMLElement;
@@ -1924,78 +1922,83 @@ end;
 
 procedure TCustomCheckbox.SetAlignment(AValue: TLeftRight);
 begin
-  if (FAlignment <> AValue) then
-  begin
-    FAlignment := AValue;
-    //Changed;
-  end;
+   if (FAlignment <> AValue) then begin
+      FAlignment := AValue;
+      //Changed;
+   end;
 end;
 
 procedure TCustomCheckbox.SetChecked(AValue: boolean);
 begin
-  if (AValue) then
-  begin
-    SetState(cbChecked);
-  end
-  else
-  begin
-    SetState(cbUnchecked);
-  end;
+   if (AValue) then begin
+      SetState(cbChecked);
+   end else begin
+      SetState(cbUnchecked);
+   end;
 end;
 
 procedure TCustomCheckbox.SetState(AValue: TCheckBoxState);
 begin
-  if (FState <> AValue) then
-  begin
-    FState := AValue;
-    Changed;
-    DoOnChange;
-  end;
+   if Enabled=false then exit;
+
+   if (FState <> AValue) then begin
+      FState := AValue;
+      Changed;
+      DoOnChange;
+   end;
 end;
 
 procedure TCustomCheckbox.DoOnChange;
 begin
-  if (Assigned(FOnChange)) then
-  begin
-    FOnChange(Self);
+  if (Assigned(FOnChange)) then begin
+     FOnChange(Self);
   end;
 end;
 
 function TCustomCheckbox.HandleClick(AEvent: TJSMouseEvent): boolean;
 begin
-  SetChecked(FState <> cbChecked);
-  Result := inherited HandleClick(AEvent);
+   if Enabled=false then exit;
+   SetChecked(FState <> cbChecked);
+   Result := inherited HandleClick(AEvent);
 end;
 
 procedure TCustomCheckbox.Changed;
 begin
-  inherited Changed;
-  if (not IsUpdating) and not (csLoading in ComponentState) then
-  begin
-    with HandleElement do
-    begin
-      /// Prevent text selection
-      Style.SetProperty('user-select', 'none');
-      Style.SetProperty('-moz-user-select', 'none');
-      Style.SetProperty('-ms-user-select', 'none');
-      Style.SetProperty('-khtml-user-select', 'none');
-      Style.SetProperty('-webkit-user-select', 'none');
-      /// Position
-      Style.SetProperty('display', 'flex');
-      Style.SetProperty('align-items', 'center');
-    end;
-    /// Mark
-    with FMarkElement do
-    begin
-      Checked := (FState = cbChecked);
-      _type := 'checkbox';
-    end;
-    /// Label
-    with FLabelElement do
-    begin
-      innerHTML := Caption;
-    end;
-  end;
+   inherited Changed;
+   if (not IsUpdating) and not (csLoading in ComponentState) then begin
+      with HandleElement do begin
+         /// Prevent text selection
+         Style.SetProperty('user-select', 'none');
+         Style.SetProperty('-moz-user-select', 'none');
+         Style.SetProperty('-ms-user-select', 'none');
+         Style.SetProperty('-khtml-user-select', 'none');
+         Style.SetProperty('-webkit-user-select', 'none');
+         /// Position
+         Style.SetProperty('display', 'flex');
+         Style.SetProperty('align-items', 'center');
+      end;
+      HandleElement.setAttribute('name', Name );
+
+      /// Mark
+      with FMarkElement do begin
+         Checked := (FState = cbChecked);
+         _type := 'checkbox';
+        if Enabled=false then begin
+           // Disable also checkbox element
+           SetAttribute('disabled', 'true');
+           //Style.SetProperty('opacity','0.5');
+        end else begin
+           RemoveAttribute('disabled');
+           //Style.RemoveProperty('opacity');
+        end;
+      end;
+      /// Label
+      with FLabelElement do begin
+         innerHTML := Caption;
+      end;
+
+
+   end;
 end;
 
 function TCustomCheckbox.CreateHandleElement: TJSHTMLElement;
@@ -2109,10 +2112,8 @@ end;
 procedure TCustomLabel.Changed;
 begin
   inherited Changed;
-  if (not IsUpdating) and not (csLoading in ComponentState) then
-  begin
-    with HandleElement do
-    begin
+  if (not IsUpdating) and not (csLoading in ComponentState) then begin
+    with HandleElement do begin
       /// Transparent
       if (FTransparent) then
       begin
@@ -2137,6 +2138,8 @@ begin
         taRightJustify: Style.SetProperty('text-align', 'right');
       end;
     end;
+    HandleElement.setAttribute('name', Name );
+
     with FContentElement do
     begin
       /// Clear

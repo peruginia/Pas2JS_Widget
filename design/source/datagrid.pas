@@ -32,7 +32,8 @@ uses
   SysUtils,
   Types,
   Graphics,
-  Controls;
+  Controls,
+  DB;
 
 type
 
@@ -49,6 +50,7 @@ type
     FColor: TColor;
     FDisplayMask: string;
     FFont: TFont;
+    FTitleFont: TFont;
     FFormat: TColumnFormat;
     FHint: string;
     FName: string;
@@ -64,6 +66,7 @@ type
     procedure SetColor(AValue: TColor);
     procedure SetDisplayMask(AValue: string);
     procedure SetFont(AValue: TFont);
+    procedure SetTitleFont(AValue: TFont);
     procedure SetFormat(AValue: TColumnFormat);
     procedure SetName(AValue: string);
     procedure SetTitle(AValue: string);
@@ -90,6 +93,7 @@ type
     property Color: TColor read FColor write SetColor;
     property DisplayMask: string read FDisplayMask write SetDisplayMask;
     property Font: TFont read FFont write SetFont;
+    property TitleFont: TFont read FTitleFont write SetTitleFont;
     property Format: TColumnFormat read FFormat write SetFormat;
     property Hint: string read FHint write FHint;
     property Name: string read FName write SetName;
@@ -119,10 +123,96 @@ type
     property Items[AIndex: NativeInt]: TDataColumn read GetColumn write SetColumn; default;
   end;
 
+  TJSHTMLTableCellElement = Class
+  private
+    Fabbr: String;
+    Falign: String;
+    Faxis: String;
+    FbgColor: String;
+    FcellIndex: Integer;
+    Fch: String;
+    FchOff: String;
+    FcolSpan: Integer;
+    Fheaders: String;
+    Fheight: String;
+    FnoWrap: Boolean;
+    FrowSpan: Integer;
+    Fscope: String;
+    FvAlign: String;
+    Fwidth: String;
+  public
+  { Properties }
+    property abbr: String read Fabbr write Fabbr;
+    property align: String read Falign write Falign;
+    property axis: String read Faxis write Faxis;
+    property bgColor: String read FbgColor write FbgColor;
+    property cellIndex: Integer read FcellIndex;
+    property ch: String read Fch write Fch;
+    property chOff: String read FchOff write FchOff;
+    property colSpan: Integer read FcolSpan write FcolSpan;
+    property headers: String read Fheaders;
+    property height: String read Fheight write Fheight;
+    property noWrap: Boolean read FnoWrap write FnoWrap;
+    property rowSpan: Integer read FrowSpan write FrowSpan;
+    property scope: String read Fscope write Fscope;
+    property vAlign: String read FvAlign write FvAlign;
+    property width: String read Fwidth write Fwidth;
+  end;
+
+  TStorageKind = (skLocal,skSession);
+  TStorageOption = (soAutoLoad,soAutoSave);
+  TStorageOptions = Set of TStorageOption;
+
+  TLocalJSONDataset = Class(TDataSet)
+  Private
+    FDataElement: String;
+    FStorageKey: String;
+    FStorageKind: TStorageKind;
+    FStorageOptions: TStorageOptions;
+    fAutoLoad : Boolean;
+  Published
+    Property DataElement : string read FDataElement write FDataElement;
+    Property AutoLoad : Boolean   read fAutoLoad write fAutoLoad;
+    Property StorageKey : string  read FStorageKey write FStorageKey;
+    Property StorageKind : TStorageKind read FStorageKind write FStorageKind;
+    Property Options :TStorageOptions read fStorageOptions write fStorageOptions;
+  end;
+
   TSortOrder = (soAscending, soDescending);
+  TTouchCoord = longint;
+
+
+  TJSTouchList = class
+  private
+    FLength: NativeInt;
+  Public
+    property length : NativeInt Read FLength;
+  end;
+
+  TJSTouchEvent = Class
+  private
+    FAltKey: Boolean;
+    FChangedTouches:TJSTouchList;
+    FCtrlKey: Boolean;
+    FMetaKey: Boolean;
+    FShiftKey: Boolean;
+    FTargetTouches: TJSTouchList;
+    FTouches: TJSTouchList;
+  Public
+    Property altKey : Boolean Read FAltKey;
+    Property ctrlKey : Boolean Read FCtrlKey;
+    Property metaKey : Boolean Read FMetaKey;
+    Property shiftKey : Boolean Read FShiftKey;
+    property changedTouches : TJSTouchList Read FChangedTouches;
+    property touches : TJSTouchList Read FTouches;
+    property targetTouches : TJSTouchList Read FTargetTouches;
+  end;
 
   TOnClickEvent = procedure(ASender: TObject; ACol, ARow: NativeInt) of object;
   TOnHeaderClick = procedure(ASender: TObject; ACol: NativeInt) of object;
+  TOnDrawColumnCell = procedure(ASender: TObject; ColumnName: String; var Cell : TJSHTMLTableCellElement ) of object;
+  TJSTouchEventHandler = function(aEvent : TJSTouchEvent) : boolean; safecall;
+  TOnAddSeparator = procedure(ASender: TObject; var data : String ) of object;
 
   { TCustomDataGrid }
 
@@ -137,7 +227,25 @@ type
     FSortColumn: NativeInt;
     FSortOrder: TSortOrder;
     FOnCellClick: TOnClickEvent;
+    FOnCellDblClick: TOnClickEvent;
+
     FOnHeaderClick: TOnHeaderClick;
+
+    // Dataset
+    FDataJSon : TLocalJSONDataset;
+
+    FRowSelect : Boolean;
+    fSelRow, fSelCol : NativeInt;
+    // Touch
+    fontouchstart: TJSTouchEventHandler;
+    fontouchmove: TJSTouchEventHandler;
+    fontouchcancel: TJSTouchEventHandler;
+    fontouchend: TJSTouchEventHandler;
+
+    fOnDrawColumnCell : TOnDrawColumnCell;
+    fOnAddSeparator : TOnAddSeparator;
+    fOnEndDraw : TNotifyEvent;
+
     procedure SetColumnClickSorts(AValue: boolean);
     procedure SetColumns(AValue: TDataColumns);
     procedure SetDefColWidth(AValue: NativeInt);
@@ -162,7 +270,24 @@ type
     property SortOrder: TSortOrder read FSortOrder;
     property ShowHeader: boolean read FShowHeader write SetShowHeader;
     property OnCellClick: TOnClickEvent read FOnCellClick write FOnCellClick;
+    property OnCellDblClick: TOnClickEvent read FOnCellDblClick write FOnCellDblClick;
     property OnHeaderClick: TOnHeaderClick read FOnHeaderClick write FOnHeaderClick;
+
+    // DataSet
+    property DataJSon : TLocalJSONDataset read FDataJSon write FDataJSon;
+
+    // Extend
+    property RowSelect : Boolean read FRowSelect write FRowSelect default false;
+
+    // Touch
+    property onTouchStart: TJSTouchEventHandler read fontouchstart write fontouchstart;
+    property onTouchMove: TJSTouchEventHandler read fontouchmove write fontouchmove;
+    property onTouchCancel: TJSTouchEventHandler read fontouchcancel write fontouchcancel;
+    property onTouchEnd: TJSTouchEventHandler read fontouchend write fontouchend;
+
+    property OnDrawColumnCell : TOnDrawColumnCell read fOnDrawColumnCell write fOnDrawColumnCell;
+    property OnAddSeparator : TOnAddSeparator read fOnAddSeparator write fOnAddSeparator;
+    property OnEndDraw: TNotifyEvent read fOnEndDraw write fOnEndDraw;
   end;
 
   TOnPageEvent = procedure(ASender: TObject; APage: NativeInt) of object;
@@ -246,6 +371,14 @@ begin
   if (not FFont.IsEqual(AValue)) then
   begin
     FFont.Assign(AValue);
+  end;
+end;
+
+procedure TDataColumn.SetTitleFont(AValue: TFont);
+begin
+  if (not FTitleFont.IsEqual(AValue)) then
+  begin
+    FTitleFont.Assign(AValue);
   end;
 end;
 
@@ -334,9 +467,9 @@ end;
 
 procedure TDataColumn.FillDefaultFont;
 begin
-  if (Assigned(Grid)) then
-  begin
+  if (Assigned(Grid)) then begin
     FFont.Assign(Grid.Font);
+    FTitleFont.Assign(Grid.Font);
   end;
 end;
 
@@ -360,6 +493,9 @@ begin
   inherited Create(ACollection);
   FFont := TFont.Create;
   FFont.OnChange := @FontChanged;
+  FTitleFont := TFont.Create;
+  FTitleFont.OnChange := @FontChanged;
+
   FAlignment := taLeftJustify;
   FColor := clWhite;
   FDisplayMask := '';
@@ -380,6 +516,10 @@ destructor TDataColumn.Destroy;
 begin
   FFont.Destroy;
   FFont := nil;
+
+  FTitleFont.Destroy;
+  FTitleFont := nil;
+
   inherited Destroy;
 end;
 
@@ -396,6 +536,7 @@ begin
       FColor := VColumn.Color;
       FDisplayMask := VColumn.DisplayMask;
       FFont.Assign(VColumn.FFont);
+      FTitleFont.Assign(VColumn.FFont);
       FFormat := VColumn.Format;
       FHint := VColumn.Hint;
       FName := VColumn.Name;

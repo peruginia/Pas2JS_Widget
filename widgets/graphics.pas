@@ -43,11 +43,6 @@ type
 
   TTextLayout = (tlTop, tlCenter, tlBottom);
 
-  TTextStyle = record
-    Alignment: TAlignment; { horizontal alignment }
-    Layout: TTextLayout;   { vertical alignment }
-  end;
-
   TPenStyle = (psSolid, psDash, psDot, psDashDot, psDashDotDot, psInsideFrame, psPattern, psClear);
   TPenStyleSet = set of TPenStyle;
 
@@ -284,6 +279,7 @@ const
 
 function JSColor(const AColor: TColor): string;
 function JSFont(const AFont: TFont): string;
+function JSFontFamily(const AFont: TFont): string;
 function JSMeasureText(const AText: string; const AFontName: string; const AFontSize: NativeInt; const AFixedWidth: NativeInt = 0): TSize; overload;
 
 function PenStyleToCSSBorderStyle(aStyle: TPenStyle): String;
@@ -340,19 +336,41 @@ end;
 
 function JSFont(const AFont: TFont): string;
 begin
-  Result := '';
-  if (Assigned(AFont)) then
-  begin
-    if (fsBold in AFont.Style) then
-    begin
-      Result := Result + 'bold ';
-    end;
-    if (fsItalic in AFont.Style) then
-    begin
-      Result := Result + 'italic ';
-    end;
-    Result := Result + (IntToStr(AFont.Size)) + 'px ' + AFont.Name;
-  end;
+   Result := '';
+   if (Assigned(AFont)) then begin
+      if (fsBold in AFont.Style) then begin
+         Result := Result + 'bold ';
+      end;
+      if (fsItalic in AFont.Style) then begin
+         Result := Result + 'italic ';
+      end;
+      Result := Result + (IntToStr(AFont.Size)) + 'px ' + AFont.Name;
+   end;
+end;
+
+function JSFontFamily(const AFont: TFont): string;
+begin
+   Result := '';
+   if (Assigned(AFont)) then begin
+      if (pos('ARIAL NARROW', uppercase(AFont.Name))>0) then
+         Result := '"Arial Narrow", Arial, sans-serif'
+      else if (pos('ARIAL', uppercase(AFont.Name))>0) then
+         Result := 'Arial, sans-serif'
+      else if (pos('VERDANA', uppercase(AFont.Name))>0) then
+         Result := 'Verdana, sans-serif'
+      else if (pos('TAHOMA', uppercase(AFont.Name))>0) then
+         Result := 'Tahoma, sans-serif'
+      else if (pos('TIMES NEW ROMAN', uppercase(AFont.Name))>0) then
+         Result := '"Times New Roman", serif'
+      else if (pos('GEORGIA', uppercase(AFont.Name))>0) then
+         Result := 'Georgia , serif'
+      else if (pos('GARAMOND', uppercase(AFont.Name))>0) then
+         Result := 'Garamond, serif'
+      else if (pos('HELVETICA', uppercase(AFont.Name))>0) then
+         Result := 'Helvetica , serif'
+      else if (pos('COURIER NEW', uppercase(AFont.Name))>0) then
+         Result := '"Courier New", monospace'
+   end;
 end;
 
 function JSMeasureText(const AText: string; const AFontName: string;  const AFontSize: NativeInt; const AFixedWidth: NativeInt): TSize;

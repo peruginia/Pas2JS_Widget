@@ -406,6 +406,10 @@ type
     property StretchInEnabled;
     property Transparent;
     property URL;
+    property ZoomLevel;
+    property ZoomEnabled;
+    property ZoomX;
+    property ZoomY;
     property Visible;
     property OnClick;
     property OnDblClick;
@@ -418,6 +422,11 @@ type
     property OnPaint;
     property OnPictureChanged;
     property OnResize;
+    //Touch
+    property OnTouchStart;
+    property OnTouchMove;
+    property OnTouchCancel;
+    property OnTouchEnd;
   end;
 
   { TWPanel }
@@ -461,6 +470,14 @@ type
     property OnMouseWheel;
     property OnPaint;
     property OnResize;
+    property ScrollVertical;
+    property ScrollHorizontal;
+
+    //Touch
+    property OnTouchStart;
+    property OnTouchMove;
+    property OnTouchCancel;
+    property OnTouchEnd;
   end;
 
   { TWTimer }
@@ -775,13 +792,16 @@ type
     property HandleId;
     property ParentFont;
     property ParentShowHint;
+
     property ShowHint;
     property SortOrder;
     property ShowHeader;
+    property AlternateRowColor;
     property TabOrder;
     property TabStop;
     property Visible;
     property OnCellClick;
+    property OnCellDblClick;
     property OnEnter;
     property OnExit;
     property OnHeaderClick;
@@ -794,6 +814,21 @@ type
     property OnMouseMove;
     property OnMouseUp;
     property OnMouseWheel;
+
+    // DataSet
+    property DataJSon;
+
+    // Extend
+    property RowSelect;
+    property OnEndDraw;
+    property OnAddSeparator;
+    property OnDrawColumnCell;
+
+    // Touch
+    property onTouchStart;
+    property onTouchMove;
+    property onTouchCancel;
+    property onTouchEnd;
   end;
 
   { TWPagination }
