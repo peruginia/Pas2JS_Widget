@@ -164,7 +164,12 @@ type
     FLastTouchTime: TDateTime;
     FAlternateRowColor: TColor;
      FNeedsFullRender: boolean;
-     FTouchStartX: Double;
+     FResponsiveMode: boolean;
+   FResponsiveBreakpoint: Integer;
+   FIsCardVisible: Boolean;
+   FLastCardRow: Integer;
+    FLastCardCol: Integer;
+    FTouchStartX: Double;
      FTouchStartY: Double;
      function GetColCount: NativeInt;
     function GetRowCount: NativeInt;
@@ -176,6 +181,8 @@ type
     procedure SetDefRowHeight(AValue: NativeInt);
     procedure SetShowHeader(AValue: boolean);
     procedure SetAlternateRowColor(AValue: TColor);
+    procedure SetResponsiveMode(AValue: boolean);
+    procedure SetResponsiveBreakpoint(AValue: Integer);
     procedure ProcessClick(ACell: TJSHTMLTableCellElement);
   protected
     FActiveCell: TJSHTMLTableCellElement;
@@ -196,10 +203,14 @@ type
     function HandleBodyTouchEnd(AEvent: TJSTouchEvent): boolean; virtual;
     function HandleBodyScroll(AEvent: TJSEvent): boolean; virtual;
     function HandleHeaderClick(AEvent: TJSMouseEvent): boolean; virtual;
+    function HandleCardClick(AEvent: TJSMouseEvent): boolean; virtual;
+    function HandleCardTouchEnd(AEvent: TJSTouchEvent): boolean; virtual;
+    function HandleWindowResize(AEvent: TJSEvent): boolean;
     function CreateHandleElement: TJSHTMLElement; override;
     procedure RenderTableStyle; virtual;
     procedure RenderTableHead; virtual;
     procedure RenderTableBody; virtual;
+    procedure RenderCardBody; virtual;
     function RenderTableCell(const AColumn: TDataColumn; const AObject: TJSObject): string; virtual;
     function RenderTableHeadCell(const AColumn: TDataColumn; const AIndex: NativeInt): string; virtual;
     function SelectCell(ACol, ARow: NativeInt): TJSHTMLTableCellElement; virtual;
@@ -228,6 +239,8 @@ type
     property SortOrder: TSortOrder read FSortOrder;
      property ShowHeader: boolean read FShowHeader write SetShowHeader;
      property AlternateRowColor: TColor read FAlternateRowColor write SetAlternateRowColor;
+     property ResponsiveMode: boolean read FResponsiveMode write SetResponsiveMode;
+     property ResponsiveBreakpoint: Integer read FResponsiveBreakpoint write SetResponsiveBreakpoint;
      property OnCellClick: TOnClickEvent read FOnCellClick write FOnCellClick;
     property OnHeaderClick: TOnHeaderClick read FOnHeaderClick write FOnHeaderClick;
     property onTouchStart: TJSTouchEventHandler read fontouchstart write fontouchstart;
@@ -745,6 +758,7 @@ begin
                VColumn := FColumns[VColumnIndex];
                VCell := TJSHTMLTableCellElement(VRow.AppendChild(Document.CreateElement('td')));
                VCell.setAttribute('name', VRowIndex.ToString + '_' + VColumnIndex.ToString);
+               VCell.setAttribute('data-label', VColumn.Title);
                if (VRowIndex mod 2)=0 then
                   VCell.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
                VCell.InnerHTML := RenderTableCell(VColumn, VObject);
@@ -773,6 +787,7 @@ begin
             VColumn := FColumns[VColumnIndex];
             VCell := TJSHTMLTableCellElement(VRow.AppendChild(Document.CreateElement('td')));
             VCell.setAttribute('name', VRowIndex.ToString + '_' + VColumnIndex.ToString);
+            VCell.setAttribute('data-label', VColumn.Title);
             if (VRowIndex mod 2)=0 then
                VCell.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
             VCell.InnerHTML := FDataJSon.FieldByName(VColumn.name).AsString;
@@ -781,6 +796,166 @@ begin
             if FDataJSon.Active and (FDataJSon.GetBookmark=position) then
                SetActiveCell(VCell);
          end;
+         FDataJSon.Next;
+         inc(VRowIndex);
+      end;
+      if FDataJSon.Active then FDataJSon.GotoBookmark(position);
+   end;
+end;
+
+function TCustomDataGrid.HandleCardClick(AEvent: TJSMouseEvent): boolean;
+var
+  VRow, VCol: Integer;
+begin
+   if Enabled=false then exit(True);
+   // Find the card cell, read data, and highlight — all in JS
+   asm
+     var el = AEvent.target;
+     while (el && el.getAttribute && el.getAttribute('dg-cell') === null)
+       el = el.parentElement;
+     if (el) {
+       VRow = parseInt(el.getAttribute('data-row'));
+       VCol = parseInt(el.getAttribute('data-col'));
+       var old = this.FHandleElement.querySelector('.dg-card.dg-active');
+       if (old) old.classList.remove('dg-active');
+       if (el.parentElement) el.parentElement.classList.add('dg-active');
+     } else {
+       VRow = -1; VCol = -1;
+     }
+   end;
+   if VRow < 0 then exit(True);
+   // Sync DataJSon
+   if Assigned(FDataJSon) and FDataJSon.Active then begin
+     if FDataJSon.RecordCount > VRow then begin
+        FDataJSon.First;
+        FDataJSon.MoveBy(VRow);
+     end;
+   end;
+   fCurrentRID := VRow.ToString;
+   // Double-click detection
+   if (Assigned(FOnCellDblClick)) and
+      (Now - FLastClickTime < DblClickThreshold) and
+      (FLastCardRow = VRow) and (FLastCardCol = VCol) then
+   begin
+     FLastClickTime := 0;
+     FLastCardRow := -1;
+     FLastCardCol := -1;
+     FOnCellDblClick(Self, VCol, VRow);
+   end else begin
+     FLastClickTime := Now;
+     FLastCardRow := VRow;
+     FLastCardCol := VCol;
+     CellClick(VCol, VRow);
+   end;
+   Result := True;
+end;
+
+function TCustomDataGrid.HandleCardTouchEnd(AEvent: TJSTouchEvent): boolean;
+var
+  VCell: TJSElement;
+  VRow, VCol: Integer;
+begin
+   if Enabled=false then exit(True);
+   AEvent.preventDefault;
+   asm
+     let el = AEvent.targetElement;
+     while (el && !el.hasAttribute('dg-cell')) el = el.parentElement;
+     VCell = el || null;
+   end;
+   if not Assigned(VCell) then exit(True);
+   asm
+     VRow = parseInt(VCell.getAttribute('data-row'));
+     VCol = parseInt(VCell.getAttribute('data-col'));
+   end;
+   CellClick(VCol, VRow);
+   if Assigned(fontouchend) then fontouchend(AEvent);
+   Result := True;
+end;
+
+procedure TCustomDataGrid.RenderCardBody;
+var
+  VColumn: TDataColumn;
+  VColumnIndex, VRowIndex: NativeInt;
+  VCard, VCell, VLabel, VValue: TJSHTMLElement;
+  VObject: TJSObject;
+  VJSValue: JSValue;
+  position: TBookmark;
+  VContainer: TJSHTMLElement;
+begin
+   VContainer := TJSHTMLElement(HandleElement.AppendChild(Document.CreateElement('div')));
+   VContainer.setAttribute('class', 'dg-card-container');
+
+   if (Assigned(FData)) then begin
+      for VRowIndex := 0 to (FData.Length - 1) do begin
+         VJSValue := FData[VRowIndex];
+         if (Assigned(VJSValue)) and (IsObject(VJSValue)) then begin
+            VObject := TJSObject(VJSValue);
+            VCard := TJSHTMLElement(Document.CreateElement('div'));
+            VCard.setAttribute('class', 'dg-card');
+            VCard.AddEventListener('click', @HandleCardClick);
+            if (VRowIndex mod 2)=0 then
+               VCard.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
+            for VColumnIndex := 0 to (FColumns.Count - 1) do begin
+               VColumn := FColumns[VColumnIndex];
+               VCell := TJSHTMLElement(Document.CreateElement('div'));
+               VCell.setAttribute('dg-cell', '');
+               VCell.setAttribute('data-row', VRowIndex.ToString);
+               VCell.setAttribute('data-col', VColumnIndex.ToString);
+               VLabel := TJSHTMLElement(Document.CreateElement('span'));
+               VLabel.setAttribute('class', 'dg-label');
+               VLabel.InnerHTML := IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name);
+               VCell.AppendChild(VLabel);
+               VValue := TJSHTMLElement(Document.CreateElement('span'));
+               VValue.setAttribute('class', 'dg-value');
+               VValue.InnerHTML := RenderTableCell(VColumn, VObject);
+               VCell.AppendChild(VValue);
+               VCard.AppendChild(VCell);
+               if Assigned(fOnDrawColumnCell) then begin
+                  fOnDrawColumnCell(self, VColumn.Name, TJSHTMLTableCellElement(VCell));
+                  // Restore label if callback wiped it
+                  asm
+                    if (!VCell.querySelector('.dg-label'))
+                      VCell.insertBefore(VLabel, VCell.firstChild);
+                  end;
+               end;
+            end;
+            VContainer.AppendChild(VCard);
+         end;
+      end;
+   end else if Assigned(FDataJSon) then begin
+      if FDataJSon.Active then position := FDataJSon.GetBookmark;
+      FDataJSon.First;
+      VRowIndex:=0;
+      while not FDataJSon.eof do begin
+         VCard := TJSHTMLElement(Document.CreateElement('div'));
+         VCard.setAttribute('class', 'dg-card');
+         VCard.AddEventListener('click', @HandleCardClick);
+         if (VRowIndex mod 2)=0 then
+            VCard.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
+         for VColumnIndex := 0 to (FColumns.Count - 1) do begin
+            VColumn := FColumns[VColumnIndex];
+            VCell := TJSHTMLElement(Document.CreateElement('div'));
+            VCell.setAttribute('dg-cell', '');
+            VCell.setAttribute('data-row', VRowIndex.ToString);
+            VCell.setAttribute('data-col', VColumnIndex.ToString);
+            VLabel := TJSHTMLElement(Document.CreateElement('span'));
+            VLabel.setAttribute('class', 'dg-label');
+            VLabel.InnerHTML := IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name);
+            VCell.AppendChild(VLabel);
+            VValue := TJSHTMLElement(Document.CreateElement('span'));
+            VValue.setAttribute('class', 'dg-value');
+            VValue.InnerHTML := FDataJSon.FieldByName(VColumn.name).AsString;
+            VCell.AppendChild(VValue);
+            VCard.AppendChild(VCell);
+            if Assigned(fOnDrawColumnCell) then begin
+               fOnDrawColumnCell(self, VColumn.Name, TJSHTMLTableCellElement(VCell));
+               asm
+                 if (!VCell.querySelector('.dg-label'))
+                   VCell.insertBefore(VLabel, VCell.firstChild);
+               end;
+            end;
+         end;
+         VContainer.AppendChild(VCard);
          FDataJSon.Next;
          inc(VRowIndex);
       end;
@@ -805,6 +980,11 @@ begin
    FLastTouchTime := 0;
    FAlternateRowColor := TColor($F2F2F2);
    FNeedsFullRender := True;
+   FResponsiveMode := False;
+   FResponsiveBreakpoint := 0;
+   FIsCardVisible := False;
+   FLastCardRow := -1;
+   FLastCardCol := -1;
    FTouchStartX := 0;
    FTouchStartY := 0;
    BeginUpdate;
@@ -929,6 +1109,50 @@ begin
     FAlternateRowColor := AValue;
     Changed;
   end;
+end;
+
+procedure TCustomDataGrid.SetResponsiveMode(AValue: boolean);
+begin
+  if (FResponsiveMode <> AValue) then
+  begin
+    FResponsiveMode := AValue;
+    FNeedsFullRender := True;
+    Changed;
+  end;
+end;
+
+procedure TCustomDataGrid.SetResponsiveBreakpoint(AValue: Integer);
+begin
+  if (FResponsiveBreakpoint <> AValue) then
+  begin
+    FResponsiveBreakpoint := AValue;
+    FNeedsFullRender := True;
+    Changed;
+    // Register/unregister resize observer for breakpoint > 0
+    asm
+      if (this.FResponsiveBreakpoint > 0 && this.FResponsiveMode) {
+        window.addEventListener('resize', this.FHandleWindowResize);
+      } else {
+        window.removeEventListener('resize', this.FHandleWindowResize);
+      }
+    end;
+  end;
+end;
+
+function TCustomDataGrid.HandleWindowResize(AEvent: TJSEvent): boolean;
+begin
+  if FResponsiveBreakpoint > 0 then begin
+    asm
+      var w = window.innerWidth;
+      var card = w < this.FResponsiveBreakpoint;
+      if (card !== this.FIsCardVisible) {
+        this.FIsCardVisible = card;
+        this.FNeedsFullRender = true;
+        this.Changed();
+      }
+    end;
+  end;
+  Result := True;
 end;
 
 procedure TCustomDataGrid.KeyDown(var Key: NativeInt; Shift: TShiftState);
@@ -1162,17 +1386,34 @@ begin
             Style.SetProperty('border-spacing', '0px');
             Style.SetProperty('outline', 'none');
          end;
+         if FResponsiveMode then begin
+            // Determine initial card state for breakpoint > 0
+            if FResponsiveBreakpoint > 0 then
+               asm this.FIsCardVisible = (window.innerWidth < this.FResponsiveBreakpoint); end;
+            if (FResponsiveBreakpoint = 0) or FIsCardVisible then
+               HandleElement.Style.SetProperty('display', 'block')
+            else
+               HandleElement.Style.SetProperty('display', 'table');
+            asm this.FHandleElement.classList.add('dg-card'); end;
+         end else begin
+            HandleElement.Style.SetProperty('display', 'table');
+            asm this.FHandleElement.classList.remove('dg-card'); end;
+         end;
          HandleElement.setAttribute('name', Name );
          RenderTableStyle;
-         RenderTableHead;
+         if not ((FResponsiveMode and (FResponsiveBreakpoint = 0)) or FIsCardVisible) then
+            RenderTableHead;
          FNeedsFullRender := False;
       end else begin
-         VOldBody := HandleElement.QuerySelector('tbody');
+         VOldBody := HandleElement.QuerySelector('tbody,.dg-card-container');
          if Assigned(VOldBody) then
             HandleElement.RemoveChild(VOldBody);
       end;
-      RenderTableBody;
-      if (Focused) then begin
+      if (FResponsiveMode and (FResponsiveBreakpoint = 0)) or FIsCardVisible then
+         RenderCardBody
+      else
+         RenderTableBody;
+      if (Focused) and not ((FResponsiveMode and (FResponsiveBreakpoint = 0)) or FIsCardVisible) then begin
          FActiveCell := SelectCell(FSortColumn, 0);
          if (Assigned(FActiveCell)) then FActiveCell.Click;
       end;
@@ -1203,23 +1444,46 @@ var
   VWidth: NativeInt;
 begin
   VHeight := IfThen(FDefRowHeight < 0, CalcDefaultRowHeight, FDefRowHeight);
-  VCss :=
-    'thead, tbody{display: block;position: absolute;}' +
-    'thead{overflow: hidden;width: calc(100% - ' + IntToStr(ScrollbarWidth) + 'px);' +
-    'height: ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px;}' +
-    'tbody{overflow: scroll;top: ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px;' +
-    'width: 100%;height: calc(100% - ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px);}';
+  VCss := '';
+  if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then begin
+    VCss :=
+      'thead, tbody{display: block;position: absolute;}' +
+      'thead{overflow: hidden;width: calc(100% - ' + IntToStr(ScrollbarWidth) + 'px);' +
+      'height: ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px;}' +
+      'tbody{overflow: scroll;top: ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px;' +
+      'width: 100%;height: calc(100% - ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px);}';
+  end;
   for VColumnIndex := 0 to (FColumns.Count - 1) do begin
     VColumn := FColumns[VColumnIndex];
     if (Assigned(VColumn)) then begin
       VWidth := IfThen(VColumn.Width <= 0, FDefColWidth, VColumn.Width);
-      VCss := VCss +
-        'thead th:nth-child(' + IntToStr(VColumnIndex + 1) + '){' +
-        'height:'+IntToStr(IfThen(FShowHeader, VHeight, 0))+'px;min-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;max-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;visibility:'+IfThen(VColumn.Visible,'visible','hidden')+';padding:0;overflow:hidden;border:'+IntToStr(IfThen(VColumn.Visible,1,0))+'px solid #ccc;background:#dddada;font:'+JSFont(VColumn.TitleFont)+';font-family:'+JSFontFamily(VColumn.TitleFont)+';text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}';
-      VCss := VCss +
-        'tbody td:nth-child(' + IntToStr(VColumnIndex + 1) + '){' +
-        'height:'+IntToStr(VHeight)+'px;min-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;max-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;visibility:'+IfThen(VColumn.Visible,'visible','hidden')+';padding:0;overflow:hidden;border:'+IntToStr(IfThen(VColumn.Visible,1,0))+'px solid #ccc;background-color:'+JSColor(VColumn.Color)+';font:'+JSFont(VColumn.Font)+';text-align:'+JSAlign(VColumn.Alignment)+';text-overflow:clip;white-space:nowrap;}';
+      if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then
+        VCss := VCss +
+          'thead th:nth-child(' + IntToStr(VColumnIndex + 1) + '){' +
+          'height:'+IntToStr(IfThen(FShowHeader, VHeight, 0))+'px;min-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;max-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;visibility:'+IfThen(VColumn.Visible,'visible','hidden')+';padding:0;overflow:hidden;border:'+IntToStr(IfThen(VColumn.Visible,1,0))+'px solid #ccc;background:#dddada;font:'+JSFont(VColumn.TitleFont)+';font-family:'+JSFontFamily(VColumn.TitleFont)+';text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}';
+      // Skip tbody td:nth-child when responsive without breakpoint (card layout)
+      if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then
+        VCss := VCss +
+          'tbody td:nth-child(' + IntToStr(VColumnIndex + 1) + '){' +
+          'height:'+IntToStr(VHeight)+'px;min-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;max-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;visibility:'+IfThen(VColumn.Visible,'visible','hidden')+';padding:0;overflow:hidden;border:'+IntToStr(IfThen(VColumn.Visible,1,0))+'px solid #ccc;background-color:'+JSColor(VColumn.Color)+';font:'+JSFont(VColumn.Font)+';text-align:'+JSAlign(VColumn.Alignment)+';text-overflow:clip;white-space:nowrap;}';
     end;
+  end;
+  if FResponsiveMode then begin
+    if (FResponsiveBreakpoint > 0) and not FIsCardVisible then begin
+      // Desktop mode: @media card CSS for when viewport shrinks without re-render
+      VCss := VCss + '@media (max-width: ' + IntToStr(FResponsiveBreakpoint) + 'px){';
+    end;
+    // Card CSS (used directly when FIsCardVisible or Breakpoint=0, inside @media otherwise)
+    VCss := VCss +
+      '.dg-card-container{width:100%;height:100%;overflow-y:auto;}' +
+      '.dg-card{margin:0 0 4px 0;border:1px solid #ccc;border-radius:4px;overflow:hidden;}' +
+      '.dg-card.dg-active{border-color:dodgerblue;box-shadow:0 0 0 1px dodgerblue;}' +
+      '.dg-card div[dg-cell]{display:block;padding:3px 8px;border-bottom:1px solid #eee;text-align:center;}' +
+      '.dg-card div[dg-cell]:last-child{border-bottom:none;}' +
+      '.dg-label{display:block;font-weight:bold;font-size:0.85em;color:#555;text-align:center;}' +
+      '.dg-value{display:block;word-break:break-word;text-align:center;}';
+    if (FResponsiveBreakpoint > 0) and not FIsCardVisible then
+      VCss := VCss + '}';
   end;
   VStyle := TJSHTMLElement(HandleElement.AppendChild(Document.CreateElement('style')));
   VStyle.InnerHTML := VCss;
