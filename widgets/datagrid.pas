@@ -163,8 +163,10 @@ type
     FLastClickCell: TJSHTMLTableCellElement;
     FLastTouchTime: TDateTime;
     FAlternateRowColor: TColor;
-    FNeedsFullRender: boolean;
-    function GetColCount: NativeInt;
+     FNeedsFullRender: boolean;
+     FTouchStartX: Double;
+     FTouchStartY: Double;
+     function GetColCount: NativeInt;
     function GetRowCount: NativeInt;
     procedure SetColumnClickSorts(AValue: boolean);
     procedure SetColumns(AValue: TDataColumns);
@@ -624,6 +626,12 @@ end;
 function TCustomDataGrid.HandleBodyTouchStart(AEvent: TJSTouchEvent): boolean;
 begin
   FLastTouchTime := Now;
+  asm
+    if (AEvent.touches.length > 0) {
+      this.FTouchStartX = AEvent.touches[0].clientX;
+      this.FTouchStartY = AEvent.touches[0].clientY;
+    }
+  end;
   if Assigned(fontouchstart) then fontouchstart(AEvent);
   Result := True;
 end;
@@ -632,17 +640,27 @@ function TCustomDataGrid.HandleBodyTouchEnd(AEvent: TJSTouchEvent): boolean;
 var
   TargetElement: TJSElement;
   VCell: TJSHTMLTableCellElement;
+  dist: Double;
 begin
    if Enabled=false then exit(True);
 
-   AEvent.preventDefault();
+   // Allow native scrolling by NOT calling preventDefault.
+   // Only process as a click if the touch didn't move (tap vs swipe/scroll).
+   dist := 0;
+   asm
+     if (AEvent.changedTouches.length > 0) {
+       let t = AEvent.changedTouches[0];
+       let tdx = Math.abs(t.clientX - this.FTouchStartX);
+       let tdy = Math.abs(t.clientY - this.FTouchStartY);
+       dist = Math.sqrt(tdx*tdx + tdy*tdy);
+     }
+   end;
 
-   TargetElement := AEvent.targetElement;
-   VCell := TJSHTMLTableCellElement(FindClosestParent(TargetElement, 'TD'));
-
-   if Assigned(VCell) then
-   begin
-     ProcessClick(VCell);
+   if dist < 10 then begin
+     TargetElement := AEvent.targetElement;
+     VCell := TJSHTMLTableCellElement(FindClosestParent(TargetElement, 'TD'));
+     if Assigned(VCell) then
+       ProcessClick(VCell);
    end;
 
    if Assigned(fontouchend) then fontouchend(AEvent);
@@ -787,6 +805,8 @@ begin
    FLastTouchTime := 0;
    FAlternateRowColor := TColor($F2F2F2);
    FNeedsFullRender := True;
+   FTouchStartX := 0;
+   FTouchStartY := 0;
    BeginUpdate;
    try
       Color := clWhite;
@@ -847,21 +867,28 @@ end;
 procedure TCustomDataGrid.SetData(AValue: TJSArray);
 begin
    if (FData <> AValue) then begin
-      FData := AValue;
-      FDataJSon :=nil;;
-      AutomaticallyCreateColumns;
-      Changed;
+      BeginUpdate;
+      try
+         FData := AValue;
+         FDataJSon := nil;
+         AutomaticallyCreateColumns;
+      finally
+         EndUpdate;
+      end;
    end;
 end;
 
 procedure TCustomDataGrid.SetDataJson(AValue: TLocalJSONDataset);
 Begin
    if (FDataJSon <> AValue) then begin
-      FData:=nil;
-      FDataJSon := AValue;
-      //if FDataJSon.Active then FDataJSon.First;
-      AutomaticallyCreateColumns;
-      Changed;
+      BeginUpdate;
+      try
+         FData:=nil;
+         FDataJSon := AValue;
+         AutomaticallyCreateColumns;
+      finally
+         EndUpdate;
+      end;
    end else changed;
 end;
 
@@ -1121,22 +1148,28 @@ begin
 end;
 
 procedure TCustomDataGrid.Changed;
+var
+  VOldBody: TJSElement;
 begin
    inherited Changed;
    if Enabled=false then exit;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
-      with HandleElement do begin
-         InnerHTML := '';
-         Style.SetProperty('border', '1px solid #c9c3ba');
-         Style.SetProperty('border-collapse', 'collapse');
-         Style.SetProperty('border-spacing', '0px');
-         Style.SetProperty('outline', 'none');
-      end;
-      HandleElement.setAttribute('name', Name );
       if FNeedsFullRender then begin
+         with HandleElement do begin
+            InnerHTML := '';
+            Style.SetProperty('border', '1px solid #c9c3ba');
+            Style.SetProperty('border-collapse', 'collapse');
+            Style.SetProperty('border-spacing', '0px');
+            Style.SetProperty('outline', 'none');
+         end;
+         HandleElement.setAttribute('name', Name );
          RenderTableStyle;
          RenderTableHead;
          FNeedsFullRender := False;
+      end else begin
+         VOldBody := HandleElement.QuerySelector('tbody');
+         if Assigned(VOldBody) then
+            HandleElement.RemoveChild(VOldBody);
       end;
       RenderTableBody;
       if (Focused) then begin
