@@ -61,6 +61,8 @@ type
     FValueUnchecked: string;
     FVisible: boolean;
     FWidth: NativeInt;
+    FResponsiveMinWidth: Integer;
+    FResponsiveMaxWidth: Integer;
     function GetGrid: TCustomDataGrid;
     procedure SetAlignment(AValue: TAlignment);
     procedure SetColor(AValue: TColor);
@@ -74,6 +76,8 @@ type
     procedure SetValueUnchecked(AValue: string);
     procedure SetVisible(AValue: boolean);
     procedure SetWidth(AValue: NativeInt);
+    procedure SetResponsiveMinWidth(AValue: Integer);
+    procedure SetResponsiveMaxWidth(AValue: Integer);
   protected
     procedure ColumnChanged; virtual;
     function GetDisplayName: string; override;
@@ -103,6 +107,8 @@ type
     property ValueUnchecked: string read FValueUnchecked write SetValueUnchecked;
     property Visible: boolean read FVisible write SetVisible;
     property Width: NativeInt read FWidth write SetWidth;
+    property ResponsiveMinWidth: Integer read FResponsiveMinWidth write SetResponsiveMinWidth default 0;
+    property ResponsiveMaxWidth: Integer read FResponsiveMaxWidth write SetResponsiveMaxWidth default 0;
   end;
 
   { TDataColumns }
@@ -226,6 +232,9 @@ type
     FShowHeader: boolean;
     FSortColumn: NativeInt;
     FSortOrder: TSortOrder;
+    FAlternateRowColor: TColor;
+    FResponsiveMode: boolean;
+    FResponsiveBreakpoint: Integer;
     FOnCellClick: TOnClickEvent;
     FOnCellDblClick: TOnClickEvent;
 
@@ -251,6 +260,9 @@ type
     procedure SetDefColWidth(AValue: NativeInt);
     procedure SetDefRowHeight(AValue: NativeInt);
     procedure SetShowHeader(AValue: boolean);
+    procedure SetAlternateRowColor(AValue: TColor);
+    procedure SetResponsiveMode(AValue: boolean);
+    procedure SetResponsiveBreakpoint(AValue: Integer);
   protected
     procedure VisualChange; virtual;
     procedure ColumnsChanged({%H-}AColumn: TDataColumn); virtual;
@@ -269,6 +281,9 @@ type
     property SortColumn: NativeInt read FSortColumn;
     property SortOrder: TSortOrder read FSortOrder;
     property ShowHeader: boolean read FShowHeader write SetShowHeader;
+    property AlternateRowColor: TColor read FAlternateRowColor write SetAlternateRowColor;
+    property ResponsiveMode: boolean read FResponsiveMode write SetResponsiveMode;
+    property ResponsiveBreakpoint: Integer read FResponsiveBreakpoint write SetResponsiveBreakpoint;
     property OnCellClick: TOnClickEvent read FOnCellClick write FOnCellClick;
     property OnCellDblClick: TOnClickEvent read FOnCellDblClick write FOnCellDblClick;
     property OnHeaderClick: TOnHeaderClick read FOnHeaderClick write FOnHeaderClick;
@@ -445,6 +460,24 @@ begin
   end;
 end;
 
+procedure TDataColumn.SetResponsiveMinWidth(AValue: Integer);
+begin
+  if (FResponsiveMinWidth <> AValue) then
+  begin
+    FResponsiveMinWidth := AValue;
+    ColumnChanged;
+  end;
+end;
+
+procedure TDataColumn.SetResponsiveMaxWidth(AValue: Integer);
+begin
+  if (FResponsiveMaxWidth <> AValue) then
+  begin
+    FResponsiveMaxWidth := AValue;
+    ColumnChanged;
+  end;
+end;
+
 procedure TDataColumn.ColumnChanged;
 begin
   if (FUpdateCount = 0) then
@@ -509,6 +542,8 @@ begin
   FValueUnchecked := GetDefaultValueUnchecked;
   FVisible := True;
   FWidth := 0;
+  FResponsiveMinWidth := 0;
+  FResponsiveMaxWidth := 0;
   FillDefaultFont;
 end;
 
@@ -546,6 +581,8 @@ begin
       FValueUnchecked := VColumn.ValueUnchecked;
       FVisible := VColumn.Visible;
       FWidth := VColumn.Width;
+      FResponsiveMinWidth := VColumn.ResponsiveMinWidth;
+      FResponsiveMaxWidth := VColumn.ResponsiveMaxWidth;
     finally
       EndUpdate;
     end;
@@ -651,6 +688,33 @@ begin
   end;
 end;
 
+procedure TCustomDataGrid.SetAlternateRowColor(AValue: TColor);
+begin
+  if (FAlternateRowColor <> AValue) then
+  begin
+    FAlternateRowColor := AValue;
+    VisualChange;
+  end;
+end;
+
+procedure TCustomDataGrid.SetResponsiveMode(AValue: boolean);
+begin
+  if (FResponsiveMode <> AValue) then
+  begin
+    FResponsiveMode := AValue;
+    VisualChange;
+  end;
+end;
+
+procedure TCustomDataGrid.SetResponsiveBreakpoint(AValue: Integer);
+begin
+  if (FResponsiveBreakpoint <> AValue) then
+  begin
+    FResponsiveBreakpoint := AValue;
+    VisualChange;
+  end;
+end;
+
 procedure TCustomDataGrid.VisualChange;
 begin
   Invalidate;
@@ -709,6 +773,9 @@ begin
   FDefColWidth := -1;
   FDefRowHeight := -1;
   FShowHeader := True;
+  FAlternateRowColor := TColor($F2F2F2);
+  FResponsiveMode := False;
+  FResponsiveBreakpoint := 0;
 end;
 
 destructor TCustomDataGrid.Destroy;

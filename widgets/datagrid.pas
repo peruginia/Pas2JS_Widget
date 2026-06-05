@@ -64,6 +64,8 @@ type
     FValueUnchecked: string;
     FVisible: boolean;
     FWidth: NativeInt;
+    FResponsiveMinWidth: Integer;
+    FResponsiveMaxWidth: Integer;
     function GetGrid: TCustomDataGrid;
     procedure SetAlignment(AValue: TAlignment);
     procedure SetColor(AValue: TColor);
@@ -77,6 +79,8 @@ type
     procedure SetValueUnchecked(AValue: string);
     procedure SetVisible(AValue: boolean);
     procedure SetWidth(AValue: NativeInt);
+    procedure SetResponsiveMinWidth(AValue: Integer);
+    procedure SetResponsiveMaxWidth(AValue: Integer);
   protected
     procedure ColumnChanged; virtual;
     function GetDisplayName: string; override;
@@ -106,6 +110,8 @@ type
     property ValueUnchecked: string read FValueUnchecked write SetValueUnchecked;
     property Visible: boolean read FVisible write SetVisible;
     property Width: NativeInt read FWidth write SetWidth;
+    property ResponsiveMinWidth: Integer read FResponsiveMinWidth write SetResponsiveMinWidth default 0;
+    property ResponsiveMaxWidth: Integer read FResponsiveMaxWidth write SetResponsiveMaxWidth default 0;
   end;
 
 
@@ -166,11 +172,12 @@ type
      FNeedsFullRender: boolean;
      FResponsiveMode: boolean;
    FResponsiveBreakpoint: Integer;
-   FIsCardVisible: Boolean;
-   FLastCardRow: Integer;
+    FIsCardVisible: Boolean;
+    FLastCardRow: Integer;
     FLastCardCol: Integer;
     FTouchStartX: Double;
-     FTouchStartY: Double;
+    FTouchStartY: Double;
+    FLastResponsiveState: string;
      function GetColCount: NativeInt;
     function GetRowCount: NativeInt;
     procedure SetColumnClickSorts(AValue: boolean);
@@ -206,6 +213,8 @@ type
     function HandleCardClick(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleCardTouchEnd(AEvent: TJSTouchEvent): boolean; virtual;
     function HandleWindowResize(AEvent: TJSEvent): boolean;
+    function GetViewportWidth: Integer;
+    function IsColumnVisibleAtWidth(const AColumn: TDataColumn; AWidth: Integer): boolean;
     function CreateHandleElement: TJSHTMLElement; override;
     procedure RenderTableStyle; virtual;
     procedure RenderTableHead; virtual;
@@ -429,6 +438,24 @@ begin
   end;
 end;
 
+procedure TDataColumn.SetResponsiveMinWidth(AValue: Integer);
+begin
+  if (FResponsiveMinWidth <> AValue) then
+  begin
+    FResponsiveMinWidth := AValue;
+    ColumnChanged;
+  end;
+end;
+
+procedure TDataColumn.SetResponsiveMaxWidth(AValue: Integer);
+begin
+  if (FResponsiveMaxWidth <> AValue) then
+  begin
+    FResponsiveMaxWidth := AValue;
+    ColumnChanged;
+  end;
+end;
+
 procedure TDataColumn.ColumnChanged;
 begin
   if (FUpdateCount = 0) then
@@ -498,6 +525,8 @@ begin
   FValueUnchecked := GetDefaultValueUnchecked;
   FVisible := True;
   FWidth := 0;
+  FResponsiveMinWidth := 0;
+  FResponsiveMaxWidth := 0;
   FillDefaultFont;
 end;
 
@@ -530,6 +559,8 @@ begin
          FValueUnchecked := VColumn.ValueUnchecked;
          FVisible := VColumn.Visible;
          FWidth := VColumn.Width;
+         FResponsiveMinWidth := VColumn.ResponsiveMinWidth;
+         FResponsiveMaxWidth := VColumn.ResponsiveMaxWidth;
       finally
          EndUpdate;
       end;
@@ -597,7 +628,8 @@ end;
 
 procedure TCustomDataGrid.ProcessClick(ACell: TJSHTMLTableCellElement);
   var VRow: TJSHTMLTableRowElement;
-      rid, cid: string;
+      rid, cid, colid: string;
+      VColIndex: NativeInt;
 begin
    if not Assigned(ACell) then Exit;
 
@@ -609,6 +641,8 @@ begin
 
    if (cid <> '') then begin
       rid := copy(cid, 1, pos('_', cid) - 1);
+      colid := copy(cid, pos('_', cid) + 1, MaxInt);
+      VColIndex := StrToIntDef(colid, -1);
       //if fCurrentRID <> rid then begin
          if Assigned(FDataJSon) then
          begin
@@ -627,11 +661,11 @@ begin
       begin
          FLastClickTime := 0;
          FLastClickCell := nil;
-         FOnCellDblClick(Self, ACell.cellIndex, VRow.rowIndex);
+         FOnCellDblClick(Self, VColIndex, VRow.rowIndex);
       end else begin
          FLastClickTime := Now;
          FLastClickCell := ACell;
-         CellClick(ACell.cellIndex, VRow.rowIndex);
+         CellClick(VColIndex, VRow.rowIndex);
       end;
    end;
 end;
@@ -708,12 +742,16 @@ end;
 function TCustomDataGrid.HandleHeaderClick(AEvent: TJSMouseEvent): boolean;
 var
   VCell: TJSHTMLTableCellElement;
+  VColIndex: Integer;
 begin
   VCell := TJSHTMLTableCellElement(FindClosestParent(AEvent.targetElement, 'TH'));
   if Assigned(VCell) then
   begin
     AEvent.StopPropagation;
-    HeaderClick(VCell.CellIndex);
+    VColIndex := -1;
+    asm VColIndex = parseInt(VCell.getAttribute('data-col')); end;
+    if VColIndex >= 0 then
+      HeaderClick(VColIndex);
   end;
   Result := True;
 end;
@@ -727,7 +765,9 @@ procedure TCustomDataGrid.RenderTableBody;
       VValue: JSValue;
       position : TBookmark;
       Separator : String;
+      VViewportWidth: Integer;
 begin
+   VViewportWidth := GetViewportWidth;
    Body := TJSHTMLTableSectionElement(HandleElement.AppendChild(Document.CreateElement('tbody')));
    Body.setAttribute('name', Name + '_body' );
 
@@ -756,6 +796,7 @@ begin
             VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
             for VColumnIndex := 0 to (FColumns.Count - 1) do begin
                VColumn := FColumns[VColumnIndex];
+               if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
                VCell := TJSHTMLTableCellElement(VRow.AppendChild(Document.CreateElement('td')));
                VCell.setAttribute('name', VRowIndex.ToString + '_' + VColumnIndex.ToString);
                VCell.setAttribute('data-label', VColumn.Title);
@@ -785,6 +826,7 @@ begin
          VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
          for VColumnIndex := 0 to (FColumns.Count - 1) do begin
             VColumn := FColumns[VColumnIndex];
+            if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
             VCell := TJSHTMLTableCellElement(VRow.AppendChild(Document.CreateElement('td')));
             VCell.setAttribute('name', VRowIndex.ToString + '_' + VColumnIndex.ToString);
             VCell.setAttribute('data-label', VColumn.Title);
@@ -881,7 +923,9 @@ var
   VJSValue: JSValue;
   position: TBookmark;
   VContainer: TJSHTMLElement;
+  VViewportWidth: Integer;
 begin
+   VViewportWidth := GetViewportWidth;
    VContainer := TJSHTMLElement(HandleElement.AppendChild(Document.CreateElement('div')));
    VContainer.setAttribute('class', 'dg-card-container');
 
@@ -897,6 +941,7 @@ begin
                VCard.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
             for VColumnIndex := 0 to (FColumns.Count - 1) do begin
                VColumn := FColumns[VColumnIndex];
+               if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
                VCell := TJSHTMLElement(Document.CreateElement('div'));
                VCell.setAttribute('dg-cell', '');
                VCell.setAttribute('data-row', VRowIndex.ToString);
@@ -934,6 +979,7 @@ begin
             VCard.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
          for VColumnIndex := 0 to (FColumns.Count - 1) do begin
             VColumn := FColumns[VColumnIndex];
+            if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
             VCell := TJSHTMLElement(Document.CreateElement('div'));
             VCell.setAttribute('dg-cell', '');
             VCell.setAttribute('data-row', VRowIndex.ToString);
@@ -985,9 +1031,10 @@ begin
    FIsCardVisible := False;
    FLastCardRow := -1;
    FLastCardCol := -1;
-   FTouchStartX := 0;
-   FTouchStartY := 0;
-   BeginUpdate;
+    FTouchStartX := 0;
+    FTouchStartY := 0;
+    FLastResponsiveState := '';
+    BeginUpdate;
    try
       Color := clWhite;
       ParentColor := False;
@@ -1001,6 +1048,7 @@ end;
 
 destructor TCustomDataGrid.Destroy;
 begin
+   asm window.removeEventListener('resize', this.FHandleWindowResize); end;
    FColumns.Destroy;
    FColumns := nil;
    inherited Destroy;
@@ -1118,6 +1166,14 @@ begin
     FResponsiveMode := AValue;
     FNeedsFullRender := True;
     Changed;
+    // Register/unregister resize observer for breakpoint > 0 or responsive columns
+    asm
+      if (this.FResponsiveMode) {
+        window.addEventListener('resize', this.FHandleWindowResize);
+      } else {
+        window.removeEventListener('resize', this.FHandleWindowResize);
+      }
+    end;
   end;
 end;
 
@@ -1128,31 +1184,60 @@ begin
     FResponsiveBreakpoint := AValue;
     FNeedsFullRender := True;
     Changed;
-    // Register/unregister resize observer for breakpoint > 0
-    asm
-      if (this.FResponsiveBreakpoint > 0 && this.FResponsiveMode) {
-        window.addEventListener('resize', this.FHandleWindowResize);
-      } else {
-        window.removeEventListener('resize', this.FHandleWindowResize);
-      }
-    end;
   end;
 end;
 
 function TCustomDataGrid.HandleWindowResize(AEvent: TJSEvent): boolean;
+var
+  VNewState: string;
+  VColIndex: Integer;
+  VCol: TDataColumn;
+  VViewW: Integer;
+  VNeedsUpdate: Boolean;
 begin
+  VNeedsUpdate := False;
+  VViewW := GetViewportWidth;
+  // Check card/table breakpoint
   if FResponsiveBreakpoint > 0 then begin
     asm
-      var w = window.innerWidth;
-      var card = w < this.FResponsiveBreakpoint;
+      var card = VViewW < this.FResponsiveBreakpoint;
       if (card !== this.FIsCardVisible) {
         this.FIsCardVisible = card;
-        this.FNeedsFullRender = true;
-        this.Changed();
+        VNeedsUpdate = true;
       }
     end;
   end;
+  // Check responsive column visibility
+  VNewState := '';
+  for VColIndex := 0 to (FColumns.Count - 1) do begin
+    VCol := FColumns[VColIndex];
+    if IsColumnVisibleAtWidth(VCol, VViewW) then
+      VNewState := VNewState + '1'
+    else
+      VNewState := VNewState + '0';
+  end;
+  if VNewState <> FLastResponsiveState then begin
+    FLastResponsiveState := VNewState;
+    VNeedsUpdate := True;
+  end;
+  if VNeedsUpdate then begin
+    FNeedsFullRender := True;
+    Changed;
+  end;
   Result := True;
+end;
+
+function TCustomDataGrid.GetViewportWidth: Integer;
+begin
+  asm Result = window.innerWidth; end;
+end;
+
+function TCustomDataGrid.IsColumnVisibleAtWidth(const AColumn: TDataColumn; AWidth: Integer): boolean;
+begin
+  Result := AColumn.Visible;
+  if not Result then Exit;
+  if (AColumn.ResponsiveMinWidth > 0) and (AWidth < AColumn.ResponsiveMinWidth) then Result := False;
+  if (AColumn.ResponsiveMaxWidth > 0) and (AWidth > AColumn.ResponsiveMaxWidth) then Result := False;
 end;
 
 procedure TCustomDataGrid.KeyDown(var Key: NativeInt; Shift: TShiftState);
@@ -1260,59 +1345,23 @@ end;
 
 procedure TCustomDataGrid.NavigateLeft;
 var
-  VColumnn: TDataColumn;
   VCell: TJSHTMLTableCellElement;
-  VRow: TJSHTMLTableRowElement;
-  VIndex: NativeInt;
 begin
   if (Assigned(FActiveCell)) then
   begin
-    VRow := TJSHTMLTableRowElement(FActiveCell.ParentElement);
-    if (Assigned(VRow)) and (VRow.ChildNodes.Length > 0) then
-    begin
-      for VIndex := (FActiveCell.CellIndex - 1) downto 0 do
-      begin
-        VCell := TJSHTMLTableCellElement(VRow.ChildNodes[VIndex]);
-        if (Assigned(VCell)) and (FColumns.HasIndex(VIndex)) then
-        begin
-          VColumnn := FColumns[VIndex];
-          if (Assigned(VColumnn)) and (VColumnn.Visible) then
-          begin
-            VCell.Click;
-            Exit;
-          end;
-        end;
-      end;
-    end;
+    VCell := TJSHTMLTableCellElement(FActiveCell.PreviousElementSibling);
+    if (Assigned(VCell)) then VCell.Click;
   end;
 end;
 
 procedure TCustomDataGrid.NavigateRight;
 var
-  VColumnn: TDataColumn;
   VCell: TJSHTMLTableCellElement;
-  VRow: TJSHTMLTableRowElement;
-  VIndex: NativeInt;
 begin
   if (Assigned(FActiveCell)) then
   begin
-    VRow := TJSHTMLTableRowElement(FActiveCell.ParentElement);
-    if (Assigned(VRow)) and (VRow.ChildNodes.Length > 0) then
-    begin
-      for VIndex := (FActiveCell.CellIndex + 1) to (VRow.ChildNodes.Length - 1) do
-      begin
-        VCell := TJSHTMLTableCellElement(VRow.ChildNodes[VIndex]);
-        if (Assigned(VCell)) and (FColumns.HasIndex(VIndex)) then
-        begin
-          VColumnn := FColumns[VIndex];
-          if (Assigned(VColumnn)) and (VColumnn.Visible) then
-          begin
-            VCell.Click;
-            Exit;
-          end;
-        end;
-      end;
-    end;
+    VCell := TJSHTMLTableCellElement(FActiveCell.NextElementSibling);
+    if (Assigned(VCell)) then VCell.Click;
   end;
 end;
 
@@ -1442,7 +1491,10 @@ var
   VCss: string;
   VHeight: NativeInt;
   VWidth: NativeInt;
+  VVisibleIndex: NativeInt;
+  VViewportWidth: Integer;
 begin
+  VViewportWidth := GetViewportWidth;
   VHeight := IfThen(FDefRowHeight < 0, CalcDefaultRowHeight, FDefRowHeight);
   VCss := '';
   if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then begin
@@ -1453,19 +1505,21 @@ begin
       'tbody{overflow: scroll;top: ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px;' +
       'width: 100%;height: calc(100% - ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px);}';
   end;
+  VVisibleIndex := 0;
   for VColumnIndex := 0 to (FColumns.Count - 1) do begin
     VColumn := FColumns[VColumnIndex];
-    if (Assigned(VColumn)) then begin
+    if (Assigned(VColumn)) and IsColumnVisibleAtWidth(VColumn, VViewportWidth) then begin
       VWidth := IfThen(VColumn.Width <= 0, FDefColWidth, VColumn.Width);
+      Inc(VVisibleIndex);
       if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then
         VCss := VCss +
-          'thead th:nth-child(' + IntToStr(VColumnIndex + 1) + '){' +
-          'height:'+IntToStr(IfThen(FShowHeader, VHeight, 0))+'px;min-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;max-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;visibility:'+IfThen(VColumn.Visible,'visible','hidden')+';padding:0;overflow:hidden;border:'+IntToStr(IfThen(VColumn.Visible,1,0))+'px solid #ccc;background:#dddada;font:'+JSFont(VColumn.TitleFont)+';font-family:'+JSFontFamily(VColumn.TitleFont)+';text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}';
+          'thead th:nth-child(' + IntToStr(VVisibleIndex) + '){' +
+          'height:'+IntToStr(IfThen(FShowHeader, VHeight, 0))+'px;min-width:'+IntToStr(VWidth)+'px;max-width:'+IntToStr(VWidth)+'px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background:#dddada;font:'+JSFont(VColumn.TitleFont)+';font-family:'+JSFontFamily(VColumn.TitleFont)+';text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}';
       // Skip tbody td:nth-child when responsive without breakpoint (card layout)
       if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then
         VCss := VCss +
-          'tbody td:nth-child(' + IntToStr(VColumnIndex + 1) + '){' +
-          'height:'+IntToStr(VHeight)+'px;min-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;max-width:'+IntToStr(IfThen(VColumn.Visible,VWidth,0))+'px;visibility:'+IfThen(VColumn.Visible,'visible','hidden')+';padding:0;overflow:hidden;border:'+IntToStr(IfThen(VColumn.Visible,1,0))+'px solid #ccc;background-color:'+JSColor(VColumn.Color)+';font:'+JSFont(VColumn.Font)+';text-align:'+JSAlign(VColumn.Alignment)+';text-overflow:clip;white-space:nowrap;}';
+          'tbody td:nth-child(' + IntToStr(VVisibleIndex) + '){' +
+          'height:'+IntToStr(VHeight)+'px;min-width:'+IntToStr(VWidth)+'px;max-width:'+IntToStr(VWidth)+'px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background-color:'+JSColor(VColumn.Color)+';font:'+JSFont(VColumn.Font)+';text-align:'+JSAlign(VColumn.Alignment)+';text-overflow:clip;white-space:nowrap;}';
     end;
   end;
   if FResponsiveMode then begin
@@ -1495,13 +1549,17 @@ procedure TCustomDataGrid.RenderTableHead;
       VHead: TJSHTMLTableSectionElement;
       VRow: TJSHTMLTableRowElement;
       VCell: TJSHTMLTableCellElement;
+      VViewportWidth: Integer;
 begin
+   VViewportWidth := GetViewportWidth;
    VHead := TJSHTMLTableSectionElement(HandleElement.AppendChild(Document.CreateElement('thead')));
    VHead.setAttribute('name', Name + '_head' );
    VRow := TJSHTMLTableRowElement(VHead.AppendChild(Document.CreateElement('tr')));
    for VColumnIndex := 0 to (FColumns.Count - 1) do begin
       VColumn := FColumns[VColumnIndex];
+      if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
       VCell := TJSHTMLTableCellElement(VRow.AppendChild(Document.CreateElement('th')));
+      VCell.setAttribute('data-col', VColumnIndex.ToString);
       VCell.AddEventListener('click', @HandleHeaderClick);
       VCell.InnerHTML := RenderTableHeadCell(VColumn, VColumnIndex);
    end;
@@ -1541,15 +1599,21 @@ end;
 
 function TCustomDataGrid.SelectCell(ACol, ARow: NativeInt): TJSHTMLTableCellElement;
   var VBody: TJSHTMLTableSectionElement;
+      VIndex: NativeInt;
 begin
    Result := nil;
    VBody := TJSHTMLTableSectionElement(HandleElement.QuerySelector('tbody'));
-   if (Assigned(VBody)) and (VBody.Rows.Length > 0) and (VBody.Rows[0].HasChildNodes) then begin
+   if (Assigned(VBody)) and (VBody.Rows.Length > 0) then begin
       if (ARow < 0) then ARow := 0
       else if (ARow >= VBody.Rows.Length) then ARow := (VBody.Rows.Length - 1);
-      if (ACol < 0) then ACol := 0
-      else if (ACol >= VBody.Rows[0].ChildNodes.Length) then ACol := (VBody.Rows[0].ChildNodes.Length - 1);
-      Result := TJSHTMLTableCellElement(VBody.Rows[ARow].ChildNodes[ACol]);
+      // Try exact cell by name attribute
+      Result := TJSHTMLTableCellElement(VBody.QuerySelector('[name="' + ARow.ToString + '_' + ACol.ToString + '"]'));
+      if not Assigned(Result) and (VBody.Rows[ARow].ChildNodes.Length > 0) then begin
+         // Fallback: use DOM index with bounds clamping
+         if (ACol < 0) then ACol := 0
+         else if (ACol >= VBody.Rows[ARow].ChildNodes.Length) then ACol := (VBody.Rows[ARow].ChildNodes.Length - 1);
+         Result := TJSHTMLTableCellElement(VBody.Rows[ARow].ChildNodes[ACol]);
+      end;
    end;
 end;
 
@@ -1627,6 +1691,7 @@ end;
 procedure TCustomDataGrid.ColumnsChanged(AColumn: TDataColumn);
 begin
    FNeedsFullRender := True;
+   FLastResponsiveState := '';
    Changed;
 end;
 {$pop}

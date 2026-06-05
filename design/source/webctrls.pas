@@ -964,6 +964,9 @@ type
     property ShowHint;
     property SortOrder;
     property ShowHeader;
+    property AlternateRowColor;
+    property ResponsiveMode;
+    property ResponsiveBreakpoint;
     property TabOrder;
     property TabStop;
     property Visible;
