@@ -235,6 +235,7 @@ type
     FAlternateRowColor: TColor;
     FResponsiveMode: boolean;
     FResponsiveBreakpoint: Integer;
+    FFilterBox: boolean;
     FOnCellClick: TOnClickEvent;
     FOnCellDblClick: TOnClickEvent;
 
@@ -263,6 +264,7 @@ type
     procedure SetAlternateRowColor(AValue: TColor);
     procedure SetResponsiveMode(AValue: boolean);
     procedure SetResponsiveBreakpoint(AValue: Integer);
+    procedure SetFilterBox(AValue: boolean);
   protected
     procedure VisualChange; virtual;
     procedure ColumnsChanged({%H-}AColumn: TDataColumn); virtual;
@@ -284,6 +286,7 @@ type
     property AlternateRowColor: TColor read FAlternateRowColor write SetAlternateRowColor;
     property ResponsiveMode: boolean read FResponsiveMode write SetResponsiveMode;
     property ResponsiveBreakpoint: Integer read FResponsiveBreakpoint write SetResponsiveBreakpoint;
+    property FilterBox: boolean read FFilterBox write SetFilterBox;
     property OnCellClick: TOnClickEvent read FOnCellClick write FOnCellClick;
     property OnCellDblClick: TOnClickEvent read FOnCellDblClick write FOnCellDblClick;
     property OnHeaderClick: TOnHeaderClick read FOnHeaderClick write FOnHeaderClick;
@@ -715,6 +718,15 @@ begin
   end;
 end;
 
+procedure TCustomDataGrid.SetFilterBox(AValue: boolean);
+begin
+  if (FFilterBox <> AValue) then
+  begin
+    FFilterBox := AValue;
+    VisualChange;
+  end;
+end;
+
 procedure TCustomDataGrid.VisualChange;
 begin
   Invalidate;
@@ -776,6 +788,7 @@ begin
   FAlternateRowColor := TColor($F2F2F2);
   FResponsiveMode := False;
   FResponsiveBreakpoint := 0;
+  FFilterBox := False;
 end;
 
 destructor TCustomDataGrid.Destroy;

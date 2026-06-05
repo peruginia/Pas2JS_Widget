@@ -799,6 +799,7 @@ type
     property AlternateRowColor;
     property ResponsiveMode;
     property ResponsiveBreakpoint;
+    property FilterBox;
     property TabOrder;
     property TabStop;
     property Visible;
