@@ -644,7 +644,7 @@ begin
       colid := copy(cid, pos('_', cid) + 1, MaxInt);
       VColIndex := StrToIntDef(colid, -1);
       //if fCurrentRID <> rid then begin
-         if Assigned(FDataJSon) then
+         if Assigned(FDataJSon) and not Assigned(FData) then
          begin
             if FDataJSon.Active then FDataJSon.First;
             if FDataJSon.RecordCount > StrToIntDef(rid, 0) then
@@ -742,16 +742,13 @@ end;
 function TCustomDataGrid.HandleHeaderClick(AEvent: TJSMouseEvent): boolean;
 var
   VCell: TJSHTMLTableCellElement;
-  VColIndex: Integer;
 begin
   VCell := TJSHTMLTableCellElement(FindClosestParent(AEvent.targetElement, 'TH'));
   if Assigned(VCell) then
   begin
     AEvent.StopPropagation;
-    VColIndex := -1;
-    asm VColIndex = parseInt(VCell.getAttribute('data-col')); end;
-    if VColIndex >= 0 then
-      HeaderClick(VColIndex);
+    if VCell.hasAttribute('data-col') then
+      HeaderClick(StrToIntDef(VCell.getAttribute('data-col'), -1));
   end;
   Result := True;
 end;
@@ -847,9 +844,44 @@ end;
 
 function TCustomDataGrid.HandleCardClick(AEvent: TJSMouseEvent): boolean;
 var
-  VRow, VCol: Integer;
+  VRow, VCol, VSortCol: Integer;
+  VTarget, VLabelEl, VCell: TJSElement;
 begin
    if Enabled=false then exit(True);
+
+   // Check if click target is a label → sort column
+   VSortCol := -1;
+   VTarget := AEvent.targetElement;
+   if Assigned(VTarget) then begin
+     VLabelEl := VTarget;
+     while Assigned(VLabelEl) do begin
+       if Pos('dg-label', TJSHTMLElement(VLabelEl).className) > 0 then begin
+         VCell := VLabelEl.parentElement;
+         while Assigned(VCell) do begin
+           if TJSHTMLElement(VCell).hasAttribute('dg-cell') then begin
+             VSortCol := StrToIntDef(TJSHTMLElement(VCell).getAttribute('data-col'), -1);
+             break;
+           end;
+           VCell := VCell.parentElement;
+         end;
+         break;
+       end;
+       VLabelEl := VLabelEl.parentElement;
+     end;
+   end;
+   if VSortCol >= 0 then begin
+     if FColumnClickSorts then begin
+       if (FSortColumn = VSortCol) then
+         if (FSortOrder = soAscending) then FSortOrder := soDescending else FSortOrder := soAscending
+       else FSortOrder := soAscending;
+       FSortColumn := VSortCol;
+       Sort;
+     end;
+     if Assigned(FOnHeaderClick) then FOnHeaderClick(Self, VSortCol);
+     Result := True;
+     Exit;
+   end;
+
    // Find the card cell, read data, and highlight — all in JS
    asm
      var el = AEvent.target;
@@ -866,13 +898,13 @@ begin
      }
    end;
    if VRow < 0 then exit(True);
-   // Sync DataJSon
-   if Assigned(FDataJSon) and FDataJSon.Active then begin
-     if FDataJSon.RecordCount > VRow then begin
-        FDataJSon.First;
-        FDataJSon.MoveBy(VRow);
-     end;
-   end;
+    // Sync DataJSon (only if rendering directly from dataset, not after sort)
+    if Assigned(FDataJSon) and FDataJSon.Active and not Assigned(FData) then begin
+      if FDataJSon.RecordCount > VRow then begin
+         FDataJSon.First;
+         FDataJSon.MoveBy(VRow);
+      end;
+    end;
    fCurrentRID := VRow.ToString;
    // Double-click detection
    if (Assigned(FOnCellDblClick)) and
@@ -948,7 +980,10 @@ begin
                VCell.setAttribute('data-col', VColumnIndex.ToString);
                VLabel := TJSHTMLElement(Document.CreateElement('span'));
                VLabel.setAttribute('class', 'dg-label');
-               VLabel.InnerHTML := IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name);
+               if (VColumnIndex = FSortColumn) then
+                 VLabel.InnerHTML := IfThen(FSortOrder = soAscending, '↓ ', '↑ ') + IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name)
+               else
+                 VLabel.InnerHTML := IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name);
                VCell.AppendChild(VLabel);
                VValue := TJSHTMLElement(Document.CreateElement('span'));
                VValue.setAttribute('class', 'dg-value');
@@ -986,7 +1021,10 @@ begin
             VCell.setAttribute('data-col', VColumnIndex.ToString);
             VLabel := TJSHTMLElement(Document.CreateElement('span'));
             VLabel.setAttribute('class', 'dg-label');
-            VLabel.InnerHTML := IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name);
+            if (VColumnIndex = FSortColumn) then
+              VLabel.InnerHTML := IfThen(FSortOrder = soAscending, '↓ ', '↑ ') + IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name)
+            else
+              VLabel.InnerHTML := IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name);
             VCell.AppendChild(VLabel);
             VValue := TJSHTMLElement(Document.CreateElement('span'));
             VValue.setAttribute('class', 'dg-value');
@@ -1229,7 +1267,7 @@ end;
 
 function TCustomDataGrid.GetViewportWidth: Integer;
 begin
-  asm Result = window.innerWidth; end;
+  Result := window.innerWidth;
 end;
 
 function TCustomDataGrid.IsColumnVisibleAtWidth(const AColumn: TDataColumn; AWidth: Integer): boolean;
@@ -1304,11 +1342,28 @@ begin
 end;
 
 procedure TCustomDataGrid.Sort;
+  var VObj: TJSObject;
+      VColIdx: NativeInt;
+      VCol: TDataColumn;
 begin
    if (Assigned(FData)) then begin
       FData.Sort(@CompareCells);
-      Changed;
+   end else if (Assigned(FDataJSon)) and (FDataJSon.Active) then begin
+      FData := TJSArray.new;
+      FDataJSon.First;
+      while not FDataJSon.Eof do begin
+        VObj := TJSObject.new;
+        for VColIdx := 0 to FColumns.Count - 1 do begin
+          VCol := FColumns[VColIdx];
+          VObj[VCol.Name] := FDataJSon.FieldByName(VCol.Name).AsString;
+        end;
+        FData.push(VObj);
+        FDataJSon.Next;
+      end;
+      FData.Sort(@CompareCells);
    end;
+   FNeedsFullRender := True;
+   Changed;
 end;
 
 procedure TCustomDataGrid.NavigateDown;
@@ -1530,12 +1585,13 @@ begin
     // Card CSS (used directly when FIsCardVisible or Breakpoint=0, inside @media otherwise)
     VCss := VCss +
       '.dg-card-container{width:100%;height:100%;overflow-y:auto;}' +
-      '.dg-card{margin:0 0 4px 0;border:1px solid #ccc;border-radius:4px;overflow:hidden;}' +
+      '.dg-card{margin:0 0 2px 0;border:1px solid #ccc;border-radius:4px;overflow:hidden;}' +
       '.dg-card.dg-active{border-color:dodgerblue;box-shadow:0 0 0 1px dodgerblue;}' +
-      '.dg-card div[dg-cell]{display:block;padding:3px 8px;border-bottom:1px solid #eee;text-align:center;}' +
+      '.dg-card div[dg-cell]{display:block;padding:1px 6px;border-bottom:1px solid #eee;text-align:left;}' +
       '.dg-card div[dg-cell]:last-child{border-bottom:none;}' +
-      '.dg-label{display:block;font-weight:bold;font-size:0.85em;color:#555;text-align:center;}' +
-      '.dg-value{display:block;word-break:break-word;text-align:center;}';
+      '.dg-label{display:inline;font-weight:bold;color:#555;margin-right:4px;cursor:pointer;}' +
+      '.dg-label::after{content:":";}' +
+      '.dg-value{display:inline;word-break:break-word;}';
     if (FResponsiveBreakpoint > 0) and not FIsCardVisible then
       VCss := VCss + '}';
   end;
