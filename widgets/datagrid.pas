@@ -781,8 +781,6 @@ begin
    if Assigned(fontouchmove) then Body.AddEventListener('touchmove', fontouchmove);
    if Assigned(fontouchcancel) then Body.AddEventListener('touchcancel', fontouchcancel);
 
-   asm console.log('[FilterBox] RenderTableBody start. FData='+(!!this.FData)+', FDataJSon='+(!!this.FDataJSon)+', FFilterBox='+this.FFilterBox+', FFilterText="'+this.FFilterText+'"'); end;
-
    if (Assigned(FData)) then begin
       VDisplayRow := 0;
       for VRowIndex := 0 to (FData.Length - 1) do begin
@@ -817,7 +815,6 @@ begin
          end;
       end;
     end else if Assigned(FDataJSon) then Begin
-       asm console.log('[FilterBox] RenderTableBody DataJSon: Active='+this.FDataJSon.Active+', Eof='+this.FDataJSon.Eof+', Columns='+this.FColumns.Count); end;
        if FDataJSon.Active then position := FDataJSon.GetBookmark;
        FDataJSon.First;
        VDisplayRow := 0;
@@ -867,7 +864,6 @@ begin
          inc(VRowIndex);
          Inc(VDisplayRow);
       end;
-      asm console.log('[FilterBox] RenderTableBody DataJSon done, VDisplayRow='+VDisplayRow); end;
       if FDataJSon.Active then FDataJSon.GotoBookmark(position);
    end;
 end;
@@ -980,8 +976,7 @@ procedure TCustomDataGrid.RenderCardBody;
 var
   VColumn: TDataColumn;
   VColumnIndex, VRowIndex, VDisplayRow: NativeInt;
-  VCard, VCell, VLabel, VValue, VFilterCard: TJSHTMLElement;
-  VFilterInput: TJSHTMLInputElement;
+  VCard, VCell, VLabel, VValue: TJSHTMLElement;
   VObject: TJSObject;
   VJSValue: JSValue;
   position: TBookmark;
@@ -989,23 +984,10 @@ var
   VViewportWidth: Integer;
 begin
    VViewportWidth := GetViewportWidth;
-   VContainer := TJSHTMLElement(HandleElement.AppendChild(Document.CreateElement('div')));
-   VContainer.setAttribute('class', 'dg-card-container');
+    VContainer := TJSHTMLElement(HandleElement.QuerySelector('.dg-card-container'));
+    if not Assigned(VContainer) then Exit;
 
-   if FFilterBox then begin
-     VFilterCard := TJSHTMLElement(Document.CreateElement('div'));
-     VFilterCard.setAttribute('class', 'dg-card dg-filter-card');
-     VFilterInput := TJSHTMLInputElement(Document.CreateElement('input'));
-     VFilterInput.setAttribute('type', 'text');
-     VFilterInput.setAttribute('placeholder', 'Filter...');
-     VFilterInput.setAttribute('value', FFilterText);
-     VFilterInput.AddEventListener('keyup', @HandleFilterInput);
-     VFilterCard.AppendChild(VFilterInput);
-     VContainer.AppendChild(VFilterCard);
-   end;
-
-   if (Assigned(FData)) then begin
-      VDisplayRow := 0;
+    if (Assigned(FData)) then begin
       for VRowIndex := 0 to (FData.Length - 1) do begin
          VJSValue := FData[VRowIndex];
          if (Assigned(VJSValue)) and (IsObject(VJSValue)) then begin
@@ -1614,10 +1596,14 @@ end;
 procedure TCustomDataGrid.Changed;
 var
   VOldBody: TJSElement;
+  VContainer, VFilterCard: TJSHTMLElement;
+  VFilterInput: TJSHTMLInputElement;
+  VIsCard: Boolean;
 begin
    inherited Changed;
    if Enabled=false then exit;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
+      VIsCard := (FResponsiveMode and (FResponsiveBreakpoint = 0)) or FIsCardVisible;
       if FNeedsFullRender then begin
          with HandleElement do begin
             InnerHTML := '';
@@ -1630,7 +1616,8 @@ begin
             // Determine initial card state for breakpoint > 0
             if FResponsiveBreakpoint > 0 then
                asm this.FIsCardVisible = (window.innerWidth < this.FResponsiveBreakpoint); end;
-            if (FResponsiveBreakpoint = 0) or FIsCardVisible then
+            VIsCard := (FResponsiveBreakpoint = 0) or FIsCardVisible;
+            if VIsCard then
                HandleElement.Style.SetProperty('display', 'block')
             else
                HandleElement.Style.SetProperty('display', 'table');
@@ -1641,19 +1628,44 @@ begin
          end;
          HandleElement.setAttribute('name', Name );
          RenderTableStyle;
-         if not ((FResponsiveMode and (FResponsiveBreakpoint = 0)) or FIsCardVisible) then
-            RenderTableHead;
+         if not VIsCard then
+            RenderTableHead
+         else begin
+           // Card mode: filter outside container (survives body-only rebuilds)
+           if FFilterBox then begin
+             VFilterCard := TJSHTMLElement(Document.CreateElement('div'));
+             VFilterCard.setAttribute('class', 'dg-card dg-filter-card');
+             VFilterInput := TJSHTMLInputElement(Document.CreateElement('input'));
+             VFilterInput.setAttribute('type', 'text');
+             VFilterInput.setAttribute('placeholder', 'Filter...');
+             VFilterInput.setAttribute('value', FFilterText);
+             VFilterInput.AddEventListener('keyup', @HandleFilterInput);
+             VFilterCard.AppendChild(VFilterInput);
+             HandleElement.AppendChild(VFilterCard);
+           end;
+           VContainer := TJSHTMLElement(Document.CreateElement('div'));
+           VContainer.setAttribute('class', 'dg-card-container');
+           HandleElement.AppendChild(VContainer);
+         end;
          FNeedsFullRender := False;
       end else begin
-         VOldBody := HandleElement.QuerySelector('tbody,.dg-card-container');
+         if VIsCard then
+           VOldBody := HandleElement.QuerySelector('.dg-card-container')
+         else
+           VOldBody := HandleElement.QuerySelector('tbody');
          if Assigned(VOldBody) then
             HandleElement.RemoveChild(VOldBody);
+         if VIsCard then begin
+           VContainer := TJSHTMLElement(Document.CreateElement('div'));
+           VContainer.setAttribute('class', 'dg-card-container');
+           HandleElement.AppendChild(VContainer);
+         end;
       end;
-      if (FResponsiveMode and (FResponsiveBreakpoint = 0)) or FIsCardVisible then
+      if VIsCard then
          RenderCardBody
       else
          RenderTableBody;
-      if (Focused) and not ((FResponsiveMode and (FResponsiveBreakpoint = 0)) or FIsCardVisible) then begin
+      if (Focused) and not VIsCard then begin
          FActiveCell := SelectCell(FSortColumn, 0);
          if (Assigned(FActiveCell)) then FActiveCell.Click;
       end;
