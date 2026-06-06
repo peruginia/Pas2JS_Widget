@@ -1834,9 +1834,8 @@ begin
    inherited Changed;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
       with HandleElement do begin
-         /// Normalize
-         Style.SetProperty('padding', '0');
-         /// Caption
+         Style.SetProperty('padding', '6px 16px');
+         Style.SetProperty('border-radius', '4px');
          InnerHTML := Self.Caption;
       end;
       HandleElement.setAttribute('name', Name );
