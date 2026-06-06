@@ -781,6 +781,8 @@ begin
    if Assigned(fontouchmove) then Body.AddEventListener('touchmove', fontouchmove);
    if Assigned(fontouchcancel) then Body.AddEventListener('touchcancel', fontouchcancel);
 
+   asm console.log('[FilterBox] RenderTableBody start. FData='+(!!this.FData)+', FDataJSon='+(!!this.FDataJSon)+', FFilterBox='+this.FFilterBox+', FFilterText="'+this.FFilterText+'"'); end;
+
    if (Assigned(FData)) then begin
       VDisplayRow := 0;
       for VRowIndex := 0 to (FData.Length - 1) do begin
@@ -814,24 +816,25 @@ begin
             Inc(VDisplayRow);
          end;
       end;
-   end else if Assigned(FDataJSon) then Begin
-      if FDataJSon.Active then position := FDataJSon.GetBookmark;
-      FDataJSon.First;
-      VDisplayRow := 0;
-      VRowIndex:=0;
-      while not FDataJSon.eof do begin
-         if FFilterText <> '' then begin
-           VObject := TJSObject.new;
-           for VColumnIndex := 0 to (FColumns.Count - 1) do begin
-             VColumn := FColumns[VColumnIndex];
-             VObject[VColumn.Name] := FDataJSon.FieldByName(VColumn.name).AsString;
-           end;
-           if not FilterMatchesRow(VObject) then begin
-             FDataJSon.Next;
-             inc(VRowIndex);
-             continue;
-           end;
-         end;
+    end else if Assigned(FDataJSon) then Begin
+       asm console.log('[FilterBox] RenderTableBody DataJSon: Active='+this.FDataJSon.Active+', Eof='+this.FDataJSon.Eof+', Columns='+this.FColumns.Count); end;
+       if FDataJSon.Active then position := FDataJSon.GetBookmark;
+       FDataJSon.First;
+       VDisplayRow := 0;
+       VRowIndex:=0;
+       while not FDataJSon.eof do begin
+          if FFilterText <> '' then begin
+            VObject := TJSObject.new;
+            for VColumnIndex := 0 to (FColumns.Count - 1) do begin
+              VColumn := FColumns[VColumnIndex];
+              VObject[VColumn.Name] := FDataJSon.FieldByName(VColumn.name).AsString;
+            end;
+            if not FilterMatchesRow(VObject) then begin
+              FDataJSon.Next;
+              inc(VRowIndex);
+              continue;
+            end;
+          end;
 
          If Assigned(fOnAddSeparator) then begin
             Separator:='';
@@ -864,6 +867,7 @@ begin
          inc(VRowIndex);
          Inc(VDisplayRow);
       end;
+      asm console.log('[FilterBox] RenderTableBody DataJSon done, VDisplayRow='+VDisplayRow); end;
       if FDataJSon.Active then FDataJSon.GotoBookmark(position);
    end;
 end;
