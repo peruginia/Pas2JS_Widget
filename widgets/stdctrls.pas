@@ -1829,13 +1829,44 @@ begin
   end;
 end;
 
+var
+  _WCLBtnStyleInjected: Boolean;
+
+procedure InjectWCLBtnStyle;
+var
+  VStyle: TJSHTMLElement;
+begin
+  if _WCLBtnStyleInjected then Exit;
+  VStyle := TJSHTMLElement(Document.CreateElement('style'));
+  VStyle.setAttribute('type', 'text/css');
+  VStyle.InnerHTML :=
+    '.wcl-btn{' +
+    'padding:6px 16px;' +
+    'border-radius:4px;' +
+    'border:1px solid #888;' +
+    'background-color:#f0f0f0;' +
+    'color:#333;' +
+    'cursor:pointer;' +
+    'font-family:inherit;' +
+    'font-size:inherit;' +
+    'line-height:1.4;' +
+    'transition:background-color 0.15s,border-color 0.15s;}' +
+    '.wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}' +
+    '.wcl-btn:active{background-color:#d0d0d0;border-color:#555;}' +
+    '.wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}';
+  Document.Head.AppendChild(VStyle);
+  _WCLBtnStyleInjected := True;
+end;
+
 procedure TCustomButton.Changed;
 begin
    inherited Changed;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
+      if (HandleClass = '') then begin
+         InjectWCLBtnStyle;
+         asm this.FHandleElement.classList.add('wcl-btn'); end;
+      end;
       with HandleElement do begin
-         Style.SetProperty('padding', '6px 16px');
-         Style.SetProperty('border-radius', '4px');
          InnerHTML := Self.Caption;
       end;
       HandleElement.setAttribute('name', Name );
