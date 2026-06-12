@@ -523,6 +523,45 @@ begin
   AutoSize := True;
 end;
 
+var
+  _WCLStdStyleInjected: Boolean;
+
+procedure InjectWCLStdStyle;
+var
+  VStyle: TJSHTMLElement;
+begin
+  if _WCLStdStyleInjected then Exit;
+  VStyle := TJSHTMLElement(Document.CreateElement('style'));
+  VStyle.setAttribute('type', 'text/css');
+  VStyle.InnerHTML :=
+    '.wcl-btn{' +
+    'padding:6px 16px;' +
+    'border-radius:4px;' +
+    'border:1px solid #888;' +
+    'background-color:#f0f0f0;' +
+    'color:#333;' +
+    'cursor:pointer;' +
+    'font-family:inherit;' +
+    'font-size:inherit;' +
+    'line-height:1.4;' +
+    'transition:background-color 0.15s,border-color 0.15s;}' +
+    '.wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}' +
+    '.wcl-btn:active{background-color:#d0d0d0;border-color:#555;}' +
+    '.wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}' +
+    '.wcl-input,input.wcl-input,textarea.wcl-input,select.wcl-input{' +
+    'padding:6px 8px;' +
+    'border-radius:4px;' +
+    'border:1px solid #888;' +
+    'font-family:inherit;' +
+    'font-size:inherit;' +
+    'background-color:#fff;' +
+    'box-sizing:border-box;}' +
+    '.wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}' +
+    '.wcl-input:disabled{opacity:0.5;}';
+  Document.Head.AppendChild(VStyle);
+  _WCLStdStyleInjected := True;
+end;
+
 { TCustomComboBox }
 
 procedure TCustomComboBox.SetDropDownCount(AValue: integer);
@@ -1839,45 +1878,6 @@ begin
   begin
     FDefault := AValue;
   end;
-end;
-
-var
-  _WCLStdStyleInjected: Boolean;
-
-procedure InjectWCLStdStyle;
-var
-  VStyle: TJSHTMLElement;
-begin
-  if _WCLStdStyleInjected then Exit;
-  VStyle := TJSHTMLElement(Document.CreateElement('style'));
-  VStyle.setAttribute('type', 'text/css');
-  VStyle.InnerHTML :=
-    '.wcl-btn{' +
-    'padding:6px 16px;' +
-    'border-radius:4px;' +
-    'border:1px solid #888;' +
-    'background-color:#f0f0f0;' +
-    'color:#333;' +
-    'cursor:pointer;' +
-    'font-family:inherit;' +
-    'font-size:inherit;' +
-    'line-height:1.4;' +
-    'transition:background-color 0.15s,border-color 0.15s;}' +
-    '.wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}' +
-    '.wcl-btn:active{background-color:#d0d0d0;border-color:#555;}' +
-    '.wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}' +
-    '.wcl-input,input.wcl-input,textarea.wcl-input,select.wcl-input{' +
-    'padding:6px 8px;' +
-    'border-radius:4px;' +
-    'border:1px solid #888;' +
-    'font-family:inherit;' +
-    'font-size:inherit;' +
-    'background-color:#fff;' +
-    'box-sizing:border-box;}' +
-    '.wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}' +
-    '.wcl-input:disabled{opacity:0.5;}';
-  Document.Head.AppendChild(VStyle);
-  _WCLStdStyleInjected := True;
 end;
 
 procedure TCustomButton.Changed;
