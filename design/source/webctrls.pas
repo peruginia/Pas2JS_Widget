@@ -691,6 +691,7 @@ type
   published
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
+    property OnShowPage;
   end;
 
   { TWFloatEdit }
@@ -716,6 +717,8 @@ type
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
+    property MaxValue;
+    property MinValue;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
@@ -769,6 +772,8 @@ type
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
+    property MaxValue;
+    property MinValue;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;

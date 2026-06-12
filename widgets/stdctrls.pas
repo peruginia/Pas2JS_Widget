@@ -1223,7 +1223,6 @@ begin
       VText := Copy(VText, 1, MaxLength);
     end;
     RealSetText(VText);
-    { TODO: SelStart and SelLength }
   end;
 end;
 

@@ -534,6 +534,7 @@ type
     property OnMouseMove;
     property OnMouseUp;
     property OnMouseWheel;
+    property OnShowPage;
   end;
 
   { TWFloatEdit }
@@ -557,6 +558,8 @@ type
     property Font;  
     property HandleClass;
     property HandleId;
+    property MaxValue;
+    property MinValue;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;

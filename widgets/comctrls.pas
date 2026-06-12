@@ -92,9 +92,9 @@ type
   { TCustomPageControl }
 
   TCustomPageControl = class(TWinControl)
-    { TODO: Add event on show page }
   private
     FMultiLine: boolean;
+    FOnShowPage: TNotifyEvent;
     FPageIndex: NativeInt;
     FPages: TJSArray;
     FShowTabs: boolean;
@@ -134,6 +134,7 @@ type
     procedure TabLeftClick(AEvent: TJSMouseEvent); virtual;
     procedure TabRightClick(AEvent: TJSMouseEvent); virtual;
     procedure UpdatePages; virtual;
+    procedure DoShowPage; virtual;
   protected
     class function GetControlClassDefaultSize: TSize; override;
   public
@@ -150,6 +151,7 @@ type
     property TabHeight: smallint read FTabHeight write SetTabHeight;
     property TabPosition: TTabPosition read FTabPosition write SetTabPosition;
     property TabWidth: smallint read FTabWidth write SetTabWidth;
+    property OnShowPage: TNotifyEvent read FOnShowPage write FOnShowPage;
   end;
 
 implementation
@@ -273,6 +275,7 @@ begin
   begin
     FPageIndex := AValue;
     Changed;
+    DoShowPage;
   end;
 end;
 
@@ -708,6 +711,12 @@ begin
       end;
     end;
   end;
+end;
+
+procedure TCustomPageControl.DoShowPage;
+begin
+  if Assigned(FOnShowPage) then
+    FOnShowPage(Self);
 end;
 
 class function TCustomPageControl.GetControlClassDefaultSize: TSize;
