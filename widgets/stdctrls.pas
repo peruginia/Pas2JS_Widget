@@ -543,7 +543,9 @@ begin
     'cursor:pointer;' +
     'font-family:inherit;' +
     'font-size:inherit;' +
-    'line-height:1.4;' +
+    'display:inline-flex;' +
+    'align-items:center;' +
+    'justify-content:center;' +
     'transition:background-color 0.15s,border-color 0.15s;}' +
     '.wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}' +
     '.wcl-btn:active{background-color:#d0d0d0;border-color:#555;}' +
@@ -1889,6 +1891,7 @@ begin
          asm this.FHandleElement.classList.add('wcl-btn'); end;
       end;
       with HandleElement do begin
+         Style.SetProperty('display', 'inline-flex');
          InnerHTML := Self.Caption;
       end;
       HandleElement.setAttribute('name', Name );
