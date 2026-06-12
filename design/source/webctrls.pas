@@ -691,34 +691,11 @@ type
   published
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
-    property OnShowPage;
   end;
 
   { TWGroupBox }
 
   TWGroupBox = class(TCustomGroupBox)
-  private
-    FHandleClass: string;
-    FHandleId: string;
-  published
-    property HandleClass: string read FHandleClass write FHandleClass;
-    property HandleId: string read FHandleId write FHandleId;
-  end;
-
-  { TWScrollBox }
-
-  TWScrollBox = class(TCustomScrollBox)
-  private
-    FHandleClass: string;
-    FHandleId: string;
-  published
-    property HandleClass: string read FHandleClass write FHandleClass;
-    property HandleId: string read FHandleId write FHandleId;
-  end;
-
-  { TWProgressBar }
-
-  TWProgressBar = class(TCustomProgressBar)
   private
     FHandleClass: string;
     FHandleId: string;
@@ -1118,9 +1095,7 @@ begin
     TWPagination,
     TWStringGrid,
     TWWebSocketClient,
-    TWGroupBox,
-    TWScrollBox,
-    TWProgressBar
+    TWGroupBox
     ]);
 end;
 
