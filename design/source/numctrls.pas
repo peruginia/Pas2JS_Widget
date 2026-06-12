@@ -38,10 +38,12 @@ type
   { TCustomNumericEdit }
 
   TCustomNumericEdit = class(TCustomEdit)
-    { TODO: Max Min value }
-    { TODO: Add spin }
   private
     FDecimals: NativeInt;
+    FMaxValue: Double;
+    FMinValue: Double;
+    procedure SetMaxValue(AValue: Double);
+    procedure SetMinValue(AValue: Double);
   protected
     procedure DoEnter; override;
     procedure DoExit; override;
@@ -49,6 +51,8 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     property DecimalPlaces: NativeInt read FDecimals write FDecimals;
+    property MaxValue: Double read FMaxValue write SetMaxValue;
+    property MinValue: Double read FMinValue write SetMinValue;
   end;
 
 implementation
@@ -92,6 +96,28 @@ begin
   inherited Create(AOwner);
   Alignment := taRightJustify;
   FDecimals := 2;
+  FMaxValue := 0;
+  FMinValue := 0;
+end;
+
+procedure TCustomNumericEdit.SetMaxValue(AValue: Double);
+begin
+  if FMaxValue <> AValue then
+  begin
+    FMaxValue := AValue;
+    if (FMinValue <> 0) and (FMaxValue <> 0) and (FMinValue > FMaxValue) then
+      FMinValue := FMaxValue;
+  end;
+end;
+
+procedure TCustomNumericEdit.SetMinValue(AValue: Double);
+begin
+  if FMinValue <> AValue then
+  begin
+    FMinValue := AValue;
+    if (FMinValue <> 0) and (FMaxValue <> 0) and (FMinValue > FMaxValue) then
+      FMaxValue := FMinValue;
+  end;
 end;
 
 end.
