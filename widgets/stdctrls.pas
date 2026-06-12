@@ -597,6 +597,10 @@ begin
   inherited Changed;
   if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
+    if (HandleClass = '') then begin
+      InjectWCLStdStyle;
+      asm this.FHandleElement.classList.add('wcl-input'); end;
+    end;
     HandleElement.setAttribute('name', Name );
 
     /// Remove old items
@@ -1226,6 +1230,10 @@ procedure TCustomEdit.Changed;
 begin
    inherited Changed;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
+      if (HandleClass = '') then begin
+         InjectWCLStdStyle;
+         asm this.FHandleElement.classList.add('wcl-input'); end;
+      end;
       TJSHTMLInputElement(HandleElement).Name := Name;
       with TJSHTMLInputElement(HandleElement) do begin
          /// Alignment
@@ -1647,6 +1655,10 @@ procedure TCustomMemo.Changed;
 begin
    inherited Changed;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
+      if (HandleClass = '') then begin
+         InjectWCLStdStyle;
+         asm this.FHandleElement.classList.add('wcl-input'); end;
+      end;
       with TJSHTMLTextAreaElement(HandleElement) do begin
          /// Alignment
          case Alignment of
@@ -1830,13 +1842,13 @@ begin
 end;
 
 var
-  _WCLBtnStyleInjected: Boolean;
+  _WCLStdStyleInjected: Boolean;
 
-procedure InjectWCLBtnStyle;
+procedure InjectWCLStdStyle;
 var
   VStyle: TJSHTMLElement;
 begin
-  if _WCLBtnStyleInjected then Exit;
+  if _WCLStdStyleInjected then Exit;
   VStyle := TJSHTMLElement(Document.CreateElement('style'));
   VStyle.setAttribute('type', 'text/css');
   VStyle.InnerHTML :=
@@ -1853,9 +1865,19 @@ begin
     'transition:background-color 0.15s,border-color 0.15s;}' +
     '.wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}' +
     '.wcl-btn:active{background-color:#d0d0d0;border-color:#555;}' +
-    '.wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}';
+    '.wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}' +
+    '.wcl-input,input.wcl-input,textarea.wcl-input,select.wcl-input{' +
+    'padding:6px 8px;' +
+    'border-radius:4px;' +
+    'border:1px solid #888;' +
+    'font-family:inherit;' +
+    'font-size:inherit;' +
+    'background-color:#fff;' +
+    'box-sizing:border-box;}' +
+    '.wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}' +
+    '.wcl-input:disabled{opacity:0.5;}';
   Document.Head.AppendChild(VStyle);
-  _WCLBtnStyleInjected := True;
+  _WCLStdStyleInjected := True;
 end;
 
 procedure TCustomButton.Changed;
@@ -1863,7 +1885,7 @@ begin
    inherited Changed;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
       if (HandleClass = '') then begin
-         InjectWCLBtnStyle;
+         InjectWCLStdStyle;
          asm this.FHandleElement.classList.add('wcl-btn'); end;
       end;
       with HandleElement do begin
@@ -2157,6 +2179,8 @@ begin
       Style.SetProperty('-ms-user-select', 'none');
       Style.SetProperty('-khtml-user-select', 'none');
       Style.SetProperty('-webkit-user-select', 'none');
+      /// Text wrapping
+      Style.SetProperty('word-break', 'break-word');
       if AutoSize then begin
         Style.removeProperty('height');
         Style.removeProperty('width');

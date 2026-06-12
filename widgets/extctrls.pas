@@ -882,6 +882,24 @@ begin
    end;
 end;
 
+var
+  _WCLExtStyleInjected: Boolean;
+
+procedure InjectWCLExtStyle;
+var
+  VStyle: TJSHTMLElement;
+begin
+  if _WCLExtStyleInjected then Exit;
+  VStyle := TJSHTMLElement(Document.CreateElement('style'));
+  VStyle.setAttribute('type', 'text/css');
+  VStyle.InnerHTML :=
+    '.wcl-panel{' +
+    'border-radius:4px;' +
+    'overflow:hidden;}';
+  Document.Head.AppendChild(VStyle);
+  _WCLExtStyleInjected := True;
+end;
+
 { TCustomPanel }
 
 procedure TCustomPanel.SetOntouchStart(AValue : TJSTouchEventHandler);
@@ -1000,6 +1018,10 @@ procedure TCustomPanel.Changed;
 begin
    inherited Changed;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
+      if (HandleClass = '') then begin
+         InjectWCLExtStyle;
+         asm this.FHandleElement.classList.add('wcl-panel'); end;
+      end;
       HandleElement.name := Name;
       with HandleElement do begin
          /// Bevel/Border
