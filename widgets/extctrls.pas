@@ -33,6 +33,7 @@ uses
   SysUtils,
   Types,
   Web,
+  WebExtra,
   Graphics,
   Controls;
 
@@ -256,6 +257,54 @@ type
     property OnError: TNotifyEvent read fOnError write fOnError;
     property OnMessage: TNotifyWebSocketMessage read fOnMessage write fOnMessage;
     property OnOpen: TNotifyEvent read fOnOpen write fOnOpen;
+  end;
+
+  { TCustomGroupBox }
+
+  TCustomGroupBox = class(TCustomControl)
+  private
+    FLegendElement: TJSHTMLElement;
+  protected
+    procedure Changed; override;
+    function CreateHandleElement: TJSHTMLElement; override;
+  protected
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+  end;
+
+  { TCustomScrollBox }
+
+  TCustomScrollBox = class(TCustomControl)
+  protected
+    procedure Changed; override;
+    function CreateHandleElement: TJSHTMLElement; override;
+  protected
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+  end;
+
+  { TCustomProgressBar }
+
+  TCustomProgressBar = class(TCustomControl)
+  private
+    FMax: NativeInt;
+    FMin: NativeInt;
+    FValue: NativeInt;
+    procedure SetMax(AValue: NativeInt);
+    procedure SetMin(AValue: NativeInt);
+    procedure SetValue(AValue: NativeInt);
+  protected
+    procedure Changed; override;
+    function CreateHandleElement: TJSHTMLElement; override;
+  protected
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    property Max: NativeInt read FMax write SetMax default 100;
+    property Min: NativeInt read FMin write SetMin default 0;
+    property Value: NativeInt read FValue write SetValue default 0;
   end;
 
 implementation
@@ -1117,6 +1166,161 @@ begin
     end;
   finally
     EndUpdate;
+  end;
+end;
+
+{ TCustomGroupBox }
+
+constructor TCustomGroupBox.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  BeginUpdate;
+  try
+    TabStop := False;
+    with GetControlClassDefaultSize do
+      SetBounds(0, 0, Cx, Cy);
+  finally
+    EndUpdate;
+  end;
+end;
+
+class function TCustomGroupBox.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 200;
+  Result.Cy := 150;
+end;
+
+function TCustomGroupBox.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('fieldset'));
+  FLegendElement := TJSHTMLElement(Document.CreateElement('legend'));
+  Result.AppendChild(FLegendElement);
+end;
+
+procedure TCustomGroupBox.Changed;
+begin
+  inherited Changed;
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+  begin
+    HandleElement.setAttribute('name', Name);
+    FLegendElement.InnerHTML := Self.Caption;
+  end;
+end;
+
+{ TCustomScrollBox }
+
+constructor TCustomScrollBox.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  BeginUpdate;
+  try
+    TabStop := False;
+    with GetControlClassDefaultSize do
+      SetBounds(0, 0, Cx, Cy);
+  finally
+    EndUpdate;
+  end;
+end;
+
+class function TCustomScrollBox.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 200;
+  Result.Cy := 200;
+end;
+
+function TCustomScrollBox.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('div'));
+end;
+
+procedure TCustomScrollBox.Changed;
+begin
+  inherited Changed;
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+  begin
+    HandleElement.setAttribute('name', Name);
+    HandleElement.Style.SetProperty('overflow', 'auto');
+  end;
+end;
+
+{ TCustomProgressBar }
+
+constructor TCustomProgressBar.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FMin := 0;
+  FMax := 100;
+  FValue := 0;
+  BeginUpdate;
+  try
+    with GetControlClassDefaultSize do
+      SetBounds(0, 0, Cx, Cy);
+  finally
+    EndUpdate;
+  end;
+end;
+
+class function TCustomProgressBar.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 150;
+  Result.Cy := 20;
+end;
+
+function TCustomProgressBar.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('progress'));
+end;
+
+procedure TCustomProgressBar.Changed;
+begin
+  inherited Changed;
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+  begin
+    HandleElement.setAttribute('name', Name);
+    with TJSHTMLProgressElement(HandleElement) do
+    begin
+      max := FMax;
+      value := FValue;
+    end;
+  end;
+end;
+
+procedure TCustomProgressBar.SetMax(AValue: NativeInt);
+begin
+  if FMax <> AValue then
+  begin
+    if AValue < FMin then
+      AValue := FMin;
+    FMax := AValue;
+    if FValue > FMax then
+      FValue := FMax;
+    Changed;
+  end;
+end;
+
+procedure TCustomProgressBar.SetMin(AValue: NativeInt);
+begin
+  if FMin <> AValue then
+  begin
+    if AValue > FMax then
+      AValue := FMax;
+    FMin := AValue;
+    if FValue < FMin then
+      FValue := FMin;
+    Changed;
+  end;
+end;
+
+procedure TCustomProgressBar.SetValue(AValue: NativeInt);
+begin
+  if AValue < FMin then
+    AValue := FMin;
+  if AValue > FMax then
+    AValue := FMax;
+  if FValue <> AValue then
+  begin
+    FValue := AValue;
+    Changed;
   end;
 end;
 

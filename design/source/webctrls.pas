@@ -694,6 +694,39 @@ type
     property OnShowPage;
   end;
 
+  { TWGroupBox }
+
+  TWGroupBox = class(TCustomGroupBox)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
+  { TWScrollBox }
+
+  TWScrollBox = class(TCustomScrollBox)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
+  { TWProgressBar }
+
+  TWProgressBar = class(TCustomProgressBar)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)
@@ -1084,7 +1117,10 @@ begin
     TWDataGrid,
     TWPagination,
     TWStringGrid,
-    TWWebSocketClient
+    TWWebSocketClient,
+    TWGroupBox,
+    TWScrollBox,
+    TWProgressBar
     ]);
 end;
 

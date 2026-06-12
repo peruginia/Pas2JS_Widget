@@ -537,6 +537,94 @@ type
     property OnShowPage;
   end;
 
+  { TWGroupBox }
+
+  TWGroupBox = class(TCustomGroupBox)
+  published
+    property Align;
+    property Anchors;
+    property BorderSpacing;
+    property Caption;
+    property Color;
+    property Enabled;
+    property Font;
+    property HandleClass;
+    property HandleId;
+    property ParentFont;
+    property ParentShowHint;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Visible;
+    property OnEnter;
+    property OnExit;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+  end;
+
+  { TWScrollBox }
+
+  TWScrollBox = class(TCustomScrollBox)
+  published
+    property Align;
+    property Anchors;
+    property BorderSpacing;
+    property Color;
+    property Enabled;
+    property Font;
+    property HandleClass;
+    property HandleId;
+    property ParentFont;
+    property ParentShowHint;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Visible;
+    property OnEnter;
+    property OnExit;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+  end;
+
+  { TWProgressBar }
+
+  TWProgressBar = class(TCustomProgressBar)
+  published
+    property Align;
+    property Anchors;
+    property BorderSpacing;
+    property Color;
+    property Enabled;
+    property Font;
+    property HandleClass;
+    property HandleId;
+    property Max;
+    property Min;
+    property ParentFont;
+    property ParentShowHint;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Value;
+    property Visible;
+    property OnEnter;
+    property OnExit;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)

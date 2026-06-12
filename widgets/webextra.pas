@@ -105,6 +105,15 @@ type
     property willValidate : boolean read FWillValidate;
   end;
 
+  { TJSHTMLProgressElement }
+
+  TJSHTMLProgressElement = class external name 'HTMLProgressElement' (TJSHTMLElement)
+  public
+    max: NativeInt;
+    position: Double;
+    value: NativeInt;
+  end;
+
 implementation
 
 end.
