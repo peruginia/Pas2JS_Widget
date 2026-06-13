@@ -43,6 +43,7 @@ uses
   BtnCtrls,
   DataGrid,
   CustomTimer,
+  ExtCtrls,
   Grids,
   websocket;
 
@@ -704,6 +705,28 @@ type
     property HandleId: string read FHandleId write FHandleId;
   end;
 
+  { TWScrollBox }
+
+  TWScrollBox = class(TCustomScrollBox)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
+  { TWProgressBar }
+
+  TWProgressBar = class(TCustomProgressBar)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)
@@ -1095,7 +1118,9 @@ begin
     TWPagination,
     TWStringGrid,
     TWWebSocketClient,
-    TWGroupBox
+    TWGroupBox,
+    TWScrollBox,
+    TWProgressBar
     ]);
 end;
 
