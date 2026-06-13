@@ -43,9 +43,9 @@ uses
   BtnCtrls,
   DataGrid,
   CustomTimer,
-  ExtCtrls,
   Grids,
-  websocket;
+  websocket,
+  WCLExtCtrls;
 
 type
   TJSTouch = class
