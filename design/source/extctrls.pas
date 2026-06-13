@@ -62,7 +62,7 @@ type
 implementation
 
 uses
-  LCLType;
+  LCLType, Types;
 
 { TCustomScrollBox }
 
