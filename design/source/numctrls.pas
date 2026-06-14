@@ -40,8 +40,10 @@ type
   TCustomNumericEdit = class(TCustomEdit)
   private
     FDecimals: NativeInt;
+    FIncrement: Double;
     FMaxValue: Double;
     FMinValue: Double;
+    procedure SetIncrement(AValue: Double);
     procedure SetMaxValue(AValue: Double);
     procedure SetMinValue(AValue: Double);
   protected
@@ -51,6 +53,7 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     property DecimalPlaces: NativeInt read FDecimals write FDecimals;
+    property Increment: Double read FIncrement write SetIncrement;
     property MaxValue: Double read FMaxValue write SetMaxValue;
     property MinValue: Double read FMinValue write SetMinValue;
   end;
@@ -96,8 +99,15 @@ begin
   inherited Create(AOwner);
   Alignment := taRightJustify;
   FDecimals := 2;
+  FIncrement := 1;
   FMaxValue := 0;
   FMinValue := 0;
+end;
+
+procedure TCustomNumericEdit.SetIncrement(AValue: Double);
+begin
+  if (FIncrement <> AValue) and (AValue > 0) then
+    FIncrement := AValue;
 end;
 
 procedure TCustomNumericEdit.SetMaxValue(AValue: Double);

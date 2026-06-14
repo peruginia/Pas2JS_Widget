@@ -43,8 +43,10 @@ type
   TCustomNumericEdit = class(TCustomEdit)
   private
     FDecimals: NativeInt;
+    FIncrement: Double;
     FMaxValue: Double;
     FMinValue: Double;
+    procedure SetIncrement(AValue: Double);
     procedure SetMaxValue(AValue: Double);
     procedure SetMinValue(AValue: Double);
   protected
@@ -52,10 +54,12 @@ type
     procedure DoExit; override;
     procedure DoInput(ANewValue: string); override;
   protected
+    function InputType: string; override;
     procedure Changed; override;
   public
     constructor Create(AOwner: TComponent); override;
     property DecimalPlaces: NativeInt read FDecimals write FDecimals default 2;
+    property Increment: Double read FIncrement write SetIncrement;
     property MaxValue: Double read FMaxValue write SetMaxValue;
     property MinValue: Double read FMinValue write SetMinValue;
   end;
@@ -119,7 +123,12 @@ begin
   begin
     with TJSHTMLInputElement(HandleElement) do
     begin
-      InputMode := 'numeric';
+      if FIncrement > 0 then
+        asm this.FHandleElement.step = this.FIncrement; end;
+      if FMinValue <> 0 then
+        asm this.FHandleElement.min = this.FMinValue; end;
+      if FMaxValue <> 0 then
+        asm this.FHandleElement.max = this.FMaxValue; end;
     end;
   end;
 end;
@@ -128,6 +137,7 @@ constructor TCustomNumericEdit.Create(AOwner: TComponent);
 begin
    inherited Create(AOwner);
    FDecimals := 2;
+   FIncrement := 1;
    FMaxValue := 0;
    FMinValue := 0;
    BeginUpdate;
@@ -136,6 +146,20 @@ begin
    finally
       EndUpdate;
    end;
+end;
+
+procedure TCustomNumericEdit.SetIncrement(AValue: Double);
+begin
+  if (FIncrement <> AValue) and (AValue > 0) then
+  begin
+    FIncrement := AValue;
+    Changed;
+  end;
+end;
+
+function TCustomNumericEdit.InputType: string;
+begin
+  Result := 'number';
 end;
 
 procedure TCustomNumericEdit.SetMaxValue(AValue: Double);
