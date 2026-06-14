@@ -55,17 +55,6 @@ type
     property MinValue: Double read FMinValue write SetMinValue;
   end;
 
-  { TCustomSpinEdit }
-
-  TCustomSpinEdit = class(TCustomNumericEdit)
-  private
-    FIncrement: Double;
-    procedure SetIncrement(AValue: Double);
-  public
-    constructor Create(AOwner: TComponent); override;
-    property Increment: Double read FIncrement write SetIncrement;
-  end;
-
 implementation
 
 { TCustomNumericEdit }
@@ -129,20 +118,6 @@ begin
     if (FMinValue <> 0) and (FMaxValue <> 0) and (FMinValue > FMaxValue) then
       FMaxValue := FMinValue;
   end;
-end;
-
-{ TCustomSpinEdit }
-
-constructor TCustomSpinEdit.Create(AOwner: TComponent);
-begin
-  inherited Create(AOwner);
-  FIncrement := 1;
-end;
-
-procedure TCustomSpinEdit.SetIncrement(AValue: Double);
-begin
-  if (FIncrement <> AValue) and (AValue > 0) then
-    FIncrement := AValue;
 end;
 
 end.

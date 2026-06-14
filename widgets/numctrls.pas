@@ -60,20 +60,6 @@ type
     property MinValue: Double read FMinValue write SetMinValue;
   end;
 
-  { TCustomSpinEdit }
-
-  TCustomSpinEdit = class(TCustomNumericEdit)
-  private
-    FIncrement: Double;
-    procedure SetIncrement(AValue: Double);
-  protected
-    function InputType: string; override;
-    procedure Changed; override;
-  public
-    constructor Create(AOwner: TComponent); override;
-    property Increment: Double read FIncrement write SetIncrement;
-  end;
-
 implementation
 
 { TCustomNumericEdit }
@@ -169,45 +155,6 @@ begin
     FMinValue := AValue;
     if (FMinValue <> 0) and (FMaxValue <> 0) and (FMinValue > FMaxValue) then
       FMaxValue := FMinValue;
-  end;
-end;
-
-{ TCustomSpinEdit }
-
-constructor TCustomSpinEdit.Create(AOwner: TComponent);
-begin
-  inherited Create(AOwner);
-  FIncrement := 1;
-end;
-
-function TCustomSpinEdit.InputType: string;
-begin
-  Result := 'number';
-end;
-
-procedure TCustomSpinEdit.Changed;
-begin
-  inherited Changed;
-  if (not IsUpdating) and not (csLoading in ComponentState) then
-  begin
-    with TJSHTMLInputElement(HandleElement) do
-    begin
-      if FIncrement > 0 then
-        asm this.FHandleElement.step = this.FIncrement; end;
-      if FMinValue <> 0 then
-        asm this.FHandleElement.min = this.FMinValue; end;
-      if FMaxValue <> 0 then
-        asm this.FHandleElement.max = this.FMaxValue; end;
-    end;
-  end;
-end;
-
-procedure TCustomSpinEdit.SetIncrement(AValue: Double);
-begin
-  if (FIncrement <> AValue) and (AValue > 0) then
-  begin
-    FIncrement := AValue;
-    Changed;
   end;
 end;
 

@@ -728,56 +728,6 @@ type
     property OnResize;
   end;
 
-  { TWSpinEdit }
-
-  TWSpinEdit = class(TCustomSpinEdit)
-  private
-    function GetValue: Double;
-    procedure SetValue(AValue: Double);
-  published
-    property Align;
-    property Alignment;
-    property Anchors;
-    property AutoSize;
-    property BorderSpacing;
-    property BorderStyle;
-    property Color;
-    property DecimalPlaces;
-    property Enabled;
-    property Font;
-    property HandleClass;
-    property HandleId;
-    property Increment;
-    property MaxValue;
-    property MinValue;
-    property ParentColor;
-    property ParentFont;
-    property ParentShowHint;
-    property ReadOnly;
-    property ShowHint;
-    property TabStop;
-    property TabOrder;
-    property Text;
-    property TextHint;
-    property Value: Double read GetValue write SetValue;
-    property Visible;
-    property OnChange;
-    property OnClick;
-    property OnDblClick;
-    property OnEnter;
-    property OnExit;
-    property OnKeyDown;
-    property OnKeyPress;
-    property OnKeyUp;
-    property OnMouseDown;
-    property OnMouseEnter;
-    property OnMouseLeave;
-    property OnMouseMove;
-    property OnMouseUp;
-    property OnMouseWheel;
-    property OnResize;
-  end;
-
   { TWDateEditBox }
 
   TWDateEditBox = class(TCustomDateTimeEdit)
@@ -1053,18 +1003,6 @@ begin
   finally
     EndUpdate;
   end;
-end;
-
-{ TWSpinEdit }
-
-function TWSpinEdit.GetValue: Double;
-begin
-  Result := StrToFloatDef(RealGetText, 0);
-end;
-
-procedure TWSpinEdit.SetValue(AValue: Double);
-begin
-  RealSetText(FloatToStrF(AValue, ffFixed, 20, DecimalPlaces));
 end;
 
 { TWDateEditBox }
