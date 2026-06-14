@@ -932,21 +932,17 @@ begin
 end;
 
 var
-  _WCLExtStyleInjected: Boolean;
+  _WCLExtRulesRegistered: Boolean;
 
-procedure InjectWCLExtStyle;
-var
-  VStyle: TJSHTMLElement;
+procedure _RegisterWCLExtRules;
 begin
-  if _WCLExtStyleInjected then Exit;
-  VStyle := TJSHTMLElement(Document.CreateElement('style'));
-  VStyle.setAttribute('type', 'text/css');
-  VStyle.InnerHTML :=
+  if _WCLExtRulesRegistered then Exit;
+  RegisterWCLStyle(
     '.wcl-panel{' +
     'border-radius:4px;' +
-    'overflow:hidden;}';
-  Document.Head.AppendChild(VStyle);
-  _WCLExtStyleInjected := True;
+    'overflow:hidden;}'
+  );
+  _WCLExtRulesRegistered := True;
 end;
 
 { TCustomPanel }
@@ -1068,7 +1064,7 @@ begin
    inherited Changed;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
       if (HandleClass = '') then begin
-         InjectWCLExtStyle;
+         _RegisterWCLExtRules;
          asm this.FHandleElement.classList.add('wcl-panel'); end;
       end;
       HandleElement.name := Name;

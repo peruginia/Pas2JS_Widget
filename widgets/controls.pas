@@ -476,10 +476,36 @@ function ExtractMouseButton(const AEvent: TJSMouseEvent): TMouseButton;
 
 function JSCursor(const ACursor: TCursor): string;
 
+procedure RegisterWCLStyle(const ARules: string);
+
 implementation
 
 uses
   Forms;
+
+var
+  _WCLTheme: string = '';
+  _WCLThemeInjected: Boolean = False;
+
+procedure RegisterWCLStyle(const ARules: string);
+var
+  VStyle: TJSHTMLElement;
+begin
+  _WCLTheme := _WCLTheme + ARules;
+  if not _WCLThemeInjected then
+  begin
+    VStyle := TJSHTMLElement(Document.CreateElement('style'));
+    VStyle.setAttribute('type', 'text/css');
+    VStyle.setAttribute('data-wcl', 'theme');
+    VStyle.InnerHTML := _WCLTheme;
+    Document.Head.AppendChild(VStyle);
+    _WCLThemeInjected := True;
+  end
+  else
+  begin
+    TJSHTMLElement(Document.Head.QuerySelector('style[data-wcl]')).InnerHTML := _WCLTheme;
+  end;
+end;
 
 function CompareString(A, B: string): integer; assembler;
 asm
@@ -2401,7 +2427,6 @@ begin
   else
   begin
     case VKey of
-      { TODO: Use the navigation keys to change control. }
       /// Tab
       9:
       begin

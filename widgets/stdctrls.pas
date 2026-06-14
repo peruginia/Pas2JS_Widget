@@ -524,16 +524,12 @@ begin
 end;
 
 var
-  _WCLStdStyleInjected: Boolean;
+  _WCLStdRulesRegistered: Boolean;
 
-procedure InjectWCLStdStyle;
-var
-  VStyle: TJSHTMLElement;
+procedure _RegisterWCLStdRules;
 begin
-  if _WCLStdStyleInjected then Exit;
-  VStyle := TJSHTMLElement(Document.CreateElement('style'));
-  VStyle.setAttribute('type', 'text/css');
-  VStyle.InnerHTML :=
+  if _WCLStdRulesRegistered then Exit;
+  RegisterWCLStyle(
     '.wcl-btn{' +
     'padding:6px 16px;' +
     'border-radius:4px;' +
@@ -559,9 +555,9 @@ begin
     'background-color:#fff;' +
     'box-sizing:border-box;}' +
     '.wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}' +
-    '.wcl-input:disabled{opacity:0.5;}';
-  Document.Head.AppendChild(VStyle);
-  _WCLStdStyleInjected := True;
+    '.wcl-input:disabled{opacity:0.5;}'
+  );
+  _WCLStdRulesRegistered := True;
 end;
 
 { TCustomComboBox }
@@ -639,7 +635,7 @@ begin
   if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     if (HandleClass = '') then begin
-      InjectWCLStdStyle;
+      _RegisterWCLStdRules;
       asm this.FHandleElement.classList.add('wcl-input'); end;
     end;
     HandleElement.setAttribute('name', Name );
@@ -1271,7 +1267,7 @@ begin
    inherited Changed;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
       if (HandleClass = '') then begin
-         InjectWCLStdStyle;
+         _RegisterWCLStdRules;
          asm this.FHandleElement.classList.add('wcl-input'); end;
       end;
       TJSHTMLInputElement(HandleElement).Name := Name;
@@ -1696,7 +1692,7 @@ begin
    inherited Changed;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
       if (HandleClass = '') then begin
-         InjectWCLStdStyle;
+         _RegisterWCLStdRules;
          asm this.FHandleElement.classList.add('wcl-input'); end;
       end;
       with TJSHTMLTextAreaElement(HandleElement) do begin
@@ -1886,7 +1882,7 @@ begin
    inherited Changed;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
       if (HandleClass = '') then begin
-         InjectWCLStdStyle;
+         _RegisterWCLStdRules;
          asm this.FHandleElement.classList.add('wcl-btn'); end;
       end;
       with HandleElement do begin
