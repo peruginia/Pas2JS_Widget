@@ -836,6 +836,23 @@ type
     property OnResize;
   end;
 
+  { TWSpinEdit }
+
+  TWSpinEdit = class(TCustomSpinEdit)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+    function GetValue: Double;
+    procedure SetValue(AValue: Double);
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+    property Increment;
+    property MaxValue;
+    property MinValue;
+    property Value: Double read GetValue write SetValue;
+  end;
+
   { TWDateEditBox }
 
   TWDateEditBox = class(TCustomDateTimeEdit)
@@ -1111,6 +1128,7 @@ begin
     TWPageControl,
     TWFloatEdit,
     TWIntegerEdit,
+    TWSpinEdit,
     TWDateEditBox,
     TWTimeEditBox,
     TWFileButton,
