@@ -1212,18 +1212,6 @@ begin
   DecimalPlaces := 0;
 end;
 
-{ TWSpinEdit }
-
-function TWSpinEdit.GetValue: Double;
-begin
-  Result := StrToFloatDef(RealGetText, 0);
-end;
-
-procedure TWSpinEdit.SetValue(AValue: Double);
-begin
-  RealSetText(FloatToStrF(AValue, ffFixed, 20, DecimalPlaces));
-end;
-
 { TWDateEditBox }
 
 function TWDateEditBox.GetValue: TDate;
