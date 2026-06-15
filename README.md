@@ -1,35 +1,70 @@
-# Web Component Library
-Web Component Library (formerly Pas2JS Widgetset) is a RAD Framework to develop Web Applications like to develop Windows Applications originally started by Hélio S. Ribeiro and Anderson J. Gado da Silva and further improved by Sven Barth.
+# Web Component Library (WCL)
 
-### Thanks
-This project is only possible thanks to [Free Pascal](https://www.freepascal.org/ "Free Pascal"), [Lazarus](https://www.lazarus-ide.org/ "Lazarus") and the fabulous compiler [Pas2JS](http://wiki.freepascal.org/pas2js "Pas2JS")
+RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LCL-compatible components.
 
 ### Requirements
-* Lazarus 2.1 or newer
-* _pas2js_ 2.0 or newer
-
-### Help Please
-This project is under development.
-This version is an basic implementation and many bugs need to be corrected.
-Please help us to take this project forward.
+- Lazarus 2.1+
+- pas2js 2.0+
 
 ### Install
-This was tested with Lazarus 2.1 using version 2.0 of _pas2js_.
-* make sure that the _pas2jsdsgn_ package is installed
-* the _pas2js_rtl_ package should have been opened (so that the IDE knows about it)
-* install the _wcldsgn_ package from _design/package_
-* open the _wcl_ package in _widgets_ (again so that the IDE knows about it)
+1. Open `widgets/wcl.lpk` in Lazarus (let the IDE know the runtime package)
+2. Install `design/package/wcldsgn.lpk` (design-time package for the component palette)
+3. Create a new _Web GUI Application_ and use components from the **WCL** tab
 
-### Usage
-* create a new _Web GUI Application_
+---
+
+### Components (29)
+
+| Component | HTML element | Description |
+|---|---|---|
+| **TWButton** | `<button>` | Push button with hover/active/disabled CSS, `ModalResult` |
+| **TWEdit** | `<input type="text">` | Single-line text input with `TextHint`, `SelStart`/`SelLength` |
+| **TWMemo** | `<textarea>` | Multi-line text input |
+| **TWComboBox** | `<select>` | Dropdown selector with `Items`, `ItemIndex` |
+| **TWListBox** | `<select multiple>` | Multi-select list |
+| **TWCheckbox** | `<input type="checkbox">` | Boolean toggle with `Checked` |
+| **TWRadioButton** | `<input type="radio">` | Radio selection with `Checked` |
+| **TWLabel** | `<div>` | Text label with `FocusControl`, `AutoSize` |
+| **TWImage** | `<img>` | Image display with `Stretch`, `Proportional`, `ZoomEnabled` |
+| **TWPanel** | `<div>` | Container with `BevelOuter`/`BevelInner` |
+| **TWGroupBox** | `<fieldset>` +`<legend>` | Group container, `Caption` as legend |
+| **TWScrollBox** | `<div>` | Scrollable container (`overflow: auto`) |
+| **TWPageControl** | custom tabs | Multi-page tabs, `AddTabSheet`, `OnShowPage` |
+| **TWFloatEdit** | `<input type="number">` | Float numeric with spin buttons, `Increment`, `MinValue`/`MaxValue` |
+| **TWIntegerEdit** | `<input type="number">` | Integer numeric with spin buttons |
+| **TWDateEditBox** | `<input type="date">` | Native date picker |
+| **TWTimeEditBox** | `<input type="time">` | Native time picker |
+| **TWFileButton** | `<input type="file">` | File selection |
+| **TWDataGrid** | `<table>` / cards | Data grid with sorting, `FilterBox` filtering, `DataJSon` (dataset) or `Data` (array), responsive card layout for mobile |
+| **TWStringGrid** | `<table>` | Custom string grid |
+| **TWPagination** | page nav | Page navigation with `CurrentPage` |
+| **TWTrackBar** | `<input type="range">` | Slider with `Min`/`Max`/`Position`/`Frequency`/`Orientation` |
+| **TWProgressBar** | `<progress>` | Progress bar with `Min`/`Max`/`Value` |
+| **TWColorPicker** | `<input type="color">` | Native color picker with `Color`, `OnChange` |
+| **TWTimer** | JS timer | Interval timer, `OnTimer` |
+| **TWWebSocketClient** | WebSocket | WebSocket client, `Url`, `OnMessage`, `OnBinaryMessage` |
+| **TWForm** | form overlay | Application form, `ModalResult`, `AlphaBlend` |
+| **TWFrame** | frame container | Embeddable frame |
+| **TWDataModule** | non-visual | Data container |
+
+### Infrastructure
+
+| Feature | Description |
+|---|---|
+| **Screen** | Global singleton: `Width`, `Height`, `PixelsPerInch`, `WorkArea` |
+| **Application** | App lifecycle: `Initialize`, `Run`, `Terminate`, `MainForm`, `ActiveForm` |
+| **Theme** | Shared CSS via `RegisterWCLStyle` — `.wcl-btn`, `.wcl-input`, `.wcl-panel` classes with hover/active/focus |
+| **Responsive** | `@media(max-width:600px)` auto-scales buttons and inputs |
+| **Keyboard nav** | Tab / Shift+Tab between controls via `TabOrder` |
+| **Dialogs** | `MessageDlg`, `ShowMessage`, `InputBox`, `QuestionDlg`, `ShowMessageFmt` |
 
 ### Notes
-* you can only use components from the _WCL_ tab
+- Use only components from the _WCL_ palette tab
+- Design-time units in `design/source/` use a `D` suffix to avoid name conflicts with runtime units
+- Component icons are 20×21 XPM in `design/image/`
 
 ### Further plans
-* test data module template
-* implement support for DB controls
-* implement a Lazarus compatible grid
-* better maintenance of the project's HTML file
-* better maintenance of the project's main program file
-* more dynamic layouting of the components
+- DB-aware controls
+- TPaintBox (Canvas 2D)
+- TSplitter
+- More dialogs (OpenDialog, SaveDialog)
