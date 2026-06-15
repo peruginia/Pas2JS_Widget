@@ -44,7 +44,7 @@ MIT:
   SOFTWARE.
 }"/>
     <Version Minor="1" Release="1" Build="2"/>
-    <Files Count="7">
+    <Files Count="8">
       <Item1>
         <Filename Value="../source/btnctrls.pas"/>
         <UnitName Value="BtnCtrls"/>
@@ -75,6 +75,10 @@ MIT:
         <Filename Value="../source/websocket.pas"/>
         <UnitName Value="websocket"/>
       </Item7>
+      <Item8>
+        <Filename Value="../source/wclextctrls.pas"/>
+        <UnitName Value="WCLExtCtrls"/>
+      </Item8>
     </Files>
     <CompatibilityMode Value="True"/>
     <RequiredPkgs Count="3">
