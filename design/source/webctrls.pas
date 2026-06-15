@@ -21,7 +21,7 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
 }
-unit WebCtrls;
+unit WebCtrlsD;
 
 {$mode objfpc}{$H+}
 
@@ -38,10 +38,10 @@ uses
   StdCtrls,
   ExtCtrls,
   ComCtrls,
-  NumCtrls,
-  DttCtrls,
-  BtnCtrls,
-  DataGrid,
+  NumCtrlsD,
+  DttCtrlsD,
+  BtnCtrlsD,
+  DataGridD,
   CustomTimer,
   Grids,
   websocket;
