@@ -555,7 +555,11 @@ begin
     'background-color:#fff;' +
     'box-sizing:border-box;}' +
     '.wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}' +
-    '.wcl-input:disabled{opacity:0.5;}'
+    '.wcl-input:disabled{opacity:0.5;}' +
+    '@media(max-width:600px){' +
+    '.wcl-btn{font-size:13px!important;padding:4px 10px!important;}' +
+    '.wcl-input,input.wcl-input,textarea.wcl-input,select.wcl-input{font-size:13px!important;padding:4px 6px!important;}' +
+    '}'
   );
   _WCLStdRulesRegistered := True;
 end;
