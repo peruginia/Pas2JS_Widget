@@ -1255,6 +1255,4 @@ end;
 
 initialization
   Screen := TScreen.Create(nil);
-finalization
-  Screen.Free;
 end.
