@@ -625,6 +625,40 @@ type
     property OnMouseWheel;
   end;
 
+  { TWTrackBar }
+
+  TWTrackBar = class(TCustomTrackBar)
+  published
+    property Align;
+    property Anchors;
+    property BorderSpacing;
+    property Color;
+    property Enabled;
+    property Font;
+    property Frequency;
+    property HandleClass;
+    property HandleId;
+    property Max;
+    property Min;
+    property Orientation;
+    property ParentFont;
+    property ParentShowHint;
+    property Position;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Visible;
+    property OnChange;
+    property OnEnter;
+    property OnExit;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)

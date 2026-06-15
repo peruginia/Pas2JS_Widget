@@ -75,6 +75,26 @@ type
     property Value: LongInt read FValue write SetValue default 0;
   end;
 
+  { TCustomTrackBar }
+
+  TCustomTrackBar = class(TCustomControl)
+  private
+    FMax: LongInt;
+    FMin: LongInt;
+    FPosition: LongInt;
+    procedure SetMax(AValue: LongInt);
+    procedure SetMin(AValue: LongInt);
+    procedure SetPosition(AValue: LongInt);
+  protected
+    procedure Paint; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+  published
+    property Max: LongInt read FMax write SetMax default 100;
+    property Min: LongInt read FMin write SetMin default 0;
+    property Position: LongInt read FPosition write SetPosition default 0;
+  end;
+
   TJSTouch = class
   private
     FClientX: longint;
@@ -754,6 +774,17 @@ type
     property HandleId: string read FHandleId write FHandleId;
   end;
 
+  { TWTrackBar }
+
+  TWTrackBar = class(TCustomTrackBar)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)
@@ -1152,7 +1183,8 @@ begin
     TWWebSocketClient,
     TWGroupBox,
     TWScrollBox,
-    TWProgressBar
+    TWProgressBar,
+    TWTrackBar
     ]);
 end;
 
@@ -1338,6 +1370,71 @@ begin
     R.Right := R.Left + FillW;
     Canvas.Brush.Color := clHighlight;
     Canvas.FillRect(R);
+  end;
+end;
+
+{ TCustomTrackBar }
+
+constructor TCustomTrackBar.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FMin := 0;
+  FMax := 100;
+  FPosition := 0;
+  Width := 150;
+  Height := 30;
+end;
+
+procedure TCustomTrackBar.SetMax(AValue: LongInt);
+begin
+  if FMax <> AValue then
+  begin
+    if AValue < FMin then AValue := FMin;
+    FMax := AValue;
+    if FPosition > FMax then FPosition := FMax;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomTrackBar.SetMin(AValue: LongInt);
+begin
+  if FMin <> AValue then
+  begin
+    if AValue > FMax then AValue := FMax;
+    FMin := AValue;
+    if FPosition < FMin then FPosition := FMin;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomTrackBar.SetPosition(AValue: LongInt);
+begin
+  if AValue < FMin then AValue := FMin;
+  if AValue > FMax then AValue := FMax;
+  if FPosition <> AValue then
+  begin
+    FPosition := AValue;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomTrackBar.Paint;
+var
+  R: TRect;
+  ThumbX: Integer;
+begin
+  inherited Paint;
+  R := ClientRect;
+  Canvas.Brush.Color := clBtnFace;
+  Canvas.FillRect(R);
+  Canvas.Pen.Color := clGray;
+  Canvas.MoveTo(4, R.Height div 2);
+  Canvas.LineTo(R.Width - 4, R.Height div 2);
+  if (FMax > FMin) then
+  begin
+    ThumbX := Round((FPosition - FMin) / (FMax - FMin) * (R.Width - 12)) + 6;
+    Canvas.Brush.Color := clHighlight;
+    Canvas.Rectangle(ThumbX - 5, 4, ThumbX + 5, R.Height - 4);
   end;
 end;
 

@@ -273,6 +273,38 @@ type
     constructor Create(AOwner: TComponent); override;
   end;
 
+  { TCustomTrackBar }
+
+  TTrackBarOrientation = (trHorizontal, trVertical);
+
+  TCustomTrackBar = class(TCustomControl)
+  private
+    FMax: Integer;
+    FMin: Integer;
+    FFrequency: Integer;
+    FOrientation: TTrackBarOrientation;
+    FPosition: Integer;
+    FOnChange: TNotifyEvent;
+    procedure SetMax(AValue: Integer);
+    procedure SetMin(AValue: Integer);
+    procedure SetOrientation(AValue: TTrackBarOrientation);
+    procedure SetPosition(AValue: Integer);
+    function HandleChange(AEvent: TJSEvent): boolean;
+  protected
+    procedure Changed; override;
+    function CreateHandleElement: TJSHTMLElement; override;
+  protected
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    property Max: Integer read FMax write SetMax default 100;
+    property Min: Integer read FMin write SetMin default 0;
+    property Frequency: Integer read FFrequency write FFrequency default 1;
+    property Orientation: TTrackBarOrientation read FOrientation write SetOrientation default trHorizontal;
+    property Position: Integer read FPosition write SetPosition default 0;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
   { TCustomScrollBox }
 
   TCustomScrollBox = class(TCustomControl)
@@ -1316,6 +1348,107 @@ begin
   if FValue <> AValue then
   begin
     FValue := AValue;
+    Changed;
+  end;
+end;
+
+{ TCustomTrackBar }
+
+constructor TCustomTrackBar.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FMin := 0;
+  FMax := 100;
+  FFrequency := 1;
+  FOrientation := trHorizontal;
+  FPosition := 0;
+  BeginUpdate;
+  try
+    with GetControlClassDefaultSize do
+      SetBounds(0, 0, Cx, Cy);
+  finally
+    EndUpdate;
+  end;
+end;
+
+class function TCustomTrackBar.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 150;
+  Result.Cy := 30;
+end;
+
+function TCustomTrackBar.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('input'));
+  TJSHTMLInputElement(Result)._type := 'range';
+  Result.AddEventListener('change', @HandleChange);
+end;
+
+procedure TCustomTrackBar.Changed;
+begin
+  inherited Changed;
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+  begin
+    HandleElement.setAttribute('name', Name);
+    with TJSHTMLInputElement(HandleElement) do
+    begin
+      asm this.FHandleElement.min = this.FMin; end;
+      asm this.FHandleElement.max = this.FMax; end;
+      asm this.FHandleElement.step = this.FFrequency; end;
+      asm this.FHandleElement.value = this.FPosition; end;
+    end;
+  end;
+end;
+
+function TCustomTrackBar.HandleChange(AEvent: TJSEvent): boolean;
+begin
+  Result := True;
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+  begin
+    asm this.FPosition = parseInt(this.FHandleElement.value); end;
+    if Assigned(FOnChange) then
+      FOnChange(Self);
+  end;
+end;
+
+procedure TCustomTrackBar.SetMax(AValue: Integer);
+begin
+  if FMax <> AValue then
+  begin
+    if AValue < FMin then AValue := FMin;
+    FMax := AValue;
+    if FPosition > FMax then FPosition := FMax;
+    Changed;
+  end;
+end;
+
+procedure TCustomTrackBar.SetMin(AValue: Integer);
+begin
+  if FMin <> AValue then
+  begin
+    if AValue > FMax then AValue := FMax;
+    FMin := AValue;
+    if FPosition < FMin then FPosition := FMin;
+    Changed;
+  end;
+end;
+
+procedure TCustomTrackBar.SetOrientation(AValue: TTrackBarOrientation);
+begin
+  if FOrientation <> AValue then
+  begin
+    FOrientation := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomTrackBar.SetPosition(AValue: Integer);
+begin
+  if AValue < FMin then AValue := FMin;
+  if AValue > FMax then AValue := FMax;
+  if FPosition <> AValue then
+  begin
+    FPosition := AValue;
     Changed;
   end;
 end;
