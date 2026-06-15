@@ -31,3 +31,62 @@ Web Component Library (WCL) — a Lazarus/pas2js RAD widgetset that compiles Obj
 - Properties use getter/setter methods (e.g. `procedure SetZoomLevel(AValue: Integer)`).
 - The `Changed` method (calls `inherited Changed`) is the central point for applying CSS styles to the handle element.
 - Always guard style changes with `if (not IsUpdating) and not (csLoading in ComponentState)` inside `Changed`.
+
+## Components (29 published TW*)
+
+| Component | Ancestor | HTML element | Key properties |
+|---|---|---|---|
+| TWButton | TCustomButton | `<button>` | CSS `wcl-btn` (hover/active/disabled), `ModalResult` |
+| TWEdit | TCustomEdit | `<input type="text">` | CSS `wcl-input`, `SelStart`/`SelLength`, `TextHint` |
+| TWMemo | TCustomMemo | `<textarea>` | CSS `wcl-input`, `SelStart`/`SelLength` |
+| TWComboBox | TCustomComboBox | `<select>` | CSS `wcl-input`, `Items`, `ItemIndex` |
+| TWListBox | TCustomListBox | `<select multiple>` | `Items` |
+| TWCheckbox | TCustomCheckbox | `<input type="checkbox">` | `Checked` |
+| TWRadioButton | TCustomRadioButton | `<input type="radio">` | `Checked` |
+| TWLabel | TCustomLabel | `<div>` | `FocusControl`, `AutoSize`, transparent |
+| TWImage | TCustomImage | `<img>` | `Stretch`, `Proportional`, `ZoomEnabled` |
+| TWPanel | TCustomPanel | `<div>` | CSS `wcl-panel`, `BevelOuter`/`BevelInner` |
+| TWGroupBox | TCustomGroupBox | `<fieldset>` + `<legend>` | `Caption` → legend |
+| TWScrollBox | TCustomScrollBox | `<div>` | `overflow: auto` |
+| TWPageControl | TCustomPageControl | custom tabs | `OnShowPage`, `AddTabSheet` |
+| TWFloatEdit | TCustomNumericEdit | `<input type="number">` | `DecimalPlaces`, `Increment`, `MinValue`, `MaxValue`, `Value: Double` |
+| TWIntegerEdit | TCustomNumericEdit | `<input type="number">` | `DecimalPlaces`, `Increment`, `MinValue`, `MaxValue`, `Value: NativeInt` |
+| TWDateEditBox | TCustomDateTimeEdit | `<input type="date">` | `Value: TDate` |
+| TWTimeEditBox | TCustomDateTimeEdit | `<input type="time">` | `Value: TTime` |
+| TWFileButton | TCustomFileButton | `<input type="file">` | File selection |
+| TWDataGrid | TCustomDataGrid | `<table>` / cards | Sorting, filtering (`FilterBox`), responsive columns, card layout, `DataJSon`/`Data` |
+| TWStringGrid | TCustomStringGrid | `<table>` | Custom grid with columns |
+| TWPagination | TCustomPagination | page nav | `CurrentPage` |
+| TWTimer | TCustomTimer | JS timer | `Interval`, `OnTimer` |
+| TWWebSocketClient | TCustomWebSocketClient | WebSocket | `Url`, `OnMessage`, `OnBinaryMessage` |
+| TWTrackBar | TCustomTrackBar | `<input type="range">` | `Min`/`Max`/`Position`/`Frequency`/`Orientation`/`OnChange` |
+| TWProgressBar | TCustomProgressBar | `<progress>` | `Min`/`Max`/`Value` |
+| TWColorPicker | TCustomColorPicker | `<input type="color">` | `Color`, `OnChange` |
+| TWForm | TCustomForm | form overlay | `ModalResult`, `AlphaBlend` |
+| TWFrame | TCustomFrame | frame container | Embeddable frame |
+| TWDataModule | TCustomDataModule | non-visual | Data container |
+
+## Infrastructure
+
+| Feature | Location | Description |
+|---|---|---|
+| `Screen` | `forms.pas` | Global singleton: `Width`, `Height`, `PixelsPerInch`, `WorkAreaWidth`, `WorkAreaHeight` |
+| `RegisterWCLStyle` | `controls.pas` | Shared CSS injection; single `<style data-wcl="theme">` in `<head>` |
+| `Application` | `forms.pas` | Global app: `Initialize`, `Run`, `Terminate`, `MainForm`, `ActiveForm` |
+| Keyboard nav | `controls.pas` | Tab / Shift+Tab via `FindFocusControl` with `TabOrder` sorting |
+| Responsive CSS | `stdctrls.pas` | Media query `@media(max-width:600px)` scales buttons/inputs |
+| Dialogs | `dialogs.pas` | `MessageDlg`, `ShowMessage`, `InputBox`, `QuestionDlg`, `ShowMessageFmt` |
+
+## Design-time package notes
+- Design-time units are in `design/source/` with suffix `D` (e.g. `WebCtrlsD`, `BtnCtrlsD`) to avoid conflicts with runtime units in `widgets/`.
+- The design-time `.lpk` file is `design/package/wcldsgn.lpk` (7 files, no extra units needed).
+- Component icons are XPM in `design/image/tw*.xpm` and compiled into `*.lrs` files.
+
+## Recent changes (2025-06)
+- **Phase 1**: Unified CSS styling via `RegisterWCLStyle` — `.wcl-btn`, `.wcl-input`, `.wcl-panel` classes with hover/active/focus
+- **Phase 2**: `MaxValue`/`MinValue` on numeric edits, `OnShowPage` on PageControl
+- **Phase 3**: New components: `TWGroupBox`, `TWScrollBox`, `TWProgressBar`, `TWSpinEdit` (spun into existing numerics)
+- **Phase 4**: Shared CSS injection, `TScreen`, responsive media query
+- **TWTrackBar**: Native `<input type="range">` with `Position`/`Frequency`/`Orientation`
+- **TWColorPicker**: Native `<input type="color">` with `Color`/`OnChange`
+- **DataGrid**: `FilterBox` filtering, sort fixes, responsive card layout, CSS compaction
