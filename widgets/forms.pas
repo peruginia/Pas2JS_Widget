@@ -310,7 +310,25 @@ type
   end;
   TWFrameClass = class of TWFrame;
 
-{ TODO: TScreen }
+{ TScreen }
+
+  TScreen = class(TComponent)
+  private
+    function GetHeight: Integer;
+    function GetPixelsPerInch: Integer;
+    function GetWidth: Integer;
+    function GetWorkAreaHeight: Integer;
+    function GetWorkAreaWidth: Integer;
+  public
+    property Height: Integer read GetHeight;
+    property PixelsPerInch: Integer read GetPixelsPerInch;
+    property Width: Integer read GetWidth;
+    property WorkAreaHeight: Integer read GetWorkAreaHeight;
+    property WorkAreaWidth: Integer read GetWorkAreaWidth;
+  end;
+
+var
+  Screen: TScreen;
 
 function Application: TApplication;
 
@@ -345,6 +363,32 @@ begin
   Result := VAppInstance;
 end;
 
+{ TScreen }
+
+function TScreen.GetHeight: Integer;
+begin
+  asm Result = window.screen.height; end;
+end;
+
+function TScreen.GetPixelsPerInch: Integer;
+begin
+  asm Result = Math.round(window.devicePixelRatio * 96); end;
+end;
+
+function TScreen.GetWidth: Integer;
+begin
+  asm Result = window.screen.width; end;
+end;
+
+function TScreen.GetWorkAreaHeight: Integer;
+begin
+  asm Result = window.screen.availHeight; end;
+end;
+
+function TScreen.GetWorkAreaWidth: Integer;
+begin
+  asm Result = window.screen.availWidth; end;
+end;
 
 type
 
@@ -1209,4 +1253,8 @@ begin
   end;
 end;
 
+initialization
+  Screen := TScreen.Create(nil);
+finalization
+  Screen.Free;
 end.
