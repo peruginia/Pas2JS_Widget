@@ -57,7 +57,7 @@ procedure MessageDlg(AOwner: TCustomForm; const AMessage: string; ADlgType: TMsg
 
 procedure ShowMessage(AOwner: TCustomForm; const AMessage: string); overload;
 procedure ShowMessage(const AMessage: string); overload;   
-procedure ShowMessageFmt(const AMessage: string; const AArguments: array of JSValue); overload;
+procedure ShowMessageFmt(const AMessage: string; const AArguments: array of const); overload;
 
 procedure QuestionDlg(const ACaption, AMessage: string; AModalResultProc: TModalResultProc); overload;   
 procedure QuestionDlg(const AMessage: string; AModalResultProc: TModalResultProc); overload;
@@ -509,9 +509,9 @@ begin
   MessageDlg(Application.ActiveForm, '', AMessage, mtInformation, [mbOK], nil);
 end;
 
-procedure ShowMessageFmt(const AMessage: string; const AArguments: array of JSValue);
+procedure ShowMessageFmt(const AMessage: string; const AArguments: array of const);
 begin
-  ShowMessage(Format(AMessage, [AArguments]));
+  ShowMessage(Format(AMessage, AArguments));
 end;
 
 procedure QuestionDlg(const ACaption, AMessage: string; AModalResultProc: TModalResultProc);
