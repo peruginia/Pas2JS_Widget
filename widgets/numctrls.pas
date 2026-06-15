@@ -116,22 +116,19 @@ begin
    inherited DoInput(ANewValue);
 end;
 
-procedure TCustomNumericEdit.Changed;
-var
-  VOriginalText: string;
+function TCustomNumericEdit.InputType: string;
 begin
-  VOriginalText := FText;
-  if DecimalSeparator <> '.' then
-    FText := StringReplace(FText, DecimalSeparator, '.', [rfReplaceAll]);
-  try
-    inherited Changed;
-  finally
-    FText := VOriginalText;
-  end;
+  Result := 'text';
+end;
+
+procedure TCustomNumericEdit.Changed;
+begin
+  inherited Changed;
   if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with TJSHTMLInputElement(HandleElement) do
     begin
+      InputMode := 'numeric';
       if FIncrement > 0 then
         asm this.FHandleElement.step = this.FIncrement; end;
       if FMinValue <> 0 then
@@ -164,11 +161,6 @@ begin
     FIncrement := AValue;
     Changed;
   end;
-end;
-
-function TCustomNumericEdit.InputType: string;
-begin
-  Result := 'number';
 end;
 
 procedure TCustomNumericEdit.SetMaxValue(AValue: Double);

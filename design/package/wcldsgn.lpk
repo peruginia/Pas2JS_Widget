@@ -64,7 +64,7 @@ MIT:
       <Item5>
         <Filename Value="../source/webctrls.pas"/>
         <HasRegisterProc Value="True"/>
-        <UnitName Value="WebCtrlsD"/>
+        <UnitName Value="WebCtrls"/>
       </Item5>
       <Item6>
         <Filename Value="../source/pas2js_ide_descriptor.pas"/>
