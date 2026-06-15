@@ -47,24 +47,24 @@ MIT:
     <Files Count="7">
       <Item1>
         <Filename Value="../source/btnctrls.pas"/>
-        <UnitName Value="BtnCtrls"/>
+        <UnitName Value="BtnCtrlsD"/>
       </Item1>
       <Item2>
         <Filename Value="../source/datagrid.pas"/>
-        <UnitName Value="DataGrid"/>
+        <UnitName Value="DataGridD"/>
       </Item2>
       <Item3>
         <Filename Value="../source/dttctrls.pas"/>
-        <UnitName Value="DttCtrls"/>
+        <UnitName Value="DttCtrlsD"/>
       </Item3>
       <Item4>
         <Filename Value="../source/numctrls.pas"/>
-        <UnitName Value="NumCtrls"/>
+        <UnitName Value="NumCtrlsD"/>
       </Item4>
       <Item5>
         <Filename Value="../source/webctrls.pas"/>
         <HasRegisterProc Value="True"/>
-        <UnitName Value="WebCtrls"/>
+        <UnitName Value="WebCtrlsD"/>
       </Item5>
       <Item6>
         <Filename Value="../source/pas2js_ide_descriptor.pas"/>

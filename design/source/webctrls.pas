@@ -21,7 +21,7 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
 }
-unit WebCtrls;
+unit WebCtrlsD;
 
 {$mode objfpc}{$H+}
 
@@ -38,15 +38,43 @@ uses
   StdCtrls,
   ExtCtrls,
   ComCtrls,
-  NumCtrls,
-  DttCtrls,
-  BtnCtrls,
-  DataGrid,
+  NumCtrlsD,
+  DttCtrlsD,
+  BtnCtrlsD,
+  DataGridD,
   CustomTimer,
   Grids,
   websocket;
 
 type
+
+  { TCustomScrollBox }
+
+  TCustomScrollBox = class(TCustomControl)
+  public
+    constructor Create(AOwner: TComponent); override;
+  end;
+
+  { TCustomProgressBar }
+
+  TCustomProgressBar = class(TCustomControl)
+  private
+    FMax: LongInt;
+    FMin: LongInt;
+    FValue: LongInt;
+    procedure SetMax(AValue: LongInt);
+    procedure SetMin(AValue: LongInt);
+    procedure SetValue(AValue: LongInt);
+  protected
+    procedure Paint; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+  published
+    property Max: LongInt read FMax write SetMax default 100;
+    property Min: LongInt read FMin write SetMin default 0;
+    property Value: LongInt read FValue write SetValue default 0;
+  end;
+
   TJSTouch = class
   private
     FClientX: longint;
@@ -693,6 +721,39 @@ type
     property HandleId: string read FHandleId write FHandleId;
   end;
 
+  { TWGroupBox }
+
+  TWGroupBox = class(TCustomGroupBox)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
+  { TWScrollBox }
+
+  TWScrollBox = class(TCustomScrollBox)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
+  { TWProgressBar }
+
+  TWProgressBar = class(TCustomProgressBar)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)
@@ -716,6 +777,7 @@ type
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
+    property Increment;
     property MaxValue;
     property MinValue;
     property ParentColor;
@@ -771,6 +833,7 @@ type
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
+    property Increment;
     property MaxValue;
     property MinValue;
     property ParentColor;
@@ -1059,6 +1122,9 @@ procedure Register;
 
 implementation
 
+uses
+  Types;
+
 procedure Register;
 begin
   {$I webctrls.lrs}
@@ -1083,7 +1149,10 @@ begin
     TWDataGrid,
     TWPagination,
     TWStringGrid,
-    TWWebSocketClient
+    TWWebSocketClient,
+    TWGroupBox,
+    TWScrollBox,
+    TWProgressBar
     ]);
 end;
 
@@ -1189,6 +1258,87 @@ end;
 procedure TWTimeEditBox.RealSetText(const AValue: TCaption);
 begin
   inherited RealSetText(FormatDateTime(DefaultFormatSettings.ShortTimeFormat, StrToTimeDef(AValue, 0)));
+end;
+
+{ TCustomScrollBox }
+
+constructor TCustomScrollBox.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  ControlStyle := ControlStyle + [csAcceptsControls, csCaptureMouse];
+  Width := 200;
+  Height := 200;
+end;
+
+{ TCustomProgressBar }
+
+constructor TCustomProgressBar.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FMin := 0;
+  FMax := 100;
+  FValue := 0;
+  Width := 150;
+  Height := 20;
+end;
+
+procedure TCustomProgressBar.SetMax(AValue: LongInt);
+begin
+  if FMax <> AValue then
+  begin
+    if AValue < FMin then AValue := FMin;
+    FMax := AValue;
+    if FValue > FMax then FValue := FMax;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomProgressBar.SetMin(AValue: LongInt);
+begin
+  if FMin <> AValue then
+  begin
+    if AValue > FMax then AValue := FMax;
+    FMin := AValue;
+    if FValue < FMin then FValue := FMin;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomProgressBar.SetValue(AValue: LongInt);
+begin
+  if AValue < FMin then AValue := FMin;
+  if AValue > FMax then AValue := FMax;
+  if FValue <> AValue then
+  begin
+    FValue := AValue;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomProgressBar.Paint;
+var
+  R: TRect;
+  Pct: Double;
+  FillW: Integer;
+begin
+  inherited Paint;
+  Canvas.Brush.Color := clBtnFace;
+  Canvas.Pen.Color := clGray;
+  Canvas.Rectangle(ClientRect);
+  R := ClientRect;
+  InflateRect(R, -1, -1);
+  Canvas.Pen.Color := clSilver;
+  Canvas.Brush.Color := clWhite;
+  Canvas.Rectangle(R);
+  if (FMax > FMin) then
+  begin
+    Pct := (FValue - FMin) / (FMax - FMin);
+    FillW := Round((R.Right - R.Left) * Pct);
+    InflateRect(R, -1, -1);
+    R.Right := R.Left + FillW;
+    Canvas.Brush.Color := clHighlight;
+    Canvas.FillRect(R);
+  end;
 end;
 
 end.
