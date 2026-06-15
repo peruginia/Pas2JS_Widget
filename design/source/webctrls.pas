@@ -95,6 +95,20 @@ type
     property Position: LongInt read FPosition write SetPosition default 0;
   end;
 
+  { TCustomColorPicker }
+
+  TCustomColorPicker = class(TCustomControl)
+  private
+    FColor: TColor;
+    procedure SetColor(AValue: TColor);
+  protected
+    procedure Paint; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+  published
+    property Color: TColor read FColor write SetColor default clBlack;
+  end;
+
   TJSTouch = class
   private
     FClientX: longint;
@@ -785,6 +799,17 @@ type
     property HandleId: string read FHandleId write FHandleId;
   end;
 
+  { TWColorPicker }
+
+  TWColorPicker = class(TCustomColorPicker)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)
@@ -1184,7 +1209,8 @@ begin
     TWGroupBox,
     TWScrollBox,
     TWProgressBar,
-    TWTrackBar
+    TWTrackBar,
+    TWColorPicker
     ]);
 end;
 
@@ -1436,6 +1462,36 @@ begin
     Canvas.Brush.Color := clHighlight;
     Canvas.Rectangle(ThumbX - 5, 4, ThumbX + 5, R.Height - 4);
   end;
+end;
+
+{ TCustomColorPicker }
+
+constructor TCustomColorPicker.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FColor := clBlack;
+  Width := 50;
+  Height := 30;
+end;
+
+procedure TCustomColorPicker.SetColor(AValue: TColor);
+begin
+  if FColor <> AValue then
+  begin
+    FColor := AValue;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomColorPicker.Paint;
+var
+  R: TRect;
+begin
+  inherited Paint;
+  R := ClientRect;
+  Canvas.Pen.Color := clGray;
+  Canvas.Brush.Color := FColor;
+  Canvas.Rectangle(R);
 end;
 
 end.

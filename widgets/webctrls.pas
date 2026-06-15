@@ -659,6 +659,25 @@ type
     property OnMouseWheel;
   end;
 
+  { TWColorPicker }
+
+  TWColorPicker = class(TCustomColorPicker)
+  published
+    property Align;
+    property Anchors;
+    property BorderSpacing;
+    property Color;
+    property Enabled;
+    property HandleClass;
+    property HandleId;
+    property TabOrder;
+    property TabStop;
+    property Visible;
+    property OnChange;
+    property OnEnter;
+    property OnExit;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)

@@ -305,6 +305,25 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
+  { TCustomColorPicker }
+
+  TCustomColorPicker = class(TCustomControl)
+  private
+    FColor: TColor;
+    FOnChange: TNotifyEvent;
+    procedure SetColor(AValue: TColor);
+    function HandleChange(AEvent: TJSEvent): boolean;
+  protected
+    procedure Changed; override;
+    function CreateHandleElement: TJSHTMLElement; override;
+  protected
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    property Color: TColor read FColor write SetColor default clBlack;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
   { TCustomScrollBox }
 
   TCustomScrollBox = class(TCustomControl)
@@ -1449,6 +1468,64 @@ begin
   if FPosition <> AValue then
   begin
     FPosition := AValue;
+    Changed;
+  end;
+end;
+
+{ TCustomColorPicker }
+
+constructor TCustomColorPicker.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FColor := clBlack;
+  BeginUpdate;
+  try
+    with GetControlClassDefaultSize do
+      SetBounds(0, 0, Cx, Cy);
+  finally
+    EndUpdate;
+  end;
+end;
+
+class function TCustomColorPicker.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 50;
+  Result.Cy := 30;
+end;
+
+function TCustomColorPicker.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('input'));
+  TJSHTMLInputElement(Result)._type := 'color';
+  Result.AddEventListener('change', @HandleChange);
+end;
+
+procedure TCustomColorPicker.Changed;
+begin
+  inherited Changed;
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+  begin
+    HandleElement.setAttribute('name', Name);
+    TJSHTMLInputElement(HandleElement).value := JSColor(FColor);
+  end;
+end;
+
+function TCustomColorPicker.HandleChange(AEvent: TJSEvent): boolean;
+begin
+  Result := True;
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+  begin
+    asm this.FColor = this.FHandleElement.value; end;
+    if Assigned(FOnChange) then
+      FOnChange(Self);
+  end;
+end;
+
+procedure TCustomColorPicker.SetColor(AValue: TColor);
+begin
+  if FColor <> AValue then
+  begin
+    FColor := AValue;
     Changed;
   end;
 end;
