@@ -100,7 +100,7 @@ implementation
 uses
   TypInfo,
   FileUtil,
-  WebCtrlsD,
+  WebCtrls,
   FPJSON,
   ComponentEditors;
 
