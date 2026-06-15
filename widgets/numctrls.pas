@@ -117,8 +117,17 @@ begin
 end;
 
 procedure TCustomNumericEdit.Changed;
+var
+  VOriginalText: string;
 begin
-  inherited Changed;
+  VOriginalText := FText;
+  if DecimalSeparator <> '.' then
+    FText := StringReplace(FText, DecimalSeparator, '.', [rfReplaceAll]);
+  try
+    inherited Changed;
+  finally
+    FText := VOriginalText;
+  end;
   if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
     with TJSHTMLInputElement(HandleElement) do
