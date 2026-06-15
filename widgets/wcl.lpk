@@ -152,9 +152,8 @@ MIT:
     <PublishOptions>
       <Version Value="2"/>
     </PublishOptions>
-    <Provides Count="2">
-      <Item1 Value="LCL"/>
-      <Item2 Value="Pas2JS_Designer_Package"/>
+    <Provides Count="1">
+      <Item1 Value="Pas2JS_Designer_Package"/>
     </Provides>
   </Package>
 </CONFIG>
