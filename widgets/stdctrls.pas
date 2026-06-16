@@ -546,7 +546,7 @@ begin
     '.wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}' +
     '.wcl-btn:active{background-color:#d0d0d0;border-color:#555;}' +
     '.wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}' +
-    '.wcl-input,input.wcl-input,textarea.wcl-input,select.wcl-input{' +
+    '.wcl-input,input.wcl-input,textarea.wcl-input{' +
     'padding:6px 8px;' +
     'border-radius:4px;' +
     'border:1px solid #888;' +
@@ -554,11 +554,19 @@ begin
     'font-size:inherit;' +
     'background-color:#fff;' +
     'box-sizing:border-box;}' +
+    'select.wcl-input{' +
+    'padding:3px 4px;' +
+    'border-radius:4px;' +
+    'border:1px solid #888;' +
+    'font-family:inherit;' +
+    'font-size:inherit;' +
+    'background-color:#fff;}' +
     '.wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}' +
     '.wcl-input:disabled{opacity:0.5;}' +
     '@media(max-width:600px){' +
     '.wcl-btn{font-size:13px!important;padding:4px 10px!important;}' +
-    '.wcl-input,input.wcl-input,textarea.wcl-input,select.wcl-input{font-size:13px!important;padding:4px 6px!important;}' +
+    '.wcl-input,input.wcl-input,textarea.wcl-input{font-size:13px!important;padding:4px 6px!important;}' +
+    'select.wcl-input{padding:2px 4px!important;}' +
     '}'
   );
   _WCLStdRulesRegistered := True;
