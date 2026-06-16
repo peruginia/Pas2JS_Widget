@@ -30,8 +30,8 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWGroupBox** | `<fieldset>` +`<legend>` | Group container, `Caption` as legend |
 | **TWScrollBox** | `<div>` | Scrollable container (`overflow: auto`) |
 | **TWPageControl** | custom tabs | Multi-page tabs, `AddTabSheet`, `OnShowPage` |
-| **TWFloatEdit** | `<input type="number">` | Float numeric with spin buttons, `Increment`, `MinValue`/`MaxValue` |
-| **TWIntegerEdit** | `<input type="number">` | Integer numeric with spin buttons |
+| **TWFloatEdit** | `<input type="text">` | Float numeric with `DecimalPlaces`, `MinValue`/`MaxValue`, `Value: Double` |
+| **TWIntegerEdit** | `<input type="text">` | Integer numeric with `MinValue`/`MaxValue`, `Value: NativeInt` |
 | **TWDateEditBox** | `<input type="date">` | Native date picker |
 | **TWTimeEditBox** | `<input type="time">` | Native time picker |
 | **TWFileButton** | `<input type="file">` | File selection |
@@ -67,4 +67,4 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 - DB-aware controls
 - TPaintBox (Canvas 2D)
 - TSplitter
-- More dialogs (OpenDialog, SaveDialog)
+- TShape
