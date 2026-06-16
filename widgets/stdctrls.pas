@@ -537,8 +537,7 @@ begin
     'background-color:#f0f0f0;' +
     'color:#333;' +
     'cursor:pointer;' +
-    'font-family:inherit;' +
-    'font-size:inherit;' +
+    'font-size:14px!important;' +
     'display:inline-flex;' +
     'align-items:center;' +
     'justify-content:center;' +
