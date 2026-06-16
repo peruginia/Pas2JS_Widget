@@ -833,7 +833,6 @@ type
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
-    property Increment;
     property MaxValue;
     property MinValue;
     property ParentColor;
@@ -889,7 +888,6 @@ type
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
-    property Increment;
     property MaxValue;
     property MinValue;
     property ParentColor;

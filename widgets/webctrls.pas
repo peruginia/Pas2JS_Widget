@@ -699,7 +699,6 @@ type
     property Font;  
     property HandleClass;
     property HandleId;
-    property Increment;
     property MaxValue;
     property MinValue;
     property ParentColor;
