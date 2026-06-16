@@ -555,10 +555,10 @@ begin
     'background-color:#fff;' +
     'box-sizing:border-box;}' +
     'select.wcl-input{' +
-    'padding:3px 4px;' +
+    'padding:3px 4px!important;' +
     'border-radius:4px;' +
     'border:1px solid #888;' +
-    'font-size:14px;' +
+    'font-size:14px!important;' +
     'background-color:#fff;}' +
     '.wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}' +
     '.wcl-input:disabled{opacity:0.5;}' +
