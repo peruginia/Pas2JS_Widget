@@ -558,8 +558,7 @@ begin
     'padding:3px 4px;' +
     'border-radius:4px;' +
     'border:1px solid #888;' +
-    'font-family:inherit;' +
-    'font-size:inherit;' +
+    'font-size:14px;' +
     'background-color:#fff;}' +
     '.wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}' +
     '.wcl-input:disabled{opacity:0.5;}' +
