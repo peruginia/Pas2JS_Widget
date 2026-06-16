@@ -1021,6 +1021,17 @@ type
     property OnResize;
   end;
 
+  { TWDateTimePicker }
+
+  TWDateTimePicker = class(TCustomDateTimePicker)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
   { TWFileButton }
 
   TWFileButton = class(TCustomFileButton)
@@ -1199,6 +1210,7 @@ begin
     TWIntegerEdit,
     TWDateEditBox,
     TWTimeEditBox,
+    TWDateTimePicker,
     TWFileButton,
     TWDataGrid,
     TWPagination,

@@ -44,6 +44,16 @@ type
     procedure DoExit; override;
   end;
 
+  { TCustomDateTimePicker }
+
+  TCustomDateTimePicker = class(TCustomEdit)
+  private
+    FValue: TDateTime;
+    procedure SetValue(AValue: TDateTime);
+  public
+    property Value: TDateTime read FValue write SetValue;
+  end;
+
 implementation
 
 { TCustomDateTimeEdit }
@@ -58,6 +68,13 @@ procedure TCustomDateTimeEdit.DoExit;
 begin
   inherited DoExit;
   RealSetText(RealGetText);
+end;
+
+{ TCustomDateTimePicker }
+
+procedure TCustomDateTimePicker.SetValue(AValue: TDateTime);
+begin
+  FValue := AValue;
 end;
 
 end.

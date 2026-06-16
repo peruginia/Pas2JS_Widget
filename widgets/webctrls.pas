@@ -781,6 +781,43 @@ type
     property OnResize;
   end;
 
+  { TWDateTimePicker }
+
+  TWDateTimePicker = class(TCustomDateTimePicker)
+  published
+    property Align;
+    property Anchors;
+    property AutoSize;
+    property BorderSpacing;
+    property BorderStyle;
+    property Color;
+    property Enabled;
+    property Font;
+    property HandleClass;
+    property HandleId;
+    property ParentFont;
+    property ParentShowHint;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Value;
+    property Visible;
+    property OnChange;
+    property OnClick;
+    property OnEnter;
+    property OnExit;
+    property OnKeyDown;
+    property OnKeyPress;
+    property OnKeyUp;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+    property OnResize;
+  end;
+
   { TWDateEditBox }
 
   TWDateEditBox = class(TCustomDateTimeEdit)

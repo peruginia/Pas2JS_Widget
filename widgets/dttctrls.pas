@@ -44,6 +44,18 @@ type
     procedure DoExit; override;
   end;
 
+  { TCustomDateTimePicker }
+
+  TCustomDateTimePicker = class(TCustomEdit)
+  private
+    function GetValue: TDateTime;
+    procedure SetValue(AValue: TDateTime);
+  protected
+    function InputType: string; override;
+  public
+    property Value: TDateTime read GetValue write SetValue;
+  end;
+
 implementation
 
 { TCustomDateTimeEdit }
@@ -58,6 +70,40 @@ procedure TCustomDateTimeEdit.DoExit;
 begin
   inherited DoExit;
   RealSetText(RealGetText);
+end;
+
+{ TCustomDateTimePicker }
+
+function TCustomDateTimePicker.InputType: string;
+begin
+  Result := 'datetime-local';
+end;
+
+function TCustomDateTimePicker.GetValue: TDateTime;
+var
+  VText: string;
+  VDateTime: TDateTime;
+begin
+  VText := RealGetText;
+  if VText = '' then
+    Result := 0
+  else
+  begin
+    // HTML format: "YYYY-MM-DDTHH:MM" → convert to Pascal TDateTime
+    VText := StringReplace(VText, 'T', ' ', []);
+    if not TryStrToDateTime(VText, VDateTime) then
+      Result := 0
+    else
+      Result := VDateTime;
+  end;
+end;
+
+procedure TCustomDateTimePicker.SetValue(AValue: TDateTime);
+begin
+  if AValue = 0 then
+    RealSetText('')
+  else
+    RealSetText(FormatDateTime('yyyy-mm-dd', AValue) + 'T' + FormatDateTime('hh:nn', AValue));
 end;
 
 end.
