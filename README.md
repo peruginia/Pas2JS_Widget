@@ -35,7 +35,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWDateEditBox** | `<input type="date">` | Native date picker |
 | **TWTimeEditBox** | `<input type="time">` | Native time picker |
 | **TWFileButton** | `<input type="file">` | File selection |
-| **TWDataGrid** | `<table>` / cards | Data grid with sorting, `FilterBox` filtering, `DataJSon` (dataset) or `Data` (array), responsive card layout for mobile |
+| **TWDataGrid** | `<table>` / cards | Sorting, `FilterBox`, `DataJSon`/`Data`, column formatting (`cfNumber`, `cfCurrency`, `cfDataTime`, `cfString` + `DisplayMask`), responsive card layout, `ExportToCSV` |
 | **TWStringGrid** | `<table>` | Custom string grid |
 | **TWPagination** | page nav | Page navigation with `CurrentPage` |
 | **TWTrackBar** | `<input type="range">` | Slider with `Min`/`Max`/`Position`/`Frequency`/`Orientation` |
