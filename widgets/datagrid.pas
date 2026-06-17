@@ -239,6 +239,7 @@ type
     destructor Destroy; override;
     function AddColumn: TDataColumn; virtual;
     procedure Clear; virtual;
+    procedure ExportToCSV; virtual;
     procedure Changed; override;
     property AutoCreateColumns: boolean read FAutoCreateColumns write FAutoCreateColumns;
     property ColCount: NativeInt read GetColCount;
@@ -1179,6 +1180,71 @@ begin
    FData := nil;
    FDataJSon := nil;
    Changed;
+end;
+
+procedure TCustomDataGrid.ExportToCSV;
+var
+  VColIdx, VRowIdx: NativeInt;
+  VCol: TDataColumn;
+  VCSV, VVal, VFileName: string;
+  VObj: TJSObject;
+  VJSVal: JSValue;
+begin
+  VCSV := '';
+  // Header
+  for VColIdx := 0 to FColumns.Count - 1 do
+  begin
+    VCol := FColumns[VColIdx];
+    if VColIdx > 0 then VCSV := VCSV + ',';
+    VCSV := VCSV + '"' + IfThen(VCol.Title <> '', VCol.Title, VCol.Name) + '"';
+  end;
+  VCSV := VCSV + #13#10;
+  // Data
+  if Assigned(FData) then
+  begin
+    for VRowIdx := 0 to FData.Length - 1 do
+    begin
+      VJSVal := FData[VRowIdx];
+      if IsObject(VJSVal) then
+      begin
+        VObj := TJSObject(VJSVal);
+        for VColIdx := 0 to FColumns.Count - 1 do
+        begin
+          VCol := FColumns[VColIdx];
+          if VColIdx > 0 then VCSV := VCSV + ',';
+          VVal := String(VObj[VCol.Name]);
+          VCSV := VCSV + '"' + StringReplace(VVal, '"', '""', [rfReplaceAll]) + '"';
+        end;
+        VCSV := VCSV + #13#10;
+      end;
+    end;
+  end
+  else if Assigned(FDataJSon) and FDataJSon.Active then
+  begin
+    FDataJSon.First;
+    while not FDataJSon.Eof do
+    begin
+      for VColIdx := 0 to FColumns.Count - 1 do
+      begin
+        VCol := FColumns[VColIdx];
+        if VColIdx > 0 then VCSV := VCSV + ',';
+        VCSV := VCSV + '"' + FDataJSon.FieldByName(VCol.Name).AsString + '"';
+      end;
+      VCSV := VCSV + #13#10;
+      FDataJSon.Next;
+    end;
+  end;
+  VFileName := IfThen(Name <> '', Name, 'export') + '.csv';
+  // Download via browser
+  asm
+    var blob = new Blob([VCSV], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = VFileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  end;
 end;
 
 function TCustomDataGrid.GetColCount: NativeInt;
