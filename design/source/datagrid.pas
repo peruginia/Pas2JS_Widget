@@ -40,7 +40,7 @@ type
   /// Forward declaration
   TCustomDataGrid = class;
 
-  TColumnFormat = (cfBoolean, cfDataTime, cfNumber, cfString);
+  TColumnFormat = (cfBoolean, cfDataTime, cfNumber, cfCurrency, cfString);
 
   { TDataColumn }
 

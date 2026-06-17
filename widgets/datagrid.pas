@@ -44,7 +44,7 @@ type
   /// Forward declaration
   TCustomDataGrid = class;
 
-  TColumnFormat = (cfBoolean, cfDataTime, cfNumber, cfString);
+  TColumnFormat = (cfBoolean, cfDataTime, cfNumber, cfCurrency, cfString);
 
   { TDataColumn }
   TDataColumn = class(TCollectionItem)
@@ -226,6 +226,7 @@ type
     procedure RenderTableBody; virtual;
     procedure RenderCardBody; virtual;
     function RenderTableCell(const AColumn: TDataColumn; const AObject: TJSObject): string; virtual;
+    function FormatCellValue(const AColumn: TDataColumn; const AValue: JSValue): string; virtual;
     function RenderTableHeadCell(const AColumn: TDataColumn; const AIndex: NativeInt): string; virtual;
     function SelectCell(ACol, ARow: NativeInt): TJSHTMLTableCellElement; virtual;
     procedure SetActiveCell(ACell: TJSHTMLTableCellElement); virtual;
@@ -852,10 +853,7 @@ begin
             VCell.setAttribute('data-label', VColumn.Title);
             if (VDisplayRow mod 2)=0 then
                VCell.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
-            if FFilterText <> '' then
-              VCell.InnerHTML := string(VObject[VColumn.name])
-            else
-              VCell.InnerHTML := FDataJSon.FieldByName(VColumn.name).AsString;
+            VCell.InnerHTML := RenderTableCell(VColumn, VObject);
             if (Assigned(fOnDrawColumnCell)) then
                fOnDrawColumnCell(self, VColumn.Name, VCell);
             if FDataJSon.Active and (FDataJSon.GetBookmark=position) then
@@ -1068,7 +1066,7 @@ begin
               VCell.AppendChild(VLabel);
               VValue := TJSHTMLElement(Document.CreateElement('span'));
               VValue.setAttribute('class', 'dg-value');
-              VValue.InnerHTML := string(VObject[VColumn.name]);
+              VValue.InnerHTML := RenderTableCell(VColumn, VObject);
               VCell.AppendChild(VValue);
               VCard.AppendChild(VCell);
               if Assigned(fOnDrawColumnCell) then begin
@@ -1103,7 +1101,7 @@ begin
               VCell.AppendChild(VLabel);
               VValue := TJSHTMLElement(Document.CreateElement('span'));
               VValue.setAttribute('class', 'dg-value');
-              VValue.InnerHTML := FDataJSon.FieldByName(VColumn.name).AsString;
+              VValue.InnerHTML := FormatCellValue(VColumn, FDataJSon.FieldByName(VColumn.name).AsString);
               VCell.AppendChild(VValue);
               VCard.AppendChild(VCell);
               if Assigned(fOnDrawColumnCell) then begin
@@ -1861,21 +1859,32 @@ begin
    Result := '';
    if (Assigned(AColumn)) and (AObject.HasOwnProperty(AColumn.Name)) then begin
       VValue := AObject[AColumn.Name];
-      case GetValueType(VValue) of
-           jvtArray, jvtObject, jvtNull: ;
-           jvtBoolean: Result := BoolToStr(boolean(VValue));
-           jvtInteger: Result := FloatToStr(NativeInt(VValue));
-           jvtFloat:
-              case AColumn.Format of
-                 cfDataTime: Result := FormatDateTime(AColumn.DisplayMask, extended(VValue));
-                 cfNumber: Result := FormatFloat(AColumn.DisplayMask, extended(VValue));
-                 else Result := FloatToStr(extended(VValue));
-              end;
-           jvtString:
-              if (AColumn.DisplayMask <> '') then Result := MaskDoFormatText(AColumn.DisplayMask, string(VValue), ' ')
-              else Result := string(VValue);
-      end;
+      Result := FormatCellValue(AColumn, VValue);
    end;
+end;
+
+function TCustomDataGrid.FormatCellValue(const AColumn: TDataColumn; const AValue: JSValue): string;
+begin
+  Result := '';
+  case GetValueType(AValue) of
+       jvtArray, jvtObject, jvtNull: ;
+       jvtBoolean: Result := BoolToStr(boolean(AValue));
+       jvtInteger: Result := FloatToStr(NativeInt(AValue));
+       jvtFloat:
+          case AColumn.Format of
+             cfDataTime: Result := FormatDateTime(AColumn.DisplayMask, extended(AValue));
+             cfNumber, cfCurrency: Result := FormatFloat(IfThen(AColumn.DisplayMask <> '', AColumn.DisplayMask, '#,##0.00'), extended(AValue));
+             else Result := FloatToStr(extended(AValue));
+          end;
+       jvtString:
+          case AColumn.Format of
+             cfNumber, cfCurrency: Result := FormatFloat(IfThen(AColumn.DisplayMask <> '', AColumn.DisplayMask, '#,##0.00'), StrToFloatDef(string(AValue), 0));
+             cfDataTime: Result := FormatDateTime(AColumn.DisplayMask, StrToFloatDef(string(AValue), 0));
+             else
+               if (AColumn.DisplayMask <> '') then Result := MaskDoFormatText(AColumn.DisplayMask, string(AValue), ' ')
+               else Result := string(AValue);
+          end;
+  end;
 end;
 
 function TCustomDataGrid.RenderTableHeadCell(const AColumn: TDataColumn; const AIndex: NativeInt): string;

@@ -51,6 +51,7 @@ type
     FValue: TDateTime;
     procedure SetValue(AValue: TDateTime);
   public
+    constructor Create(AOwner: TComponent); override;
     property Value: TDateTime read FValue write SetValue;
   end;
 
@@ -71,6 +72,11 @@ begin
 end;
 
 { TCustomDateTimePicker }
+
+constructor TCustomDateTimePicker.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+end;
 
 procedure TCustomDateTimePicker.SetValue(AValue: TDateTime);
 begin
