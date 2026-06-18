@@ -37,7 +37,8 @@ uses
   Graphics,
   Controls,
   DB,
-  localjsondataset;
+  localjsondataset,
+  webdb;
 
 type
 
@@ -148,7 +149,11 @@ type
     FColumns: TDataColumns;
     FData: TJSArray;
     FDataJSon : TLocalJSONDataset;
+    FDataTable: TCustomWebDBTable;
+    FTableDataLoaded: TNotifyEvent;
+    procedure DoTableDataLoaded(Sender: TObject);
     FRowSelect : Boolean;
+    fSelRow, fSelCol : NativeInt;
     fontouchstart: TJSTouchEventHandler;
     fontouchmove: TJSTouchEventHandler;
     fontouchcancel: TJSTouchEventHandler;
@@ -170,6 +175,8 @@ type
     FLastTouchTime: TDateTime;
     FAlternateRowColor: TColor;
      FNeedsFullRender: boolean;
+    FInfiniteScroll: boolean;
+    FScrollLoading: boolean;
      FResponsiveMode: boolean;
    FResponsiveBreakpoint: Integer;
     FIsCardVisible: Boolean;
@@ -186,6 +193,7 @@ type
     procedure SetColumns(AValue: TDataColumns);
     procedure SetData(AValue: TJSArray);
     procedure SetDataJson(AValue: TLocalJSONDataset);
+    procedure SetDataTable(AValue: TCustomWebDBTable);
     procedure SetDefColWidth(AValue: NativeInt);
     procedure SetDefRowHeight(AValue: NativeInt);
     procedure SetShowHeader(AValue: boolean);
@@ -208,6 +216,9 @@ type
     procedure NavigateRight; virtual;
     procedure NavigateEnd; virtual;
     procedure NavigateHome; virtual;
+    procedure NavigatePageDown; virtual;
+    procedure NavigatePageUp; virtual;
+    procedure ScrollCellIntoView(ACell: TJSHTMLTableCellElement);
     function HandleBodyClick(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleBodyTouchStart(AEvent: TJSTouchEvent): boolean; virtual;
     function HandleBodyTouchEnd(AEvent: TJSTouchEvent): boolean; virtual;
@@ -248,6 +259,7 @@ type
     property ColumnClickSorts: boolean read FColumnClickSorts write SetColumnClickSorts;
     property Data: TJSArray read FData write SetData;
     property DataJson: TLocalJSONDataset read FDataJSon write SetDataJson;
+    property DataTable: TCustomWebDBTable read FDataTable write SetDataTable;
     property DefaultColWidth: NativeInt read FDefColWidth write SetDefColWidth;
     property DefaultRowHeight: NativeInt read FDefRowHeight write SetDefRowHeight;
     property RowCount: NativeInt read GetRowCount;
@@ -258,6 +270,7 @@ type
      property ResponsiveMode: boolean read FResponsiveMode write SetResponsiveMode;
     property ResponsiveBreakpoint: Integer read FResponsiveBreakpoint write SetResponsiveBreakpoint;
     property FilterBox: boolean read FFilterBox write SetFilterBox;
+    property InfiniteScroll: boolean read FInfiniteScroll write FInfiniteScroll;
     property OnCellClick: TOnClickEvent read FOnCellClick write FOnCellClick;
     property OnHeaderClick: TOnHeaderClick read FOnHeaderClick write FOnHeaderClick;
     property onTouchStart: TJSTouchEventHandler read fontouchstart write fontouchstart;
@@ -669,11 +682,11 @@ begin
       begin
          FLastClickTime := 0;
          FLastClickCell := nil;
-         FOnCellDblClick(Self, VColIndex, VRow.rowIndex);
+          FOnCellDblClick(Self, VColIndex, VRow.sectionRowIndex);
       end else begin
          FLastClickTime := Now;
          FLastClickCell := ACell;
-         CellClick(VColIndex, VRow.rowIndex);
+          CellClick(VColIndex, VRow.sectionRowIndex);
       end;
    end;
 end;
@@ -816,24 +829,25 @@ begin
             Inc(VDisplayRow);
          end;
       end;
-    end else if Assigned(FDataJSon) then Begin
-       if FDataJSon.Active then position := FDataJSon.GetBookmark;
+    end else if Assigned(FDataJSon) and FDataJSon.Active then Begin
+       if FDataJSon.RecordCount = 0 then exit;
+       position := FDataJSon.GetBookmark;
        FDataJSon.First;
        VDisplayRow := 0;
        VRowIndex:=0;
-       while not FDataJSon.eof do begin
-          if FFilterText <> '' then begin
-            VObject := TJSObject.new;
-            for VColumnIndex := 0 to (FColumns.Count - 1) do begin
-              VColumn := FColumns[VColumnIndex];
-              VObject[VColumn.Name] := FDataJSon.FieldByName(VColumn.name).AsString;
-            end;
-            if not FilterMatchesRow(VObject) then begin
-              FDataJSon.Next;
-              inc(VRowIndex);
-              continue;
-            end;
-          end;
+        while not FDataJSon.eof do begin
+           VObject := TJSObject.new;
+           for VColumnIndex := 0 to (FColumns.Count - 1) do begin
+             VColumn := FColumns[VColumnIndex];
+             VObject[VColumn.Name] := FDataJSon.FieldByName(VColumn.name).AsString;
+           end;
+           if FFilterText <> '' then begin
+             if not FilterMatchesRow(VObject) then begin
+               FDataJSon.Next;
+               inc(VRowIndex);
+               continue;
+             end;
+           end;
 
          If Assigned(fOnAddSeparator) then begin
             Separator:='';
@@ -856,14 +870,14 @@ begin
             VCell.InnerHTML := RenderTableCell(VColumn, VObject);
             if (Assigned(fOnDrawColumnCell)) then
                fOnDrawColumnCell(self, VColumn.Name, VCell);
-            if FDataJSon.Active and (FDataJSon.GetBookmark=position) then
+            if (FDataJSon.GetBookmark=position) then
                SetActiveCell(VCell);
          end;
          FDataJSon.Next;
          inc(VRowIndex);
          Inc(VDisplayRow);
       end;
-      if FDataJSon.Active then FDataJSon.GotoBookmark(position);
+      FDataJSon.GotoBookmark(position);
    end;
 end;
 
@@ -1029,18 +1043,18 @@ begin
             Inc(VDisplayRow);
          end;
       end;
-   end else if Assigned(FDataJSon) then begin
-      if FDataJSon.Active then position := FDataJSon.GetBookmark;
+   end else if Assigned(FDataJSon) and FDataJSon.Active then begin
+      position := FDataJSon.GetBookmark;
       FDataJSon.First;
       VDisplayRow := 0;
-      while not FDataJSon.eof do begin
-         if FFilterText <> '' then begin
-           VObject := TJSObject.new;
-           for VColumnIndex := 0 to (FColumns.Count - 1) do begin
-             VColumn := FColumns[VColumnIndex];
-             VObject[VColumn.Name] := FDataJSon.FieldByName(VColumn.name).AsString;
-           end;
-           if not FilterMatchesRow(VObject) then begin
+       while not FDataJSon.eof do begin
+          VObject := TJSObject.new;
+          for VColumnIndex := 0 to (FColumns.Count - 1) do begin
+            VColumn := FColumns[VColumnIndex];
+            VObject[VColumn.Name] := FDataJSon.FieldByName(VColumn.name).AsString;
+          end;
+          if FFilterText <> '' then begin
+            if not FilterMatchesRow(VObject) then begin
              FDataJSon.Next;
              continue;
            end;
@@ -1117,7 +1131,7 @@ begin
          end;
          FDataJSon.Next;
       end;
-      if FDataJSon.Active then FDataJSon.GotoBookmark(position);
+      FDataJSon.GotoBookmark(position);
    end;
 end;
 
@@ -1125,7 +1139,9 @@ constructor TCustomDataGrid.Create(AOwner: TComponent);
 begin
    inherited Create(AOwner);
    FColumns := TDataColumns.Create(Self);
-   FActiveCell := nil;
+    FActiveCell := nil;
+    fSelRow := -1;
+    fSelCol := -1;
    FAutoCreateColumns := True;
    FColumnClickSorts := True;
    FDefColWidth := -1;
@@ -1292,11 +1308,44 @@ Begin
       try
          FData:=nil;
          FDataJSon := AValue;
+         FNeedsFullRender := True;
          AutomaticallyCreateColumns;
       finally
          EndUpdate;
       end;
-   end else changed;
+   end else begin
+    changed;
+  end;
+end;
+
+procedure TCustomDataGrid.SetDataTable(AValue: TCustomWebDBTable);
+begin
+  if (FDataTable <> AValue) then
+  begin
+    if Assigned(FDataTable) then
+      FDataTable.OnLoad := FTableDataLoaded;
+    FDataTable := AValue;
+    if Assigned(FDataTable) then
+    begin
+      FTableDataLoaded := FDataTable.OnLoad;
+      FDataTable.OnLoad := @DoTableDataLoaded;
+      if FDataTable.Active then
+        SetDataJson(FDataTable.DataJson)
+      else
+        SetDataJson(nil);
+    end
+    else
+      SetDataJson(nil);
+  end;
+end;
+
+procedure TCustomDataGrid.DoTableDataLoaded(Sender: TObject);
+begin
+  FScrollLoading := False;
+  if Assigned(FTableDataLoaded) then
+    FTableDataLoaded(Sender);
+  if Assigned(FDataTable) then
+    SetDataJson(FDataTable.DataJson);
 end;
 
 procedure TCustomDataGrid.SetDefColWidth(AValue: NativeInt);
@@ -1464,6 +1513,8 @@ procedure TCustomDataGrid.KeyDown(var Key: NativeInt; Shift: TShiftState);
 begin
   inherited KeyDown(Key, Shift);
   case Key of
+    33: begin NavigatePageUp; Key := 0; end;
+    34: begin NavigatePageDown; Key := 0; end;
     35: begin NavigateEnd; Key := 0; end;
     36: begin NavigateHome; Key := 0; end;
     37: begin NavigateLeft; Key := 0; end;
@@ -1559,7 +1610,11 @@ begin
     if (Assigned(VRow)) and (VRow.ChildNodes.Length > 0) then
     begin
       VCell := TJSHTMLTableCellElement(VRow.ChildNodes[FActiveCell.CellIndex]);
-      if (Assigned(VCell)) then VCell.Click;
+      if (Assigned(VCell)) then
+      begin
+        VCell.Click;
+        ScrollCellIntoView(VCell);
+      end;
     end;
   end;
 end;
@@ -1575,7 +1630,11 @@ begin
     if (Assigned(VRow)) and (VRow.ChildNodes.Length > 0) then
     begin
       VCell := TJSHTMLTableCellElement(VRow.ChildNodes[FActiveCell.CellIndex]);
-      if (Assigned(VCell)) then VCell.Click;
+      if (Assigned(VCell)) then
+      begin
+        VCell.Click;
+        ScrollCellIntoView(VCell);
+      end;
     end;
   end;
 end;
@@ -1587,7 +1646,11 @@ begin
   if (Assigned(FActiveCell)) then
   begin
     VCell := TJSHTMLTableCellElement(FActiveCell.PreviousElementSibling);
-    if (Assigned(VCell)) then VCell.Click;
+    if (Assigned(VCell)) then
+    begin
+      VCell.Click;
+      ScrollCellIntoView(VCell);
+    end;
   end;
 end;
 
@@ -1598,7 +1661,11 @@ begin
   if (Assigned(FActiveCell)) then
   begin
     VCell := TJSHTMLTableCellElement(FActiveCell.NextElementSibling);
-    if (Assigned(VCell)) then VCell.Click;
+    if (Assigned(VCell)) then
+    begin
+      VCell.Click;
+      ScrollCellIntoView(VCell);
+    end;
   end;
 end;
 
@@ -1617,7 +1684,11 @@ begin
       if (Assigned(VRow)) and (VRow.ChildNodes.Length > 0) then
       begin
         VCell := TJSHTMLTableCellElement(VRow.ChildNodes[FActiveCell.CellIndex]);
-        if (Assigned(VCell)) then VCell.Click;
+        if (Assigned(VCell)) then
+        begin
+          VCell.Click;
+          ScrollCellIntoView(VCell);
+        end;
       end;
     end;
   end;
@@ -1638,9 +1709,98 @@ begin
       if (Assigned(VRow)) and (VRow.ChildNodes.Length > 0) then
       begin
         VCell := TJSHTMLTableCellElement(VRow.ChildNodes[FActiveCell.CellIndex]);
-        if (Assigned(VCell)) then VCell.Click;
+        if (Assigned(VCell)) then
+        begin
+          VCell.Click;
+          ScrollCellIntoView(VCell);
+        end;
       end;
     end;
+  end;
+end;
+
+procedure TCustomDataGrid.NavigatePageDown;
+var
+  VBody: TJSHTMLTableSectionElement;
+  VRow: TJSHTMLTableRowElement;
+  VCell: TJSHTMLTableCellElement;
+  VRowHeight, VPageRows, VTargetIdx: NativeInt;
+  VCurrentIdx: NativeInt;
+begin
+  if not Assigned(FActiveCell) then Exit;
+  VBody := TJSHTMLTableSectionElement(HandleElement.QuerySelector('tbody'));
+  if not Assigned(VBody) or (VBody.Rows.Length = 0) then Exit;
+
+  VRow := TJSHTMLTableRowElement(FActiveCell.ParentElement);
+  VRowHeight := IfThen(FDefRowHeight > 0, FDefRowHeight, CalcDefaultRowHeight);
+  asm VPageRows = Math.floor(VBody.clientHeight / VRowHeight); end;
+  if VPageRows < 1 then VPageRows := 1;
+
+  VCurrentIdx := VRow.sectionRowIndex;
+  VTargetIdx := VCurrentIdx + VPageRows;
+  if VTargetIdx >= VBody.Rows.Length then
+    VTargetIdx := VBody.Rows.Length - 1;
+
+  VRow := TJSHTMLTableRowElement(VBody.Rows[VTargetIdx]);
+  if Assigned(VRow) and (VRow.ChildNodes.Length > 0) then
+  begin
+    VCell := TJSHTMLTableCellElement(VRow.ChildNodes[FActiveCell.CellIndex]);
+    if Assigned(VCell) then
+    begin
+      VCell.Click;
+      ScrollCellIntoView(VCell);
+    end;
+  end;
+end;
+
+procedure TCustomDataGrid.NavigatePageUp;
+var
+  VBody: TJSHTMLTableSectionElement;
+  VRow: TJSHTMLTableRowElement;
+  VCell: TJSHTMLTableCellElement;
+  VRowHeight, VPageRows, VTargetIdx: NativeInt;
+  VCurrentIdx: NativeInt;
+begin
+  if not Assigned(FActiveCell) then Exit;
+  VBody := TJSHTMLTableSectionElement(HandleElement.QuerySelector('tbody'));
+  if not Assigned(VBody) or (VBody.Rows.Length = 0) then Exit;
+
+  VRow := TJSHTMLTableRowElement(FActiveCell.ParentElement);
+  VRowHeight := IfThen(FDefRowHeight > 0, FDefRowHeight, CalcDefaultRowHeight);
+  asm VPageRows = Math.floor(VBody.clientHeight / VRowHeight); end;
+  if VPageRows < 1 then VPageRows := 1;
+
+  VCurrentIdx := VRow.sectionRowIndex;
+  VTargetIdx := VCurrentIdx - VPageRows;
+  if VTargetIdx < 0 then VTargetIdx := 0;
+
+  VRow := TJSHTMLTableRowElement(VBody.Rows[VTargetIdx]);
+  if Assigned(VRow) and (VRow.ChildNodes.Length > 0) then
+  begin
+    VCell := TJSHTMLTableCellElement(VRow.ChildNodes[FActiveCell.CellIndex]);
+    if Assigned(VCell) then
+    begin
+      VCell.Click;
+      ScrollCellIntoView(VCell);
+    end;
+  end;
+end;
+
+procedure TCustomDataGrid.ScrollCellIntoView(ACell: TJSHTMLTableCellElement);
+begin
+  if not Assigned(ACell) then Exit;
+  asm
+    var body = this.FHandleElement.querySelector('tbody');
+    var row = ACell.parentElement;
+    if (body && row) {
+      var rowTop = row.offsetTop;
+      var rowH = row.offsetHeight;
+      if (rowTop < body.scrollTop) {
+        body.scrollTop = rowTop;
+      } else if (rowTop + rowH > body.scrollTop + body.clientHeight) {
+        body.scrollTop = rowTop + rowH - body.clientHeight;
+      }
+    }
   end;
 end;
 
@@ -1648,11 +1808,34 @@ function TCustomDataGrid.HandleBodyScroll(AEvent: TJSEvent): boolean;
 var
   VBody: TJSHTMLTableSectionElement;
   VHead: TJSHTMLTableSectionElement;
+  VScrollTop, VScrollHeight, VClientHeight: Double;
 begin
   VHead := TJSHTMLTableSectionElement(HandleElement.QuerySelector('thead'));
   VBody := TJSHTMLTableSectionElement(HandleElement.QuerySelector('tbody'));
   if (Assigned(VHead)) and (Assigned(VBody)) then
     VHead.ScrollLeft := VBody.ScrollLeft;
+
+  if FInfiniteScroll and Assigned(FDataTable) and not FScrollLoading then
+  begin
+    if FDataTable.LoadedRecords >= FDataTable.TotalRecords then
+    begin
+      FScrollLoading := False;
+      AEvent.StopPropagation;
+      Result := True;
+      Exit;
+    end;
+    asm
+      VScrollTop = VBody.scrollTop;
+      VScrollHeight = VBody.scrollHeight;
+      VClientHeight = VBody.clientHeight;
+    end;
+    if (VScrollTop + VClientHeight >= VScrollHeight - 50) then
+    begin
+      FScrollLoading := True;
+      FDataTable.LoadNextPage;
+    end;
+  end;
+
   AEvent.StopPropagation;
   Result := True;
 end;
@@ -1663,6 +1846,7 @@ var
   VContainer, VFilterCard: TJSHTMLElement;
   VFilterInput: TJSHTMLInputElement;
   VIsCard: Boolean;
+  VScrollPos: Double;
 begin
    inherited Changed;
    if Enabled=false then exit;
@@ -1718,7 +1902,10 @@ begin
          else
            VOldBody := HandleElement.QuerySelector('tbody');
          if Assigned(VOldBody) then
-            HandleElement.RemoveChild(VOldBody);
+         begin
+           asm VScrollPos = VOldBody.scrollTop; end;
+           HandleElement.RemoveChild(VOldBody);
+         end;
          if VIsCard then begin
            VContainer := TJSHTMLElement(Document.CreateElement('div'));
            VContainer.setAttribute('class', 'dg-card-container');
@@ -1727,11 +1914,35 @@ begin
       end;
       if VIsCard then
          RenderCardBody
-      else
-         RenderTableBody;
-      if (Focused) and not VIsCard then begin
-         FActiveCell := SelectCell(FSortColumn, 0);
-         if (Assigned(FActiveCell)) then FActiveCell.Click;
+      else begin
+        asm
+          var sr = this.fSelRow;
+          var sc = this.fSelCol;
+        end;
+        RenderTableBody;
+        asm
+          this.fSelRow = sr;
+          this.fSelCol = sc;
+        end;
+      end;
+      if not VIsCard and (VScrollPos > 0) and Assigned(Body) then
+      begin
+        FScrollLoading := True;
+        asm this.Body.scrollTop = VScrollPos; end;
+        FScrollLoading := False;
+      end;
+      if not VIsCard then begin
+         if (fSelRow >= 0) and (fSelCol >= 0) then
+         begin
+           FActiveCell := SelectCell(fSelCol, fSelRow);
+           if Assigned(FActiveCell) then
+             SetActiveCell(FActiveCell);
+         end else
+         begin
+           FActiveCell := SelectCell(0, 0);
+           if Assigned(FActiveCell) then
+             SetActiveCell(FActiveCell);
+         end;
       end;
    end;
    if Assigned(fOnEndDraw) then fOnEndDraw(self);
@@ -1930,6 +2141,17 @@ begin
       FActiveCell := ACell;
       if (Assigned(FActiveCell)) then
          TJSHTMLTableRowElement(FActiveCell.ParentElement).style.SetProperty('border', '2px solid dodgerblue');
+   end;
+   if Assigned(FActiveCell) then
+   begin
+     fSelCol := FActiveCell.CellIndex;
+     asm
+       if (this.FActiveCell && this.FActiveCell.parentElement) {
+         this.fSelRow = this.FActiveCell.parentElement.sectionRowIndex;
+       } else {
+         this.fSelRow = -1;
+       }
+     end;
    end;
 end;
 

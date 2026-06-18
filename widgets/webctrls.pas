@@ -40,7 +40,8 @@ uses
   NumCtrls,
   DttCtrls,
   BtnCtrls,
-  DataGrid;
+  DataGrid,
+  WebDB;
 
 type
 
@@ -981,6 +982,7 @@ type
     property ResponsiveMode;
     property ResponsiveBreakpoint;
     property FilterBox;
+    property InfiniteScroll;
     property TabOrder;
     property TabStop;
     property Visible;
@@ -1001,6 +1003,7 @@ type
 
     // DataSet
     property DataJSon;
+    property DataTable;
 
     // Extend
     property RowSelect;
@@ -1046,6 +1049,31 @@ type
     property OnMouseUp;
     property OnMouseWheel;
     property OnPageClick;
+  end;
+
+  { TWWebDBConnection }
+
+  TWWebDBConnection = class(TCustomWebDBConnection)
+  published
+    property Backend;
+    property BaseURL;
+    property DBName;
+    property DBVersion;
+    property StoreName;
+  end;
+
+  { TWWebDBTable }
+
+  TWWebDBTable = class(TCustomWebDBTable)
+  published
+    property Connection;
+    property TableName;
+    property AutoLoad;
+    property Progressive;
+    property PageSize;
+    property OnLoad;
+    property OnSave;
+    property OnLoadError;
   end;
 
 implementation

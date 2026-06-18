@@ -33,7 +33,8 @@ uses
   Types,
   Graphics,
   Controls,
-  DB;
+  DB,
+  WebDBD;
 
 type
 
@@ -236,6 +237,7 @@ type
     FResponsiveMode: boolean;
     FResponsiveBreakpoint: Integer;
     FFilterBox: boolean;
+    FInfiniteScroll: boolean;
     FOnCellClick: TOnClickEvent;
     FOnCellDblClick: TOnClickEvent;
 
@@ -243,6 +245,7 @@ type
 
     // Dataset
     FDataJSon : TLocalJSONDataset;
+    FDataTable: TCustomWebDBTable;
 
     FRowSelect : Boolean;
     fSelRow, fSelCol : NativeInt;
@@ -287,12 +290,14 @@ type
     property ResponsiveMode: boolean read FResponsiveMode write SetResponsiveMode;
     property ResponsiveBreakpoint: Integer read FResponsiveBreakpoint write SetResponsiveBreakpoint;
     property FilterBox: boolean read FFilterBox write SetFilterBox;
+    property InfiniteScroll: boolean read FInfiniteScroll write FInfiniteScroll;
     property OnCellClick: TOnClickEvent read FOnCellClick write FOnCellClick;
     property OnCellDblClick: TOnClickEvent read FOnCellDblClick write FOnCellDblClick;
     property OnHeaderClick: TOnHeaderClick read FOnHeaderClick write FOnHeaderClick;
 
     // DataSet
     property DataJSon : TLocalJSONDataset read FDataJSon write FDataJSon;
+    property DataTable: TCustomWebDBTable read FDataTable write FDataTable;
 
     // Extend
     property RowSelect : Boolean read FRowSelect write FRowSelect default false;

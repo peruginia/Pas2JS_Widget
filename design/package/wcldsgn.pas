@@ -8,7 +8,7 @@ unit WCLDsgn;
 interface
 
 uses
-      BtnCtrls, DataGrid, DttCtrls, NumCtrls, WebCtrls, Pas2JS_IDE_Descriptor, websocket, LazarusPackageIntf;
+      btnctrls, datagrid, dttctrls, numctrls, WebCtrls, Pas2JS_IDE_Descriptor, websocket, webdbD, LazarusPackageIntf;
 
 implementation
 

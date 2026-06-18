@@ -349,12 +349,17 @@ begin
     aUnits.Clear;
     aUnits.Add('Grids');
   end;
+  if (ComponentClass.ClassType = TWWebDBConnection) or
+     (ComponentClass.ClassType = TWWebDBTable) then begin
+    aUnits.Add('WebCtrls');
+    aUnits.Add('WebDB');
+  end;
 end;
 
 procedure TPas2JSWidgetsRequirements.RequiredPkgs(aPkgs: TStrings);
 begin
   aPkgs.Clear;
-  aPkgs.Add('Pas2JS_Widget');
+  aPkgs.Add('WCL');
 end;
 
 {$ENDIF}
@@ -373,7 +378,7 @@ begin
   RegisterComponentRequirements([TWButton, TWCheckbox, TWComboBox, TWDataGrid, TWDateEditBox,
     TWEdit, TWFileButton, TWFloatEdit, TWImage, TWIntegerEdit, TWLabel, TWMemo, TWPageControl,
     TWPagination, TWPanel, TWRadioButton, TWTimeEditBox, TWStringGrid, TWListBox, TWImage, TWTimer,
-    TWDateEditBox, TWWebSocketClient], TPas2JSWidgetsRequirements);
+    TWDateEditBox, TWWebSocketClient, TWWebDBConnection, TWWebDBTable], TPas2JSWidgetsRequirements);
 {$endif}
 
   FormEditingHook.RegisterDesignerBaseClass(TWForm);
