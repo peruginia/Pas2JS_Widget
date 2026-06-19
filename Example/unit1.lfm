@@ -1,218 +1,186 @@
 object WForm1: TWForm1
   Left = 288
-  Height = 500
+  Height = 400
   Top = 250
-  Width = 900
+  Width = 1054
   AlphaBlend = False
   AlphaBlendValue = 255
   Caption = 'WCL Component Demo'
-  ClientHeight = 500
-  ClientWidth = 900
-  DesignTimePPI = 120
+  ClientHeight = 400
+  ClientWidth = 1054
   object WPageControl1: TWPageControl
     Left = 0
-    Height = 500
-    Top = 0
-    Width = 900
-    ActivePage = TabSheet3
+    Height = 366
+    Top = 34
+    Width = 785
+    ActivePage = TabSheet1
     Align = alClient
-    TabIndex = 2
+    TabIndex = 0
     TabOrder = 0
     object TabSheet1: TTabSheet
       Caption = 'Basic Inputs'
-      ClientHeight = 467
-      ClientWidth = 892
+      ClientHeight = 338
+      ClientWidth = 777
       object WLabel1: TWLabel
-        Left = 30
-        Height = 20
-        Top = 30
-        Width = 76
+        Left = 24
+        Height = 15
+        Top = 24
+        Width = 62
         Caption = 'Your Name:'
       end
       object WEdit1: TWEdit
-        Left = 30
-        Height = 28
-        Top = 60
-        Width = 250
+        Left = 24
+        Height = 23
+        Top = 48
+        Width = 200
         TabOrder = 0
       end
       object WLabel2: TWLabel
-        Left = 30
-        Height = 20
-        Top = 110
-        Width = 79
+        Left = 24
+        Height = 15
+        Top = 88
+        Width = 63
         Caption = 'Description:'
       end
       object WMemo1: TWMemo
-        Left = 30
-        Height = 100
-        Top = 135
-        Width = 425
+        Left = 24
+        Height = 80
+        Top = 108
+        Width = 340
         TabOrder = 1
       end
       object WComboBox1: TWComboBox
-        Left = 30
-        Height = 28
-        Top = 255
-        Width = 200
-        ItemHeight = 20
+        Left = 24
+        Height = 23
+        Top = 204
+        Width = 160
+        ItemHeight = 15
+        Items.Strings = (
+          'User'
+          'Super User'
+          'Admin'
+        )
         TabOrder = 2
       end
       object WButton1: TWButton
-        Left = 500
-        Height = 31
-        Top = 30
-        Width = 94
+        Left = 56
+        Height = 25
+        Top = 240
+        Width = 75
         Caption = 'OK'
         TabOrder = 3
       end
       object WButton2: TWButton
-        Left = 610
-        Height = 31
-        Top = 30
-        Width = 94
+        Left = 240
+        Height = 25
+        Top = 240
+        Width = 75
         Caption = 'Clear'
         TabOrder = 4
       end
       object WCheckbox1: TWCheckbox
-        Left = 500
-        Height = 24
-        Top = 85
-        Width = 100
+        Left = 400
+        Height = 19
+        Top = 68
+        Width = 80
         Caption = 'Active'
         TabOrder = 5
+        OnClick = WCheckbox1Click
       end
       object WRadioButton1: TWRadioButton
-        Left = 500
-        Height = 24
-        Top = 125
-        Width = 81
+        Left = 400
+        Height = 19
+        Top = 100
+        Width = 66
         Caption = 'Option A'
         TabOrder = 6
       end
     end
     object TabSheet2: TTabSheet
       Caption = 'Numbers'
-      ClientHeight = 467
-      ClientWidth = 892
+      ClientHeight = 338
+      ClientWidth = 777
       object WFloatEdit1: TWFloatEdit
-        Left = 30
-        Height = 28
-        Top = 30
-        Width = 162
+        Left = 24
+        Height = 23
+        Top = 24
+        Width = 130
         Alignment = taRightJustify
         DecimalPlaces = 2
         TabOrder = 0
         Text = '0,00'
       end
       object WIntegerEdit1: TWIntegerEdit
-        Left = 212
-        Height = 28
-        Top = 30
-        Width = 162
+        Left = 170
+        Height = 23
+        Top = 24
+        Width = 130
         Alignment = taRightJustify
         TabOrder = 1
         Text = '0'
         Value = 0
       end
       object WDateEditBox1: TWDateEditBox
-        Left = 30
-        Height = 28
-        Top = 80
-        Width = 150
+        Left = 24
+        Height = 23
+        Top = 64
+        Width = 120
         TabOrder = 2
         Text = '30/12/1899'
       end
       object WTimeEditBox1: TWTimeEditBox
-        Left = 200
-        Height = 28
-        Top = 80
-        Width = 112
+        Left = 160
+        Height = 23
+        Top = 64
+        Width = 90
         TabOrder = 3
         Text = '00:00'
       end
       object WTrackBar1: TWTrackBar
-        Left = 30
-        Height = 38
-        Top = 140
-        Width = 375
+        Left = 24
+        Height = 30
+        Top = 112
+        Width = 300
       end
       object WLabel3: TWLabel
-        Left = 425
-        Height = 20
-        Top = 148
-        Width = 59
+        Left = 340
+        Height = 15
+        Top = 118
+        Width = 46
         Caption = 'Value: 50'
       end
       object WProgressBar1: TWProgressBar
-        Left = 30
-        Height = 25
-        Top = 200
-        Width = 375
+        Left = 24
+        Height = 20
+        Top = 160
+        Width = 300
       end
       object WColorPicker1: TWColorPicker
-        Left = 30
-        Height = 38
-        Top = 250
-        Width = 62
+        Left = 24
+        Height = 30
+        Top = 200
+        Width = 50
       end
       object WFileButton1: TWFileButton
-        Left = 30
-        Height = 31
-        Top = 310
-        Width = 138
+        Left = 24
+        Height = 25
+        Top = 248
+        Width = 110
         Caption = 'Choose File...'
         TabOrder = 4
       end
     end
     object TabSheet3: TTabSheet
       Caption = 'Data'
-      ClientHeight = 467
-      ClientWidth = 892
-      object WEdit2: TWEdit
-        Left = 30
-        Height = 28
-        Top = 30
-        Width = 438
-        TabOrder = 0
-        Text = 'http://127.0.0.1/api.php'
-        TextHint = 'https://jsonplaceholder.typicode.com/users'
-      end
-      object WButton3: TWButton
-        Left = 30
-        Height = 31
-        Top = 75
-        Width = 162
-        Caption = 'Load from Array'
-        TabOrder = 1
-      end
-      object WButton4: TWButton
-        Left = 210
-        Height = 31
-        Top = 75
-        Width = 162
-        Caption = 'Load from URL'
-        TabOrder = 2
-      end
-      object WButton5: TWButton
-        Left = 385
-        Height = 31
-        Top = 75
-        Width = 162
-        Caption = 'Load More >>'
-        TabOrder = 8
-      end
-      object WLabel4: TWLabel
-        Left = 575
-        Height = 1
-        Top = 80
-        Width = 1
-      end
+      ClientHeight = 338
+      ClientWidth = 777
       object WDataGrid1: TWDataGrid
-        Left = 30
-        Height = 150
-        Top = 125
-        Width = 625
+        Left = 10
+        Height = 198
+        Top = 90
+        Width = 757
+        Align = alClient
+        BorderSpacing.Around = 10
         Columns = <>
         ColumnClickSorts = True
         DefaultColWidth = -1
@@ -221,62 +189,233 @@ object WForm1: TWForm1
         AlternateRowColor = 15921906
         ResponsiveMode = False
         ResponsiveBreakpoint = 0
-        FilterBox = False
-        TabOrder = 3
+        FilterBox = True
+        TabOrder = 0
         RowSelect = True
       end
       object WPagination1: TWPagination
-        Left = 30
-        Height = 38
-        Top = 288
-        Width = 375
+        Left = 10
+        Height = 30
+        Top = 298
+        Width = 757
+        Align = alBottom
+        BorderSpacing.Around = 10
         CurrentPage = 1
         RecordsPerPage = 10
-        TabOrder = 4
+        TabOrder = 1
         TotalRecords = 0
       end
-      object WStringGrid1: TWStringGrid
-        Left = 30
-        Height = 125
-        Top = 338
-        Width = 625
+      object WPanel1: TWPanel
+        Left = 0
+        Height = 80
+        Top = 0
+        Width = 777
+        Align = alTop
+        ClientHeight = 80
+        ClientWidth = 777
+        TabOrder = 2
+        object WEdit2: TWEdit
+          Left = 11
+          Height = 23
+          Top = 11
+          Width = 755
+          Align = alTop
+          BorderSpacing.Around = 10
+          TabOrder = 0
+          Text = 'https://www.perugini.it/ExWidget/api.php'
+          TextHint = 'https://jsonplaceholder.typicode.com/users'
+        end
+        object WButton3: TWButton
+          Left = 11
+          Height = 30
+          Top = 44
+          Width = 130
+          Align = alLeft
+          BorderSpacing.Left = 10
+          BorderSpacing.Bottom = 5
+          Caption = 'Load from Array'
+          TabOrder = 1
+        end
+        object WLabel4: TWLabel
+          Left = 441
+          Height = 35
+          Top = 44
+          Width = 325
+          Align = alClient
+          AutoSize = False
+          BorderSpacing.Left = 20
+          BorderSpacing.Right = 10
+        end
+        object WButton4: TWButton
+          Left = 151
+          Height = 30
+          Top = 44
+          Width = 130
+          Align = alLeft
+          BorderSpacing.Left = 10
+          BorderSpacing.Bottom = 5
+          Caption = 'Load from URL'
+          TabOrder = 2
+        end
+        object WButton5: TWButton
+          Left = 291
+          Height = 30
+          Top = 44
+          Width = 130
+          Align = alLeft
+          BorderSpacing.Left = 10
+          BorderSpacing.Bottom = 5
+          Caption = 'Load More >>'
+          TabOrder = 3
+        end
       end
+    end
+    object TabSheet4: TTabSheet
+      Caption = 'Other'
+      ClientHeight = 338
+      ClientWidth = 777
       object WListBox1: TWListBox
-        Left = 675
-        Height = 100
-        Top = 30
-        Width = 175
+        Left = 540
+        Height = 80
+        Top = 24
+        Width = 140
         ItemHeight = 0
-        TabOrder = 5
+        TabOrder = 0
       end
       object WComboBox2: TWComboBox
-        Left = 675
-        Height = 28
-        Top = 145
-        Width = 175
-        ItemHeight = 20
-        TabOrder = 6
+        Left = 540
+        Height = 23
+        Top = 116
+        Width = 140
+        ItemHeight = 15
+        TabOrder = 1
       end
       object WImage1: TWImage
-        Left = 675
-        Height = 100
-        Top = 200
-        Width = 100
-      end
-      object WPanel1: TWPanel
-        Left = 675
-        Height = 62
-        Top = 320
-        Width = 175
-        Caption = 'WPanel1'
-        TabOrder = 7
+        Left = 540
+        Height = 80
+        Top = 160
+        Width = 80
       end
       object WGroupBox1: TWGroupBox
-        Left = 675
-        Height = 75
-        Top = 395
-        Width = 175
+        Left = 540
+        Height = 60
+        Top = 278
+        Width = 140
       end
+      object WStringGrid1: TWStringGrid
+        Left = 16
+        Height = 100
+        Top = 32
+        Width = 500
+      end
+    end
+  end
+  object Panel1: TWPanel
+    Left = 0
+    Height = 34
+    Top = 0
+    Width = 1054
+    Align = alTop
+    ClientHeight = 34
+    ClientWidth = 1054
+    Color = 7300197
+    ParentColor = False
+    TabOrder = 1
+    object TopMenuRight: TWPanel
+      Left = 1037
+      Height = 32
+      Top = 1
+      Width = 16
+      Align = alRight
+      BevelOuter = bvNone
+      TabOrder = 0
+    end
+    object WTopBarUser: TWImage
+      Left = 1005
+      Height = 32
+      Top = 1
+      Width = 32
+      Align = alRight
+      Stretch = True
+      URL = 'user.png'
+      OnClick = WTopBarUserClick
+    end
+  end
+  object WUserPannel: TWPanel
+    Left = 785
+    Height = 366
+    Top = 34
+    Width = 269
+    Align = alRight
+    BevelOuter = bvNone
+    ClientHeight = 366
+    ClientWidth = 269
+    Color = 7300197
+    ParentColor = False
+    TabOrder = 2
+    Visible = False
+    object btnScollegaUtente: TWButton
+      Left = 10
+      Height = 41
+      Top = 315
+      Width = 249
+      Align = alBottom
+      BorderSpacing.Around = 10
+      Caption = 'Disconnect'
+      Color = 13864818
+      Font.Height = -16
+      Font.Style = [fsBold]
+      ParentFont = False
+      TabOrder = 0
+      OnClick = btnScollegaUtenteClick
+    end
+    object WPanel2: TWPanel
+      Left = 0
+      Height = 26
+      Top = 0
+      Width = 269
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 1
+    end
+    object LabelUserName: TWLabel
+      Left = 10
+      Height = 17
+      Top = 36
+      Width = 249
+      Align = alTop
+      Alignment = taCenter
+      BorderSpacing.Around = 10
+      Caption = 'Hello User'
+      Font.Height = -13
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object btnAggiornaApp: TWButton
+      Left = 10
+      Height = 25
+      Top = 63
+      Width = 249
+      Align = alTop
+      BorderSpacing.Around = 10
+      Caption = 'Aggiorna App'
+      Font.Style = [fsBold]
+      ParentFont = False
+      TabOrder = 2
+      OnClick = btnAggiornaAppClick
+    end
+    object WLabel5: TWLabel
+      Left = 0
+      Height = 17
+      Top = 288
+      Width = 269
+      Align = alBottom
+      Alignment = taCenter
+      Caption = 'V 4.1  - 15.06.2026'
+      Font.Color = clWhite
+      Font.Height = -13
+      Font.Style = [fsBold]
+      ParentFont = False
     end
   end
   object WWebDBConnection1: TWWebDBConnection
@@ -284,18 +423,18 @@ object WForm1: TWForm1
     DBName = 'WCLDB'
     DBVersion = 1
     StoreName = 'Tables'
-    Left = 100
-    Top = 80
+    Left = 856
+    Top = 208
   end
   object WWebDBTable1: TWWebDBTable
     AutoLoad = False
     Progressive = False
     PageSize = 100
-    Left = 300
-    Top = 80
+    Left = 960
+    Top = 208
   end
   object WTimer1: TWTimer
-    Left = 500
-    Top = 80
+    Left = 968
+    Top = 144
   end
 end

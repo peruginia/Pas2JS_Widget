@@ -53,19 +53,19 @@ type
     FStoreName: String;
     FMemory: TJSObject;
     procedure SetBackend(AValue: TWebDBBackend);
-    function DoGet(Key: String): TJSPromise;
+    function DoGet(Key, Filter, SortField, SortDir: String): TJSPromise;
     function DoPut(Key, Value: String): TJSPromise;
     function DoDelete(Key: String): TJSPromise;
-    function DoGetPage(Key: String; Offset, Limit: Integer): TJSPromise;
+    function DoGetPage(Key: String; Offset, Limit: Integer; Filter, SortField, SortDir: String): TJSPromise;
   protected
     procedure EnsureMethodsIncluded;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    function Get(Key: String): TJSPromise;
+    function Get(Key: String; const Filter: String = ''; const SortField: String = ''; const SortDir: String = ''): TJSPromise;
     function Put(Key, Value: String): TJSPromise;
     function Delete(Key: String): TJSPromise;
-    function GetPage(Key: String; Offset, Limit: Integer): TJSPromise;
+    function GetPage(Key: String; Offset, Limit: Integer; const Filter: String = ''; const SortField: String = ''; const SortDir: String = ''): TJSPromise;
     property Backend: TWebDBBackend read FBackend write SetBackend;
     property BaseURL: String read FBaseURL write FBaseURL;
     property DBName: String read FDBName write FDBName;
@@ -86,6 +86,9 @@ type
     FTotalRecords: NativeInt;
     FLoadedRecords: NativeInt;
     FBackingData: TJSArray;
+    FFilterText: String;
+    FSortField: String;
+    FSortDir: String;
     FOnLoad: TNotifyEvent;
     FOnSave: TNotifyEvent;
     FOnLoadError: TOnDBErrorEvent;
@@ -120,6 +123,9 @@ type
     property AutoLoad: Boolean read FAutoLoad write FAutoLoad;
     property Progressive: Boolean read FProgressive write SetProgressive;
     property PageSize: Integer read FPageSize write FPageSize;
+    property FilterText: String read FFilterText write FFilterText;
+    property SortField: String read FSortField write FSortField;
+    property SortDir: String read FSortDir write FSortDir;
     property OnLoad: TNotifyEvent read FOnLoad write FOnLoad;
     property OnSave: TNotifyEvent read FOnSave write FOnSave;
     property OnLoadError: TOnDBErrorEvent read FOnLoadError write FOnLoadError;
@@ -157,18 +163,18 @@ begin
   // Force pas2js compiler to include all backend code paths.
   // The condition uses a runtime value so the compiler cannot strip it.
   if FBackend <> wbMemory then
-    DoGet('__NEVER__');
+    DoGet('__NEVER__', '', '', '');
   if FBackend <> wbLocal then
     DoPut('__NEVER__', '');
   if FBackend <> wbSession then
     DoDelete('__NEVER__');
   if FBackend <> wbWeb then
-    DoGetPage('__NEVER__', 0, 0);
+    DoGetPage('__NEVER__', 0, 0, '', '', '');
 end;
 
-function TCustomWebDBConnection.Get(Key: String): TJSPromise;
+function TCustomWebDBConnection.Get(Key: String; const Filter: String = ''; const SortField: String = ''; const SortDir: String = ''): TJSPromise;
 begin
-  Result := DoGet(Key);
+  Result := DoGet(Key, Filter, SortField, SortDir);
 end;
 
 function TCustomWebDBConnection.Put(Key, Value: String): TJSPromise;
@@ -181,12 +187,12 @@ begin
   Result := DoDelete(Key);
 end;
 
-function TCustomWebDBConnection.GetPage(Key: String; Offset, Limit: Integer): TJSPromise;
+function TCustomWebDBConnection.GetPage(Key: String; Offset, Limit: Integer; const Filter: String = ''; const SortField: String = ''; const SortDir: String = ''): TJSPromise;
 begin
-  Result := DoGetPage(Key, Offset, Limit);
+  Result := DoGetPage(Key, Offset, Limit, Filter, SortField, SortDir);
 end;
 
-function TCustomWebDBConnection.DoGet(Key: String): TJSPromise;
+function TCustomWebDBConnection.DoGet(Key, Filter, SortField, SortDir: String): TJSPromise;
 var
   Conn: TCustomWebDBConnection;
 begin
@@ -251,6 +257,8 @@ begin
       wbWeb:
         asm
           var url = Conn.FBaseURL + '?table=' + Key;
+          if (Filter) url += '&filter=' + encodeURIComponent(Filter);
+          if (SortField) url += '&sort=' + encodeURIComponent(SortField) + '&order=' + (SortDir || 'asc');
           fetch(url)
             .then(function(response) {
               if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -397,7 +405,7 @@ begin
   end);
 end;
 
-function TCustomWebDBConnection.DoGetPage(Key: String; Offset, Limit: Integer): TJSPromise;
+function TCustomWebDBConnection.DoGetPage(Key: String; Offset, Limit: Integer; Filter, SortField, SortDir: String): TJSPromise;
 var
   Conn: TCustomWebDBConnection;
 begin
@@ -412,6 +420,8 @@ begin
     begin
       asm
         var url = Conn.FBaseURL + '?table=' + Key + '&offset=' + Offset + '&limit=' + Limit;
+        if (Filter) url += '&filter=' + encodeURIComponent(Filter);
+        if (SortField) url += '&sort=' + encodeURIComponent(SortField) + '&order=' + (SortDir || 'asc');
         fetch(url)
           .then(function(response) {
             if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -564,7 +574,7 @@ begin
     begin
       FLoadedRecords := 0;
       asm
-        RawResult = await this.FConnection.GetPage(this.FTableName, 0, this.FPageSize);
+        RawResult = await this.FConnection.GetPage(this.FTableName, 0, this.FPageSize, this.FFilterText, this.FSortField, this.FSortDir);
       end;
       if RawResult <> nil then
       begin
@@ -619,7 +629,7 @@ begin
     else
     begin
       asm
-        RawResult = await this.FConnection.Get(this.FTableName);
+        RawResult = await this.FConnection.Get(this.FTableName, this.FFilterText, this.FSortField, this.FSortDir);
       end;
       JsonStr := String(RawResult);
       if JsonStr <> '' then
@@ -719,7 +729,7 @@ begin
   Offset := FLoadedRecords;
   try
     asm
-      PageResult = await this.FConnection.GetPage(this.FTableName, Offset, this.FPageSize);
+        PageResult = await this.FConnection.GetPage(this.FTableName, Offset, this.FPageSize, this.FFilterText, this.FSortField, this.FSortDir);
     end;
 
     if PageResult <> nil then

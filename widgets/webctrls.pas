@@ -1071,6 +1071,9 @@ type
     property AutoLoad;
     property Progressive;
     property PageSize;
+    property FilterText;
+    property SortField;
+    property SortDir;
     property OnLoad;
     property OnSave;
     property OnLoadError;

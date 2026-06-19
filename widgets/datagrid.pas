@@ -187,6 +187,7 @@ type
     FLastResponsiveState: string;
     FFilterBox: boolean;
     FFilterText: string;
+    FFilterTimer: NativeInt;
      function GetColCount: NativeInt;
     function GetRowCount: NativeInt;
     procedure SetColumnClickSorts(AValue: boolean);
@@ -1472,6 +1473,20 @@ begin
   Result := True;
   AEvent.stopPropagation;
   FFilterText := TJSHTMLInputElement(AEvent.target).value;
+  if Assigned(FDataTable) and (FFilterText <> FDataTable.FilterText) then
+  begin
+    FDataTable.FilterText := FFilterText;
+    if FFilterTimer <> 0 then
+      window.clearTimeout(FFilterTimer);
+    FFilterTimer := window.setTimeout(
+      procedure begin
+        FFilterTimer := 0;
+        if Assigned(FDataTable) then
+          FDataTable.Load;
+      end,
+      300
+    );
+  end;
   Changed;
 end;
 
@@ -1540,6 +1555,8 @@ begin
 end;
 
 procedure TCustomDataGrid.HeaderClick(ACol: NativeInt);
+var
+  VCol: TDataColumn;
 begin
   if (FColumnClickSorts) then
   begin
@@ -1550,7 +1567,20 @@ begin
     end
     else FSortOrder := soAscending;
     FSortColumn := ACol;
-    Sort;
+
+    if Assigned(FDataTable) and (FDataTable.LoadedRecords < FDataTable.TotalRecords) and
+       FColumns.HasIndex(ACol) then
+    begin
+      VCol := FColumns[ACol];
+      FDataTable.SortField := VCol.Name;
+      if FSortOrder = soAscending then
+        FDataTable.SortDir := 'asc'
+      else
+        FDataTable.SortDir := 'desc';
+      FDataTable.Load;
+    end
+    else
+      Sort;
   end;
   if (Assigned(FOnHeaderClick)) then FOnHeaderClick(Self, ACol);
 end;
@@ -1876,8 +1906,19 @@ begin
          end;
          HandleElement.setAttribute('name', Name );
          RenderTableStyle;
-         if not VIsCard then
-            RenderTableHead
+          if not VIsCard then
+          begin
+             RenderTableHead;
+             asm
+               var th = this.FHandleElement.querySelector('thead');
+               var tb = this.FHandleElement.querySelector('tbody');
+               if (th && tb) {
+                 var h = th.offsetHeight;
+                 tb.style.top = h + 'px';
+                 tb.style.height = 'calc(100% - ' + h + 'px)';
+               }
+             end;
+          end
          else begin
            // Card mode: filter outside container (survives body-only rebuilds)
            if FFilterBox then begin
@@ -1914,17 +1955,24 @@ begin
       end;
       if VIsCard then
          RenderCardBody
-      else begin
-        asm
-          var sr = this.fSelRow;
-          var sc = this.fSelCol;
-        end;
-        RenderTableBody;
-        asm
-          this.fSelRow = sr;
-          this.fSelCol = sc;
-        end;
-      end;
+       else begin
+         asm
+           var sr = this.fSelRow;
+           var sc = this.fSelCol;
+         end;
+         RenderTableBody;
+         asm
+           this.fSelRow = sr;
+           this.fSelCol = sc;
+           var th = this.FHandleElement.querySelector('thead');
+           var tb = this.FHandleElement.querySelector('tbody');
+           if (th && tb) {
+             var h = th.offsetHeight;
+             tb.style.top = h + 'px';
+             tb.style.height = 'calc(100% - ' + h + 'px)';
+           }
+         end;
+       end;
       if not VIsCard and (VScrollPos > 0) and Assigned(Body) then
       begin
         FScrollLoading := True;
@@ -1968,20 +2016,24 @@ var
   VStyle: TJSHTMLElement;
   VCss: string;
   VHeight: NativeInt;
+  VHeadHeight: NativeInt;
   VWidth: NativeInt;
   VVisibleIndex: NativeInt;
   VViewportWidth: Integer;
 begin
   VViewportWidth := GetViewportWidth;
   VHeight := IfThen(FDefRowHeight < 0, CalcDefaultRowHeight, FDefRowHeight);
+  VHeadHeight := VHeight;
+  if FFilterBox then
+    VHeadHeight := VHeight * 2;
   VCss := '';
   if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then begin
     VCss :=
       'thead, tbody{display: block;position: absolute;}' +
       'thead{overflow: hidden;width: calc(100% - ' + IntToStr(ScrollbarWidth) + 'px);' +
-      'height: ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px;}' +
-      'tbody{overflow: scroll;top: ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px;' +
-      'width: 100%;height: calc(100% - ' + IntToStr(IfThen(FShowHeader, VHeight, 0)) + 'px);}';
+      'height: auto;}' +
+      'tbody{overflow: scroll;top: ' + IntToStr(IfThen(FShowHeader, VHeadHeight, 0)) + 'px;' +
+      'width: 100%;height: calc(100% - ' + IntToStr(IfThen(FShowHeader, VHeadHeight, 0)) + 'px);}';
   end;
   VVisibleIndex := 0;
   for VColumnIndex := 0 to (FColumns.Count - 1) do begin
@@ -2037,20 +2089,24 @@ begin
    VViewportWidth := GetViewportWidth;
    VHead := TJSHTMLTableSectionElement(HandleElement.AppendChild(Document.CreateElement('thead')));
    VHead.setAttribute('name', Name + '_head' );
-   if FFilterBox then begin
-     VVisCols := 0;
-     for VColumnIndex := 0 to (FColumns.Count - 1) do
-       if IsColumnVisibleAtWidth(FColumns[VColumnIndex], VViewportWidth) then
-         Inc(VVisCols);
-     VFilterRow := TJSHTMLTableRowElement(VHead.AppendChild(Document.CreateElement('tr')));
-     VFilterCell := TJSHTMLTableCellElement(VFilterRow.AppendChild(Document.CreateElement('th')));
-     VFilterCell.setAttribute('colspan', VVisCols.ToString);
-     VFilterInput := TJSHTMLInputElement(Document.CreateElement('input'));
-     VFilterInput.setAttribute('type', 'text');
-     VFilterInput.setAttribute('class', 'dg-filter-input');
-     VFilterInput.setAttribute('placeholder', 'Filter...');
-     VFilterInput.setAttribute('value', FFilterText);
-     VFilterInput.AddEventListener('keyup', @HandleFilterInput);
+    if FFilterBox then begin
+      VVisCols := 0;
+      for VColumnIndex := 0 to (FColumns.Count - 1) do
+        if IsColumnVisibleAtWidth(FColumns[VColumnIndex], VViewportWidth) then
+          Inc(VVisCols);
+      VFilterRow := TJSHTMLTableRowElement(VHead.AppendChild(Document.CreateElement('tr')));
+      VFilterCell := TJSHTMLTableCellElement(VFilterRow.AppendChild(Document.CreateElement('th')));
+      VFilterCell.setAttribute('colspan', VVisCols.ToString);
+      VFilterCell.Style.SetProperty('padding', '2px 4px');
+      VFilterCell.Style.SetProperty('height', 'auto');
+      VFilterInput := TJSHTMLInputElement(Document.CreateElement('input'));
+      VFilterInput.setAttribute('type', 'text');
+      VFilterInput.setAttribute('class', 'dg-filter-input');
+      VFilterInput.setAttribute('placeholder', 'Filter...');
+      VFilterInput.setAttribute('value', FFilterText);
+      VFilterInput.Style.SetProperty('width', '100%');
+      VFilterInput.Style.SetProperty('box-sizing', 'border-box');
+      VFilterInput.AddEventListener('keyup', @HandleFilterInput);
      VFilterCell.AppendChild(VFilterInput);
    end;
    VRow := TJSHTMLTableRowElement(VHead.AppendChild(Document.CreateElement('tr')));
@@ -2190,10 +2246,11 @@ begin
    end else if (Assigned(FDataJSon) and (FColumns.Count = 0) and (FAutoCreateColumns)) then begin
       BeginUpdate;
       try
-         for index:=0 to FDataJSon.FieldCount-1 do begin
+          for index:=0 to FDataJSon.FieldDefs.Count-1 do begin
             VColumn := Self.AddColumn;
             VColumn.Name := FDataJSon.FieldDefs[index].Name;
             VColumn.Title := VColumn.Name;
+            VColumn.TitleFont.Style := [fsBold];
             case FDataJSon.FieldDefs[index].DataType of
                ftBoolean: begin VColumn.Alignment := taCenter; VColumn.Format := cfBoolean; VColumn.Width := 100; end;
                ftFloat, ftInteger,ftLargeInt, ftAutoInc : begin VColumn.Alignment := taRightJustify; VColumn.Format := cfNumber; VColumn.Width := 100; end;

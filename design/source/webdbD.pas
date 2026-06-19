@@ -63,6 +63,9 @@ type
     FAutoLoad: Boolean;
     FProgressive: Boolean;
     FPageSize: Integer;
+    FFilterText: String;
+    FSortField: String;
+    FSortDir: String;
     FOnLoad: TNotifyEvent;
     FOnSave: TNotifyEvent;
     FOnLoadError: TOnDBErrorEvent;
@@ -73,6 +76,9 @@ type
     property AutoLoad: Boolean read FAutoLoad write FAutoLoad;
     property Progressive: Boolean read FProgressive write FProgressive;
     property PageSize: Integer read FPageSize write FPageSize;
+    property FilterText: String read FFilterText write FFilterText;
+    property SortField: String read FSortField write FSortField;
+    property SortDir: String read FSortDir write FSortDir;
     property OnLoad: TNotifyEvent read FOnLoad write FOnLoad;
     property OnSave: TNotifyEvent read FOnSave write FOnSave;
     property OnLoadError: TOnDBErrorEvent read FOnLoadError write FOnLoadError;
