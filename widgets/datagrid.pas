@@ -1577,6 +1577,7 @@ begin
         FDataTable.SortDir := 'asc'
       else
         FDataTable.SortDir := 'desc';
+      FNeedsFullRender := True;
       FDataTable.Load;
     end
     else
