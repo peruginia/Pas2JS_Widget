@@ -651,7 +651,8 @@ end;
 procedure TCustomDataGrid.ProcessClick(ACell: TJSHTMLTableCellElement);
   var VRow: TJSHTMLTableRowElement;
       rid, cid, colid: string;
-      VColIndex: NativeInt;
+      VColIndex, VRowIndex: NativeInt;
+      VObj: TJSObject;
 begin
    if not Assigned(ACell) then Exit;
 
@@ -661,19 +662,31 @@ begin
    cid := ACell.getAttribute('name');
    if cid=null then cid:='';
 
-   if (cid <> '') then begin
-      rid := copy(cid, 1, pos('_', cid) - 1);
-      colid := copy(cid, pos('_', cid) + 1, MaxInt);
-      VColIndex := StrToIntDef(colid, -1);
-      //if fCurrentRID <> rid then begin
-         if Assigned(FDataJSon) and not Assigned(FData) then
+    if (cid <> '') then begin
+       rid := copy(cid, 1, pos('_', cid) - 1);
+       colid := copy(cid, pos('_', cid) + 1, MaxInt);
+       VColIndex := StrToIntDef(colid, -1);
+       if Assigned(FData) then
+       begin
+         VRowIndex := StrToIntDef(rid, 0);
+         if VRowIndex < FData.Length then
          begin
-            if FDataJSon.Active then FDataJSon.First;
-            if FDataJSon.RecordCount > StrToIntDef(rid, 0) then
-               FDataJSon.MoveBy(StrToIntDef(rid, 0));
+           VObj := TJSObject(FData[VRowIndex]);
+           if Assigned(FDataJSon) and VObj.HasOwnProperty('__dsrow') then
+           begin
+             VRowIndex := NativeInt(VObj['__dsrow']);
+             if FDataJSon.Active then FDataJSon.First;
+             if FDataJSon.RecordCount > VRowIndex then
+               FDataJSon.MoveBy(VRowIndex);
+           end;
          end;
-         fCurrentRID := rid;
-      //end;
+       end else if Assigned(FDataJSon) then
+       begin
+          if FDataJSon.Active then FDataJSon.First;
+          if FDataJSon.RecordCount > StrToIntDef(rid, 0) then
+             FDataJSon.MoveBy(StrToIntDef(rid, 0));
+       end;
+       fCurrentRID := rid;
 
       SetActiveCell(ACell);
 
@@ -1343,6 +1356,7 @@ end;
 procedure TCustomDataGrid.DoTableDataLoaded(Sender: TObject);
 begin
   FScrollLoading := False;
+  FData := nil;
   if Assigned(FTableDataLoaded) then
     FTableDataLoaded(Sender);
   if Assigned(FDataTable) then
@@ -1609,20 +1623,29 @@ procedure TCustomDataGrid.Sort;
   var VObj: TJSObject;
       VColIdx: NativeInt;
       VCol: TDataColumn;
+      VRowIdx: NativeInt;
 begin
    if (Assigned(FData)) then begin
       FData.Sort(@CompareCells);
    end else if (Assigned(FDataJSon)) and (FDataJSon.Active) then begin
       FData := TJSArray.new;
-      FDataJSon.First;
-      while not FDataJSon.Eof do begin
-        VObj := TJSObject.new;
-        for VColIdx := 0 to FColumns.Count - 1 do begin
-          VCol := FColumns[VColIdx];
-          VObj[VCol.Name] := FDataJSon.FieldByName(VCol.Name).AsString;
+      FDataJSon.DisableControls;
+      try
+        VRowIdx := 0;
+        FDataJSon.First;
+        while not FDataJSon.Eof do begin
+          VObj := TJSObject.new;
+          for VColIdx := 0 to FColumns.Count - 1 do begin
+            VCol := FColumns[VColIdx];
+            VObj[VCol.Name] := FDataJSon.FieldByName(VCol.Name).AsString;
+          end;
+          VObj['__dsrow'] := VRowIdx;
+          FData.push(VObj);
+          FDataJSon.Next;
+          Inc(VRowIdx);
         end;
-        FData.push(VObj);
-        FDataJSon.Next;
+      finally
+        FDataJSon.EnableControls;
       end;
       FData.Sort(@CompareCells);
    end;
