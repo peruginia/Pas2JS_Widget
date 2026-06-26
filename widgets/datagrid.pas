@@ -828,6 +828,12 @@ begin
             end;
 
             VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
+            if Assigned(FDataJSon) and VObject.HasOwnProperty('__dsrow') then
+            begin
+              if FDataJSon.Active then FDataJSon.First;
+              if FDataJSon.RecordCount > NativeInt(VObject['__dsrow']) then
+                FDataJSon.MoveBy(NativeInt(VObject['__dsrow']));
+            end;
             for VColumnIndex := 0 to (FColumns.Count - 1) do begin
                VColumn := FColumns[VColumnIndex];
                if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
