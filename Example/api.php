@@ -72,14 +72,21 @@ if ($filter !== '' || $sort !== '') {
     }
     // Sort if requested
     if ($sort !== '') {
-        usort($allMatches, function($a, $b) use ($sort, $order) {
-            $va = $a[$sort] ?? '';
-            $vb = $b[$sort] ?? '';
-            if (is_numeric($va) && is_numeric($vb)) {
-                return $order === 'asc' ? $va - $vb : $vb - $va;
+        $sortFields = explode(',', $sort);
+        usort($allMatches, function($a, $b) use ($sortFields, $order) {
+            foreach ($sortFields as $field) {
+                $va = $a[$field] ?? '';
+                $vb = $b[$field] ?? '';
+                if (is_numeric($va) && is_numeric($vb)) {
+                    $cmp = $va - $vb;
+                } else {
+                    $cmp = strcmp((string)$va, (string)$vb);
+                }
+                if ($cmp !== 0) {
+                    return $order === 'asc' ? $cmp : -$cmp;
+                }
             }
-            $cmp = strcmp((string)$va, (string)$vb);
-            return $order === 'asc' ? $cmp : -$cmp;
+            return 0;
         });
     }
     // Paginate

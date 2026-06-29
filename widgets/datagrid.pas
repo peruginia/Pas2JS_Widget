@@ -833,6 +833,14 @@ begin
          begin
             VObject := TJSObject(VValue);
             if (FFilterText <> '') and not FilterMatchesRow(VObject) then continue;
+
+            if Assigned(FDataJSon) and VObject.HasOwnProperty('__dsrow') then
+            begin
+              if FDataJSon.Active then FDataJSon.First;
+              if FDataJSon.RecordCount > NativeInt(VObject['__dsrow']) then
+                FDataJSon.MoveBy(NativeInt(VObject['__dsrow']));
+            end;
+
             If Assigned(fOnAddSeparator) then begin
                Separator:='';
                fOnAddSeparator(self, Separator);
@@ -851,12 +859,6 @@ begin
             end;
 
             VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
-            if Assigned(FDataJSon) and VObject.HasOwnProperty('__dsrow') then
-            begin
-              if FDataJSon.Active then FDataJSon.First;
-              if FDataJSon.RecordCount > NativeInt(VObject['__dsrow']) then
-                FDataJSon.MoveBy(NativeInt(VObject['__dsrow']));
-            end;
             for VColumnIndex := 0 to (FColumns.Count - 1) do begin
                VColumn := FColumns[VColumnIndex];
                if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
@@ -1617,7 +1619,10 @@ begin
        FColumns.HasIndex(ACol) then
     begin
       VCol := FColumns[ACol];
-      FDataTable.SortField := VCol.Name;
+      if FGroupField <> '' then
+        FDataTable.SortField := FGroupField + ',' + VCol.Name
+      else
+        FDataTable.SortField := VCol.Name;
       if FSortOrder = soAscending then
         FDataTable.SortDir := 'asc'
       else
