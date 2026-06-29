@@ -1685,10 +1685,12 @@ begin
         FDataJSon.First;
         while not FDataJSon.Eof do begin
           VObj := TJSObject.new;
-          for VColIdx := 0 to FColumns.Count - 1 do begin
-            VCol := FColumns[VColIdx];
-            VObj[VCol.Name] := FDataJSon.FieldByName(VCol.Name).AsString;
-          end;
+           for VColIdx := 0 to FColumns.Count - 1 do begin
+             VCol := FColumns[VColIdx];
+             VObj[VCol.Name] := FDataJSon.FieldByName(VCol.Name).AsString;
+           end;
+           if FGroupField <> '' then
+             VObj[FGroupField] := FDataJSon.FieldByName(FGroupField).AsString;
           VObj['__dsrow'] := VRowIdx;
           FData.push(VObj);
           FDataJSon.Next;
