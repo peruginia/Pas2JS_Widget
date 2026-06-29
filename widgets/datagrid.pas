@@ -1641,8 +1641,8 @@ begin
 
   if FGroupField <> '' then
   begin
-    VValueA := TJSObject(A)['__gidx'];
-    VValueB := TJSObject(B)['__gidx'];
+    VValueA := TJSObject(A)[FGroupField];
+    VValueB := TJSObject(B)[FGroupField];
     Result := CompareValues(VValueA, VValueB);
     if Result <> 0 then Exit;
   end;
@@ -1687,19 +1687,6 @@ begin
         end;
       finally
         FDataJSon.EnableControls;
-      end;
-      if FGroupField <> '' then
-      begin
-        asm
-          var groups = {};
-          var gidx = 0;
-          for (var i = 0; i < this.FData.length; i++) {
-            var row = this.FData[i];
-            var gv = row[this.FGroupField];
-            if (!(gv in groups)) groups[gv] = gidx++;
-            row.__gidx = groups[gv];
-          }
-        end;
       end;
       FData.Sort(@CompareCells);
    end;
