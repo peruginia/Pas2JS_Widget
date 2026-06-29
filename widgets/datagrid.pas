@@ -1640,14 +1640,18 @@ function TCustomDataGrid.CompareCells(A, B: JSValue): NativeInt;
 var
   VColumn: TDataColumn;
   VValueA, VValueB: JSValue;
+  VGroup: String;
 begin
   Result := 0;
   if not (A is TJSObject) or not (B is TJSObject) then Exit;
 
   if FGroupField <> '' then
   begin
-    VValueA := TJSObject(A)[FGroupField];
-    VValueB := TJSObject(B)[FGroupField];
+    VGroup := FGroupField;
+    asm
+      VValueA = A[VGroup];
+      VValueB = B[VGroup];
+    end;
     Result := CompareValues(VValueA, VValueB);
     if Result <> 0 then Exit;
   end;
