@@ -983,6 +983,8 @@ type
     property ResponsiveBreakpoint;
     property FilterBox;
     property InfiniteScroll;
+    property GroupField;
+    property GroupCollapsed;
     property TabOrder;
     property TabStop;
     property Visible;

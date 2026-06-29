@@ -238,6 +238,7 @@ type
     FResponsiveBreakpoint: Integer;
     FFilterBox: boolean;
     FInfiniteScroll: boolean;
+    FGroupField: String;
     FOnCellClick: TOnClickEvent;
     FOnCellDblClick: TOnClickEvent;
 
@@ -291,6 +292,7 @@ type
     property ResponsiveBreakpoint: Integer read FResponsiveBreakpoint write SetResponsiveBreakpoint;
     property FilterBox: boolean read FFilterBox write SetFilterBox;
     property InfiniteScroll: boolean read FInfiniteScroll write FInfiniteScroll;
+    property GroupField: String read FGroupField write FGroupField;
     property OnCellClick: TOnClickEvent read FOnCellClick write FOnCellClick;
     property OnCellDblClick: TOnClickEvent read FOnCellDblClick write FOnCellDblClick;
     property OnHeaderClick: TOnHeaderClick read FOnHeaderClick write FOnHeaderClick;

@@ -188,6 +188,8 @@ type
     FFilterBox: boolean;
     FFilterText: string;
     FFilterTimer: NativeInt;
+    FGroupField: String;
+    FGroupCollapsed: TJSObject;
      function GetColCount: NativeInt;
     function GetRowCount: NativeInt;
     procedure SetColumnClickSorts(AValue: boolean);
@@ -272,6 +274,8 @@ type
     property ResponsiveBreakpoint: Integer read FResponsiveBreakpoint write SetResponsiveBreakpoint;
     property FilterBox: boolean read FFilterBox write SetFilterBox;
     property InfiniteScroll: boolean read FInfiniteScroll write FInfiniteScroll;
+    property GroupField: String read FGroupField write FGroupField;
+    property GroupCollapsed: TJSObject read FGroupCollapsed write FGroupCollapsed;
     property OnCellClick: TOnClickEvent read FOnCellClick write FOnCellClick;
     property OnHeaderClick: TOnHeaderClick read FOnHeaderClick write FOnHeaderClick;
     property onTouchStart: TJSTouchEventHandler read fontouchstart write fontouchstart;
@@ -762,14 +766,25 @@ begin
      Exit;
    end;
 
-   TargetElement := AEvent.targetElement;
-   VCell := TJSHTMLTableCellElement(FindClosestParent(TargetElement, 'TD'));
+    TargetElement := AEvent.targetElement;
+    VCell := TJSHTMLTableCellElement(FindClosestParent(TargetElement, 'TD'));
 
-   if Assigned(VCell) then
-   begin
-     AEvent.StopPropagation;
-     ProcessClick(VCell);
-   end;
+    if Assigned(VCell) then
+    begin
+      if VCell.hasAttribute('data-group') then
+      begin
+        asm
+          var gv = VCell.getAttribute('data-group');
+          this.FGroupCollapsed[gv] = !this.FGroupCollapsed[gv];
+        end;
+        AEvent.StopPropagation;
+        Changed;
+        Result := True;
+        Exit;
+      end;
+      AEvent.StopPropagation;
+      ProcessClick(VCell);
+    end;
    Result := True;
 end;
 
@@ -825,6 +840,14 @@ begin
                   VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
                   vrow.innerHTML:=Separator;
                end;
+            end;
+
+            if (FGroupField <> '') and VObject.HasOwnProperty(FGroupField) then
+            begin
+              asm
+                var gv = VObject[this.FGroupField];
+                if (this.FGroupCollapsed[gv]) continue;
+              end;
             end;
 
             VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
@@ -1182,8 +1205,10 @@ begin
      FTouchStartX := 0;
      FTouchStartY := 0;
      FLastResponsiveState := '';
-     FFilterBox := False;
-     FFilterText := '';
+      FFilterBox := False;
+      FFilterText := '';
+      FGroupField := '';
+      FGroupCollapsed := TJSObject.new;
      BeginUpdate;
    try
       Color := clWhite;
@@ -1612,10 +1637,20 @@ var
   VValueA, VValueB: JSValue;
 begin
   Result := 0;
+  if not (A is TJSObject) or not (B is TJSObject) then Exit;
+
+  if FGroupField <> '' then
+  begin
+    VValueA := TJSObject(A)['__gidx'];
+    VValueB := TJSObject(B)['__gidx'];
+    Result := CompareValues(VValueA, VValueB);
+    if Result <> 0 then Exit;
+  end;
+
   if (FColumns.HasIndex(FSortColumn)) then
   begin
     VColumn := FColumns[FSortColumn];
-    if (Assigned(VColumn)) and (Assigned(A)) and (Assigned(B)) and (A is TJSObject) and (B is TJSObject) then
+    if (Assigned(VColumn)) then
     begin
       VValueA := TJSObject(A)[VColumn.Name];
       VValueB := TJSObject(B)[VColumn.Name];
@@ -1652,6 +1687,19 @@ begin
         end;
       finally
         FDataJSon.EnableControls;
+      end;
+      if FGroupField <> '' then
+      begin
+        asm
+          var groups = {};
+          var gidx = 0;
+          for (var i = 0; i < this.FData.length; i++) {
+            var row = this.FData[i];
+            var gv = row[this.FGroupField];
+            if (!(gv in groups)) groups[gv] = gidx++;
+            row.__gidx = groups[gv];
+          }
+        end;
       end;
       FData.Sort(@CompareCells);
    end;
