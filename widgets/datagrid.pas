@@ -777,6 +777,7 @@ begin
         if (gv) {
           this.FGroupCollapsed[gv] = !this.FGroupCollapsed[gv];
           AEvent.stopPropagation();
+          this.FNeedsFullRender = true;
           this.Changed();
         } else {
           AEvent.stopPropagation();
@@ -810,8 +811,9 @@ procedure TCustomDataGrid.RenderTableBody;
       VObject: TJSObject;
       VValue: JSValue;
       position : TBookmark;
-      Separator : String;
-      VViewportWidth: Integer;
+       Separator : String;
+       VHidden: Boolean;
+       VViewportWidth: Integer;
 begin
    VViewportWidth := GetViewportWidth;
    Body := TJSHTMLTableSectionElement(HandleElement.AppendChild(Document.CreateElement('tbody')));
@@ -850,20 +852,21 @@ begin
                end;
             end;
 
-            console.log('WCL: render row, GroupField=' + FGroupField +
-              ' hasProp=' + BoolToStr(VObject.HasOwnProperty(FGroupField), True));
+            VHidden := False;
             if (FGroupField <> '') and VObject.HasOwnProperty(FGroupField) then
             begin
               asm
                 var gv = VObject[this.FGroupField];
-                if (this.FGroupCollapsed[gv]) {
-                  console.log('WCL: skipping collapsed group ' + gv);
-                  continue;
-                }
+                if (this.FGroupCollapsed[gv]) VHidden = true;
               end;
             end;
 
             VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
+            if VHidden then
+            begin
+              VRow.Style.SetProperty('height', '0');
+              VRow.Style.SetProperty('overflow', 'hidden');
+            end;
             for VColumnIndex := 0 to (FColumns.Count - 1) do begin
                VColumn := FColumns[VColumnIndex];
                if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
@@ -910,21 +913,19 @@ begin
              end;
           end;
 
+          VHidden := False;
           if (FGroupField <> '') and VObject.HasOwnProperty(FGroupField) then
           begin
             asm
               var gv = VObject[this.FGroupField];
-              if (this.FGroupCollapsed[gv]) {
-                FDataJSon.Next;
-                inc(VRowIndex);
-                Inc(VDisplayRow);
-                continue;
-              }
+              if (this.FGroupCollapsed[gv]) VHidden = true;
             end;
           end;
 
           VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
-         for VColumnIndex := 0 to (FColumns.Count - 1) do begin
+           if VHidden then
+             VRow.Style.SetProperty('visibility', 'collapse');
+          for VColumnIndex := 0 to (FColumns.Count - 1) do begin
             VColumn := FColumns[VColumnIndex];
             if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
             VCell := TJSHTMLTableCellElement(VRow.AppendChild(Document.CreateElement('td')));
