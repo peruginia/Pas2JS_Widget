@@ -767,23 +767,22 @@ begin
    end;
 
     TargetElement := AEvent.targetElement;
-    VCell := TJSHTMLTableCellElement(FindClosestParent(TargetElement, 'TD'));
 
+    VCell := TJSHTMLTableCellElement(FindClosestParent(TargetElement, 'TD'));
     if Assigned(VCell) then
     begin
-      if VCell.hasAttribute('data-group') then
-      begin
-        asm
-          var gv = VCell.getAttribute('data-group');
+      asm
+        var gv = VCell.getAttribute('data-group');
+        console.log('WCL: click TD, data-group=' + gv);
+        if (gv) {
           this.FGroupCollapsed[gv] = !this.FGroupCollapsed[gv];
-        end;
-        AEvent.StopPropagation;
-        Changed;
-        Result := True;
-        Exit;
+          AEvent.stopPropagation();
+          this.Changed();
+        } else {
+          AEvent.stopPropagation();
+          this.ProcessClick(VCell);
+        }
       end;
-      AEvent.StopPropagation;
-      ProcessClick(VCell);
     end;
    Result := True;
 end;
@@ -823,8 +822,9 @@ begin
    Body.AddEventListener('touchend', @HandleBodyTouchEnd);
    Body.AddEventListener('touchstart', @HandleBodyTouchStart);
    if Assigned(fontouchmove) then Body.AddEventListener('touchmove', fontouchmove);
-   if Assigned(fontouchcancel) then Body.AddEventListener('touchcancel', fontouchcancel);
+    if Assigned(fontouchcancel) then Body.AddEventListener('touchcancel', fontouchcancel);
 
+   console.log('WCL: RenderTableBody FData=' + BoolToStr(Assigned(FData), True) + ' FDataJSon=' + BoolToStr(Assigned(FDataJSon), True));
    if (Assigned(FData)) then begin
       VDisplayRow := 0;
       for VRowIndex := 0 to (FData.Length - 1) do begin
@@ -850,11 +850,16 @@ begin
                end;
             end;
 
+            console.log('WCL: render row, GroupField=' + FGroupField +
+              ' hasProp=' + BoolToStr(VObject.HasOwnProperty(FGroupField), True));
             if (FGroupField <> '') and VObject.HasOwnProperty(FGroupField) then
             begin
               asm
                 var gv = VObject[this.FGroupField];
-                if (this.FGroupCollapsed[gv]) continue;
+                if (this.FGroupCollapsed[gv]) {
+                  console.log('WCL: skipping collapsed group ' + gv);
+                  continue;
+                }
               end;
             end;
 
@@ -881,29 +886,44 @@ begin
        VDisplayRow := 0;
        VRowIndex:=0;
         while not FDataJSon.eof do begin
-           VObject := TJSObject.new;
-           for VColumnIndex := 0 to (FColumns.Count - 1) do begin
-             VColumn := FColumns[VColumnIndex];
-             VObject[VColumn.Name] := FDataJSon.FieldByName(VColumn.name).AsString;
-           end;
-           if FFilterText <> '' then begin
-             if not FilterMatchesRow(VObject) then begin
-               FDataJSon.Next;
-               inc(VRowIndex);
-               continue;
-             end;
-           end;
-
-         If Assigned(fOnAddSeparator) then begin
-            Separator:='';
-            fOnAddSeparator(self, Separator);
-            if Separator<>'' then begin
-               VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
-               vrow.innerHTML:=Separator;
+            VObject := TJSObject.new;
+            for VColumnIndex := 0 to (FColumns.Count - 1) do begin
+              VColumn := FColumns[VColumnIndex];
+              VObject[VColumn.Name] := FDataJSon.FieldByName(VColumn.name).AsString;
             end;
-         end;
+            if FGroupField <> '' then
+              VObject[FGroupField] := FDataJSon.FieldByName(FGroupField).AsString;
+            if FFilterText <> '' then begin
+              if not FilterMatchesRow(VObject) then begin
+                FDataJSon.Next;
+                inc(VRowIndex);
+                continue;
+              end;
+            end;
 
-         VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
+          If Assigned(fOnAddSeparator) then begin
+             Separator:='';
+             fOnAddSeparator(self, Separator);
+             if Separator<>'' then begin
+                VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
+                vrow.innerHTML:=Separator;
+             end;
+          end;
+
+          if (FGroupField <> '') and VObject.HasOwnProperty(FGroupField) then
+          begin
+            asm
+              var gv = VObject[this.FGroupField];
+              if (this.FGroupCollapsed[gv]) {
+                FDataJSon.Next;
+                inc(VRowIndex);
+                Inc(VDisplayRow);
+                continue;
+              }
+            end;
+          end;
+
+          VRow := TJSHTMLTableRowElement(Body.AppendChild(Document.CreateElement('tr')));
          for VColumnIndex := 0 to (FColumns.Count - 1) do begin
             VColumn := FColumns[VColumnIndex];
             if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
@@ -1045,7 +1065,8 @@ begin
     VContainer := TJSHTMLElement(HandleElement.QuerySelector('.dg-card-container'));
     if not Assigned(VContainer) then Exit;
 
-    if (Assigned(FData)) then begin
+   console.log('WCL: RenderTableBody FData=' + BoolToStr(Assigned(FData), True) + ' FDataJSon=' + BoolToStr(Assigned(FDataJSon), True));
+   if (Assigned(FData)) then begin
       for VRowIndex := 0 to (FData.Length - 1) do begin
          VJSValue := FData[VRowIndex];
          if (Assigned(VJSValue)) and (IsObject(VJSValue)) then begin
@@ -1955,6 +1976,7 @@ var
   VScrollPos: Double;
 begin
    inherited Changed;
+   console.log('WCL: Changed called, Updating=' + BoolToStr(IsUpdating, True) + ' Loading=' + BoolToStr(csLoading in ComponentState, True));
    if Enabled=false then exit;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
       VIsCard := (FResponsiveMode and (FResponsiveBreakpoint = 0)) or FIsCardVisible;
