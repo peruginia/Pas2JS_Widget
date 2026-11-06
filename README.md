@@ -208,7 +208,26 @@ The `api.php` endpoint supports:
 - `GET api.php?table=Clienti&offset=0&limit=100` → `{ "data": [...], "total": 5000 }`
 - `GET api.php?table=Clienti&count=10000` → change total record count
 
-> **GitHub Pages note:** the compiled JS frontend can be served from GitHub Pages, but `api.php` needs a PHP server. For a fully static demo, replace `wbWeb` with `wbMemory`/`wbLocal` or host the PHP backend separately (e.g. InfinityFree, 000webhost, or a $5 VPS).
+> **GitHub Pages note:** the compiled `project1.js` is committed, so the demo can be served statically (see below). `api.php` needs a PHP server, so it is not executed by GitHub Pages — keep it on your own host and point **Load from URL** at it (`api.php` sends `Access-Control-Allow-Origin: *`, so cross-origin calls work). The **Grid Modes** tab needs no backend at all.
+
+### Hosting the demo on GitHub Pages
+
+The workflow `.github/workflows/pages.yml` publishes the `Example/` folder as-is:
+
+1. In the repository, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
+2. Push to `master` (any change under `Example/` triggers a deploy), or run the workflow manually.
+
+There is no build step in CI, so **`Example/project1.js` must be committed**. After changing the demo, recompile it and commit the result:
+
+```bash
+pas2js -dPas2js -O- -Jeutf-8 -Jirtl.js -Jc -JRjs \
+  -Fu<path-to-pas2js>/packages/rtl/src -Fuwidgets -FuExample \
+  -oExample/project1.js Example/project1.lpr
+git add -f Example/project1.js    # the file is git-ignored by Example/.gitignore
+git commit -m "chore: rebuild demo"
+```
+
+`project1.js.map` (about 5 MB) stays ignored on purpose.
 
 ---
 
