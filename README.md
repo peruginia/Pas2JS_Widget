@@ -309,24 +309,16 @@ Because GitHub Pages does not execute PHP, the client falls back to a local `dem
 - Runtime units in `widgets/` are compiled to JS
 - `widgets/backup/` and `Example/backup/` hold obsolete snapshots and are git-ignored — not part of the build
 
-### Recent changes
+### Feature notes
 
-**Constraints** — new `TSizeConstraints` on `TControl` (`widgets/controls.pas`), published so it appears in the Object Inspector for every `TW*`. Values are enforced in `SetBounds`, `0` meaning "no limit" as in LCL.
+**Constraints** — `TSizeConstraints` on every control, published so it appears in the Object Inspector for every `TW*`. Values are enforced in `SetBounds`; `0` means "no limit", as in LCL.
 
 ```pascal
 WEdit1.Constraints.MinWidth := 120;
 WEdit1.Constraints.MaxWidth := 120;   // Width := 400 clamps to 120
 ```
 
-**Selection fix** — `SelStart`/`SelLength`/`SelText` on `TWEdit`/`TWMemo` were reading/writing the wrong field: `GetSelStart` returned the cached `FSelLength`, and `SelText` inserted at a 0-based offset. Now the caret is read from the DOM and repositioned after a `SelText` assignment.
-
-**ComboBox** — `DropDownCount` published, `ItemHeight` applies `min-height` to options. Note: native `<select>` dropdown height is browser-controlled, so `DropDownCount` is kept for LCL compatibility.
-
-**Graphics** — `TCanvas` now handles `psDashDot`/`psDashDotDot`; `PenStyleToCSSBorderStyle` covers all pen styles; `TPicture` gained `Clear`, `IsEmpty`, `LoadFromDataURL`, `SaveToDataURL`, `LoadFromBase64`.
-
-**Application** — new `BackgroundColor: TColor`, applied to `document.body` in `Run` (falls back to `MainForm.Color`, `clDefault` clears it).
-
-**TWSplitter** — new component in `widgets/extctrls.pas` (`TCustomSplitter`) and `widgets/webctrls.pas` (`TWSplitter`), registered in the design package.
+**TWSplitter** — `TCustomSplitter` in `widgets/extctrls.pas`, `TWSplitter` in `widgets/webctrls.pas`.
 
 ```pascal
 VSplitter.Align  := alLeft;   // or alRight / alTop / alBottom
@@ -338,12 +330,11 @@ It resizes the nearest sibling with the same alignment, clamping to `MinSize` an
 
 The **Layout** tab in the demo shows a vertical and a horizontal splitter.
 
-**DataGrid fixes** — found while building the demo tab:
+**ComboBox** — `DropDownCount` is published and `ItemHeight` applies `min-height` to the options. The native `<select>` dropdown height is browser-controlled, so `DropDownCount` exists for LCL compatibility.
 
-* `FormatCellValue` used `BoolToStr` without the `UseBoolStrs` flag, so boolean cells rendered as `-1`/`0` instead of `True`/`False` (FPC's default). Fixed, and `ExportToCSV` now uses the same formatting, so a boolean column exports `True`/`False` too (it used to export lowercase `true`/`false`, and the dataset branch did not escape quotes).
-* `TWWebDBTable.LoadFromArray` called `Open` without building `FieldDefs`, which raised *"No fields found"* for an in-memory table. It now derives the field definitions from the first row, exactly like the web loading path.
-* `TCustomTabSheet.SetPageControl` had an inverted condition, so `TWPageControl.AddTabSheet` never parented the new sheet. Runtime-created tabs work now.
-* Removed the debug `console.log` calls that fired on every grid render.
+**Graphics** — `TCanvas` supports `psSolid`, `psDash`, `psDot`, `psDashDot`, `psDashDotDot` and `psClear`; `TPicture` provides `Clear`, `IsEmpty`, `LoadFromDataURL`, `SaveToDataURL` and `LoadFromBase64`.
+
+**Application** — `BackgroundColor: TColor` is applied to `document.body` in `Run` (falls back to `MainForm.Color`; `clDefault` leaves it untouched).
 
 ### Further plans
 - TPaintBox (Canvas 2D)
