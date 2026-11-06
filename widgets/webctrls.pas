@@ -74,6 +74,7 @@ type
     property BorderSpacing;
     property BorderStyle;
     property Color;
+    property DropDownCount;
     property Enabled;
     property Font;
     property HandleClass;
@@ -396,7 +397,8 @@ type
     property AutoSize;
     property BorderSpacing;
     property Center;
-    property Enabled;   
+    property Enabled;
+    property Picture;
     property HandleClass;
     property HandleId;
     property ParentShowHint;
@@ -984,7 +986,6 @@ type
     property FilterBox;
     property InfiniteScroll;
     property GroupField;
-    property GroupCollapsed;
     property TabOrder;
     property TabStop;
     property Visible;

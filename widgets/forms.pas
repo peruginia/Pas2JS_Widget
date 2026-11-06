@@ -176,6 +176,7 @@ type
   private
     FModules: TJSArray;
     FActiveForm: TCustomForm;
+    FBackgroundColor: TColor;
     FMainForm: TCustomForm;
     FStopOnException: boolean;
     FTerminated: boolean;
@@ -187,11 +188,13 @@ type
     function GetModuleCount: NativeInt;
     function GetModuleIndex(const AModule: TControl): NativeInt;
     function GetTitle: string;
+    procedure SetBackgroundColor(AValue: TColor);
     procedure SetTitle(AValue: string);
   protected
     procedure DoResize; virtual;
     procedure DoUnload; virtual;
     procedure LoadIcon; virtual;
+    procedure ApplyBackground; virtual;
   protected
     procedure RegisterHandleEvents; virtual;
     procedure UnRegisterHandleEvents; virtual;
@@ -217,6 +220,7 @@ type
     property ModuleIndex[const AModule: TControl]: NativeInt read GetModuleIndex;
     property Module[const AIndex: NativeInt]: TControl read GetModule;
     property MainForm: TCustomForm read FMainForm;
+    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor;
     property StopOnException: boolean read FStopOnException write FStopOnException;
     property Terminated: boolean read FTerminated;
     property Title: string read GetTitle write SetTitle;
@@ -1019,6 +1023,15 @@ begin
   Result := FTitle;
 end;
 
+procedure TApplication.SetBackgroundColor(AValue: TColor);
+begin
+  if (FBackgroundColor <> AValue) then
+  begin
+    FBackgroundColor := AValue;
+    ApplyBackground;
+  end;
+end;
+
 procedure TApplication.SetTitle(AValue: string);
 begin
   if (FTitle <> AValue) then
@@ -1053,6 +1066,21 @@ begin
     SetAttribute('type', 'image/icon');
     SetAttribute('href',  TJSString(ApplicatioName).Replace('html', 'ico'));
   end;
+end;
+
+procedure TApplication.ApplyBackground;
+var
+  VColor: TColor;
+begin
+  if not Assigned(Document.Body) then
+    Exit;
+  VColor := FBackgroundColor;
+  if (VColor = clDefault) and Assigned(FMainForm) then
+    VColor := FMainForm.Color;
+  if (VColor = clDefault) then
+    TJSHTMLElement(Document.Body).Style.RemoveProperty('background-color')
+  else
+    TJSHTMLElement(Document.Body).Style.SetProperty('background-color', JSColor(VColor));
 end;
 
 procedure TApplication.RegisterHandleEvents;
@@ -1153,6 +1181,7 @@ begin
   end;
 {$endif}
   FModules := TJSArray.New;
+  FBackgroundColor := clDefault;
   FMainForm := nil;
   FStopOnException := True;
   FTerminated := False;
@@ -1181,9 +1210,9 @@ end;
 
 procedure TApplication.Run;
 begin
-  { TODO: Add a background to the application }
   RegisterHandleEvents;
   LoadIcon;
+  ApplyBackground;
   if (Assigned(FMainForm)) then
   begin
     FMainForm.Show;

@@ -800,10 +800,47 @@ begin
 end;
 
 procedure TCustomWebDBTable.LoadFromArray(AArray: TJSArray);
+var
+  FirstRow: TJSObject;
+  Keys: TStringDynArray;
+  Key: string;
+  FieldDef: TFieldDef;
+  VVal: JSValue;
+  FieldType: Integer;
 begin
   if not Assigned(FDataJson) then Exit;
   FDataJson.Close;
   SetRows(AArray);
+  /// Opening a dataset requires FieldDefs. The web path builds them from the
+  /// first row; LoadFromArray must do the same or Open raises "No fields found".
+  if (Assigned(AArray)) and (AArray.Length > 0) and (FDataJson.FieldDefs.Count = 0) then
+  begin
+    FirstRow := TJSObject(AArray[0]);
+    Keys := TJSObject.keys(FirstRow);
+    for Key in Keys do
+    begin
+      FieldDef := TFieldDef(FDataJson.FieldDefs.Add);
+      FieldDef.Name := Key;
+      VVal := FirstRow[Key];
+      FieldType := 8;
+      asm
+        if (typeof VVal === 'number') {
+          if (Number.isInteger(VVal))
+            FieldType = 2;
+          else
+            FieldType = 1;
+        } else if (typeof VVal === 'boolean') {
+          FieldType = 4;
+        }
+      end;
+      case FieldType of
+        1: FieldDef.DataType := ftFloat;
+        2: FieldDef.DataType := ftInteger;
+        4: FieldDef.DataType := ftBoolean;
+        else begin FieldDef.DataType := ftString; FieldDef.Size := 255; end;
+      end;
+    end;
+  end;
   FDataJson.Open;
   FTotalRecords := FDataJson.RecordCount;
   FLoadedRecords := FTotalRecords;

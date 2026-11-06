@@ -140,7 +140,6 @@ type
   { TPicture }
 
   TPicture = class(TPersistent)
-    { TODO: Load and save methods }
   private
     FData: string;
     FUpdateCount: NativeInt;
@@ -154,6 +153,11 @@ type
     procedure BeginUpdate; virtual;
     procedure EndUpdate; virtual;
     function IsEqual(APicture: TPicture): boolean; virtual;
+    procedure Clear; virtual;
+    function IsEmpty: boolean; virtual;
+    procedure LoadFromDataURL(const ADataURL: string); virtual;
+    function SaveToDataURL: string; virtual;
+    procedure LoadFromBase64(const ABase64, AMimeType: string); virtual;
   published
     property Data: string read FData write SetData;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
@@ -815,6 +819,34 @@ begin
   end;
 end;
 
+procedure TPicture.Clear;
+begin
+  SetData('');
+end;
+
+function TPicture.IsEmpty: boolean;
+begin
+  Result := (FData = '');
+end;
+
+procedure TPicture.LoadFromDataURL(const ADataURL: string);
+begin
+  SetData(ADataURL);
+end;
+
+function TPicture.SaveToDataURL: string;
+begin
+  Result := FData;
+end;
+
+procedure TPicture.LoadFromBase64(const ABase64, AMimeType: string);
+begin
+  if (ABase64 = '') then
+    SetData('')
+  else
+    SetData('data:' + AMimeType + ';base64,' + ABase64);
+end;
+
 { TCanvas }
 
 procedure TCanvas.PrepareStyle;
@@ -829,9 +861,10 @@ begin
   case FPen.Style of
     psDash: FContextElement.SetLineDash([8, 2]);
     psDot: FContextElement.SetLineDash([1, 2]);
+    psDashDot: FContextElement.SetLineDash([8, 2, 1, 2]);
+    psDashDotDot: FContextElement.SetLineDash([8, 2, 1, 2, 1, 2]);
     else
       FContextElement.SetLineDash([]);
-      { TODO: Do the other types }
   end;
 end;
 
@@ -1051,20 +1084,20 @@ const
 function PenStyleToCSSBorderStyle(aStyle: TPenStyle): String;
 begin
   case aStyle of
-    psSolid:
+    psSolid,
+    psInsideFrame:
       Result := 'solid';
-    psDash:
+    psDash,
+    psDashDot,
+    psDashDotDot:
       Result := 'dashed';
     psDot:
       Result := 'dotted';
-    psClear:
-      Result := 'hidden';
+    psClear,
+    psPattern:
+      Result := 'none';
     else
       Result := 'none';
-    {psDashDot: ;
-    psDashDotDot: ;
-    psInsideFrame: ;
-    psPattern: ;}
   end;
 end;
 

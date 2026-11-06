@@ -187,7 +187,9 @@ end;
 
 procedure TCustomTabSheet.SetPageControl(AValue: TCustomPageControl);
 begin
-  if (PageControl = AValue) then
+  /// The old condition was inverted: with Parent = nil, PageControl is nil too,
+  /// so "PageControl = AValue" was False and the sheet was never parented.
+  if (PageControl <> AValue) then
   begin
     Parent := AValue;
   end;

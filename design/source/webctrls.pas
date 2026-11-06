@@ -178,6 +178,7 @@ type
     property ClientHeight;
     property ClientWidth;
     property Color;
+    property Constraints;
     property DesignTimePPI;
     property Enabled;
     property Font;
@@ -222,6 +223,7 @@ type
     property ClientHeight;
     property ClientWidth;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property ParentColor;
@@ -266,6 +268,7 @@ type
     property BorderSpacing;
     property BorderStyle;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -273,6 +276,7 @@ type
     property ItemHeight;
     property ItemIndex;
     property Items;
+    property DropDownCount;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
@@ -310,6 +314,7 @@ type
     property BorderSpacing;
     property BorderStyle;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -356,6 +361,7 @@ type
     property BorderStyle;
     property CharCase;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -403,6 +409,7 @@ type
     property BorderStyle;
     property CharCase;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -451,6 +458,7 @@ type
     property BorderSpacing;
     property Caption;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -494,6 +502,7 @@ type
     property Caption;
     property Checked;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -588,6 +597,7 @@ type
     property BorderSpacing;
     property Caption;
     property Color;
+    property Constraints;
     property Enabled;
     property FocusControl;
     property Font;
@@ -631,6 +641,7 @@ type
     property AutoSize;
     property BorderSpacing;
     property Center;
+    property Constraints;
     property Enabled;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
@@ -688,6 +699,7 @@ type
     property ClientHeight;
     property ClientWidth;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -780,6 +792,7 @@ type
     FHandleClass: string;
     FHandleId: string;
   published
+    property Constraints;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
   end;
@@ -791,6 +804,7 @@ type
     FHandleClass: string;
     FHandleId: string;
   published
+    property Constraints;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
   end;
@@ -802,6 +816,7 @@ type
     FHandleClass: string;
     FHandleId: string;
   published
+    property Constraints;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
   end;
@@ -813,6 +828,7 @@ type
     FHandleClass: string;
     FHandleId: string;
   published
+    property Constraints;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
   end;
@@ -824,6 +840,7 @@ type
     FHandleClass: string;
     FHandleId: string;
   published
+    property Constraints;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
   end;
@@ -835,6 +852,7 @@ type
     FHandleClass: string;
     FHandleId: string;
   published
+    property Constraints;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
   end;
@@ -857,6 +875,7 @@ type
     property BorderSpacing;
     property BorderStyle;
     property Color;
+    property Constraints;
     property DecimalPlaces;
     property Enabled;
     property Font;
@@ -913,6 +932,7 @@ type
     property BorderSpacing;
     property BorderStyle;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -966,6 +986,7 @@ type
     property BorderSpacing;
     property BorderStyle;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -1017,6 +1038,7 @@ type
     property BorderSpacing;
     property BorderStyle;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -1057,6 +1079,7 @@ type
     FHandleClass: string;
     FHandleId: string;
   published
+    property Constraints;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
   end;
@@ -1074,6 +1097,7 @@ type
     property BorderSpacing;
     property Caption;
     property Color;
+    property Constraints;
     property Enabled;
     property Filter;
     property Font;
@@ -1109,6 +1133,7 @@ type
     FHandleClass: string;
     FHandleId: string;
   published
+    property Constraints;
     property Align;
     property Anchors;
     property BorderSpacing;
@@ -1131,7 +1156,6 @@ type
     property FilterBox;
     property InfiniteScroll;
     property GroupField;
-    property GroupCollapsed;
     property TabOrder;
     property TabStop;
     property Visible;
@@ -1169,6 +1193,7 @@ type
     FHandleClass: string;
     FHandleId: string;
   published
+    property Constraints;
     property Align;
     property Anchors;
     property BorderSpacing;
@@ -1204,6 +1229,7 @@ type
   public
     constructor Create(aOwner: TComponent); override;
   published
+    property Constraints;
     property Anchors;
     property ColCount;
     property Columns;

@@ -66,9 +66,30 @@ type
     procedure LoadFromURL(Sender: TObject);
     procedure LoadMore(Sender: TObject);
     procedure OnTableLoaded(Sender: TObject);
+	 procedure WButton1Click(Sender: TObject);
 	 procedure WCheckbox1Click(Sender: TObject);
 	 procedure WTopBarUserClick(Sender: TObject);
   private
+    FDemoCards: Boolean;
+    FDemoData: TJSArray;
+    FDemoGrid: TWDataGrid;
+    FDemoGrouped: Boolean;
+    FDemoInfo: TWLabel;
+    FDemoMode: NativeInt;
+    FDemoTable: TWWebDBTable;
+    procedure BuildGridModesTab;
+    procedure DemoAddRow(AData: TJSArray; const AName: string; AAge: NativeInt;
+      const ACity: string; AActive: Boolean);
+    function DemoDataArray: TJSArray;
+    procedure DemoExportCSV(Sender: TObject);
+    procedure DemoModeArray(Sender: TObject);
+    procedure DemoModeDataJson(Sender: TObject);
+    procedure DemoModeTable(Sender: TObject);
+    procedure DemoRefresh;
+    procedure DemoTableLoaded(Sender: TObject);
+    procedure DemoToggleCards(Sender: TObject);
+    procedure DemoToggleGroup(Sender: TObject);
+    procedure DemoUpdateInfo;
     procedure WButton2Click(Sender: TObject);
     procedure WCombo1Change(Sender: TObject);
     procedure WTrackBar1Change(Sender: TObject);
@@ -121,6 +142,7 @@ begin
   WTrackBar1.OnChange := @WTrackBar1Change;
   WColorPicker1.OnChange := @WColorPickChange;
   WTimer1.OnTimer := @WTimerTick;
+  BuildGridModesTab;
 end;
 
 procedure TWForm1.LoadFromArray(Sender: TObject);
@@ -207,6 +229,11 @@ begin
     WButton5.Enabled := False;
 end;
 
+procedure TWForm1.WButton1Click(Sender: TObject);
+begin
+
+end;
+
 procedure TWForm1.WCheckbox1Click(Sender: TObject);
 begin
    WRadioButton1.Enabled:=WCheckbox1.Checked;
@@ -246,6 +273,235 @@ begin
     WProgressBar1.Value := 0
   else
     WProgressBar1.Value := WProgressBar1.Value + 1;
+end;
+
+{ --- DataGrid demo: same grid fed by the three data sources --- }
+
+const
+  DM_ARRAY = 0;
+  DM_JSON  = 1;
+  DM_TABLE = 2;
+
+procedure TWForm1.DemoAddRow(AData: TJSArray; const AName: string; AAge: NativeInt;
+  const ACity: string; AActive: Boolean);
+var
+  VRow: TJSObject;
+begin
+  VRow := TJSObject.New;
+  VRow['Name'] := AName;
+  VRow['Age'] := AAge;
+  VRow['City'] := ACity;
+  VRow['Active'] := AActive;
+  AData.Push(VRow);
+end;
+
+function TWForm1.DemoDataArray: TJSArray;
+begin
+  Result := TJSArray.New;
+  DemoAddRow(Result, 'Mario Rossi', 30, 'Rome', True);
+  DemoAddRow(Result, 'Luigi Bianchi', 25, 'Milan', False);
+  DemoAddRow(Result, 'Anna Verdi', 28, 'Naples', True);
+  DemoAddRow(Result, 'Sofia Neri', 35, 'Florence', True);
+  DemoAddRow(Result, 'Marco Gialli', 42, 'Turin', False);
+  DemoAddRow(Result, 'Elena Blu', 31, 'Rome', True);
+  DemoAddRow(Result, 'Paolo Rosa', 38, 'Milan', True);
+  DemoAddRow(Result, 'Giulia Viola', 27, 'Naples', False);
+end;
+
+procedure TWForm1.DemoRefresh;
+begin
+  /// GroupField has no setter, so the grid must be re-bound to re-render.
+  case FDemoMode of
+    DM_ARRAY:
+      begin
+        FDemoGrid.Data := nil;
+        FDemoGrid.Data := FDemoData;
+      end;
+    DM_JSON:
+      begin
+        FDemoGrid.DataJson := nil;
+        FDemoGrid.DataJson := FDemoTable.DataJson;
+      end;
+    DM_TABLE:
+      begin
+        FDemoGrid.DataTable := nil;
+        FDemoGrid.DataTable := FDemoTable;
+      end;
+  end;
+end;
+
+procedure TWForm1.DemoUpdateInfo;
+var
+  VMode: string;
+  VRows: string;
+begin
+  case FDemoMode of
+    DM_ARRAY: VMode := 'Data (TJSArray)';
+    DM_JSON:  VMode := 'DataJSon (TLocalJSONDataset)';
+  else
+    VMode := 'DataTable (in-memory)';
+  end;
+  if FDemoMode = DM_ARRAY then
+    VRows := 'rows: ' + IntToStr(FDemoData.Length)
+  else
+    VRows := 'rows: ' + IntToStr(FDemoTable.LoadedRecords) + ' / ' +
+      IntToStr(FDemoTable.TotalRecords);
+  FDemoInfo.Caption :=
+    'Source: ' + VMode + #10 +
+    VRows + #10 +
+    'Cards: ' + BoolToStr(FDemoCards, True) + '   Group: ' + BoolToStr(FDemoGrouped, True);
+end;
+
+procedure TWForm1.DemoModeArray(Sender: TObject);
+begin
+  /// Unbind the table first: SetData does not clear DataTable, and a stale
+  /// binding would route header clicks to the (server) sort path.
+  FDemoGrid.DataTable := nil;
+  FDemoMode := DM_ARRAY;
+  FDemoGrid.Data := FDemoData;
+  DemoUpdateInfo;
+end;
+
+procedure TWForm1.DemoModeDataJson(Sender: TObject);
+begin
+  FDemoGrid.DataTable := nil;
+  FDemoMode := DM_JSON;
+  FDemoTable.LoadFromArray(FDemoData);
+  FDemoGrid.DataJson := FDemoTable.DataJson;
+  DemoUpdateInfo;
+end;
+
+procedure TWForm1.DemoModeTable(Sender: TObject);
+begin
+  FDemoMode := DM_TABLE;
+  FDemoTable.LoadFromArray(FDemoData);
+  FDemoGrid.DataTable := nil;
+  FDemoGrid.DataTable := FDemoTable;
+  DemoUpdateInfo;
+end;
+
+procedure TWForm1.DemoToggleCards(Sender: TObject);
+begin
+  FDemoCards := not FDemoCards;
+  FDemoGrid.ResponsiveMode := FDemoCards;
+  DemoUpdateInfo;
+end;
+
+procedure TWForm1.DemoToggleGroup(Sender: TObject);
+begin
+  FDemoGrouped := not FDemoGrouped;
+  if FDemoGrouped then
+    FDemoGrid.GroupField := 'City'
+  else
+    FDemoGrid.GroupField := '';
+  DemoRefresh;
+  DemoUpdateInfo;
+end;
+
+procedure TWForm1.DemoExportCSV(Sender: TObject);
+begin
+  FDemoGrid.ExportToCSV;
+end;
+
+procedure TWForm1.DemoTableLoaded(Sender: TObject);
+begin
+  DemoUpdateInfo;
+end;
+
+procedure TWForm1.BuildGridModesTab;
+var
+  VSheet: TCustomTabSheet;
+  VBar: TWPanel;
+begin
+  FDemoData := DemoDataArray;
+  FDemoMode := DM_ARRAY;
+  FDemoCards := False;
+  FDemoGrouped := False;
+
+  FDemoTable := TWWebDBTable.Create(Self);
+  FDemoTable.TableName := 'Demo';
+  FDemoTable.OnLoad := @DemoTableLoaded;
+
+  VSheet := WPageControl1.AddTabSheet;
+  VSheet.Caption := 'Grid Modes';
+  /// Inactive pages are not sized by the page control, so give it a start size;
+  /// UpdatePages will re-set it (and ReAlign the children) when the tab is shown.
+  VSheet.SetBounds(0, 0, WPageControl1.Width, WPageControl1.Height);
+
+  /// Grid first, panel on top (same order as the .lfm uses)
+  FDemoGrid := TWDataGrid.Create(Self);
+  FDemoGrid.Parent := VSheet;
+  FDemoGrid.Align := alClient;
+  FDemoGrid.BorderSpacing.Around := 10;
+  FDemoGrid.ColumnClickSorts := True;
+  FDemoGrid.FilterBox := True;
+  FDemoGrid.ShowHeader := True;
+  FDemoGrid.RowSelect := True;
+  FDemoGrid.AlternateRowColor := 15921906;
+  FDemoGrid.ResponsiveBreakpoint := 600;
+  FDemoGrid.Data := FDemoData;
+
+  VBar := TWPanel.Create(Self);
+  VBar.Parent := VSheet;
+  VBar.Align := alTop;
+  VBar.Height := 80;
+  VBar.Caption := '';
+
+  FDemoInfo := TWLabel.Create(Self);
+  FDemoInfo.Parent := VBar;
+  FDemoInfo.Align := alClient;
+  FDemoInfo.BorderSpacing.Left := 430;
+  FDemoInfo.BorderSpacing.Around := 8;
+  FDemoInfo.AutoSize := False;
+  FDemoInfo.Caption := '';
+
+  /// Row 1: data sources
+  with TWButton.Create(Self) do
+  begin
+    Parent := VBar;
+    Left := 8;  Top := 8;  Width := 130; Height := 28;
+    Caption := 'Data: array';
+    OnClick := @DemoModeArray;
+  end;
+  with TWButton.Create(Self) do
+  begin
+    Parent := VBar;
+    Left := 146; Top := 8; Width := 130; Height := 28;
+    Caption := 'Data: DataJson';
+    OnClick := @DemoModeDataJson;
+  end;
+  with TWButton.Create(Self) do
+  begin
+    Parent := VBar;
+    Left := 284; Top := 8; Width := 130; Height := 28;
+    Caption := 'Data: table';
+    OnClick := @DemoModeTable;
+  end;
+
+  /// Row 2: display modes
+  with TWButton.Create(Self) do
+  begin
+    Parent := VBar;
+    Left := 8;  Top := 44; Width := 130; Height := 28;
+    Caption := 'Toggle cards';
+    OnClick := @DemoToggleCards;
+  end;
+  with TWButton.Create(Self) do
+  begin
+    Parent := VBar;
+    Left := 146; Top := 44; Width := 130; Height := 28;
+    Caption := 'Toggle group';
+    OnClick := @DemoToggleGroup;
+  end;
+  with TWButton.Create(Self) do
+  begin
+    Parent := VBar;
+    Left := 284; Top := 44; Width := 130; Height := 28;
+    Caption := 'Export CSV';
+    OnClick := @DemoExportCSV;
+  end;
+
+  DemoUpdateInfo;
 end;
 
 end.

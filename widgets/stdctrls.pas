@@ -46,7 +46,6 @@ type
   { TCustomComboBox }
 
   TCustomComboBox = class(TWinControl)
-    { TODO: DropDownCount, ItemHeight, ItemWidth...  }
   private
     FDropDownCount: integer;
     FItemHeight: NativeInt;
@@ -574,6 +573,8 @@ end;
 
 procedure TCustomComboBox.SetDropDownCount(AValue: integer);
 begin
+  if (AValue < 1) then
+    AValue := 1;
   if (FDropDownCount <> AValue) then
   begin
     FDropDownCount := AValue;
@@ -583,10 +584,12 @@ end;
 
 procedure TCustomComboBox.SetItemHeight(AValue: NativeInt);
 begin
+  if (AValue < 0) then
+    AValue := 0;
   if (FItemHeight <> AValue) then
   begin
     FItemHeight := AValue;
-    Change;
+    Changed;
   end;
 end;
 
@@ -649,7 +652,9 @@ begin
       asm this.FHandleElement.classList.add('wcl-input'); end;
     end;
     HandleElement.setAttribute('name', Name );
-
+    /// DropDownCount is kept for LCL compatibility. Native <select> dropdown
+    /// height is browser-controlled, so expose it as data attribute for CSS/JS.
+    HandleElement.setAttribute('data-dropdown-count', IntToStr(FDropDownCount));
     /// Remove old items
     for VIndex := (TJSHTMLSelectElement(HandleElement).Length - 1) downto 0 do
     begin
@@ -663,6 +668,8 @@ begin
       VOptionElement.Value := VValue;
       VOptionElement.Text := VValue;
       VOptionElement.Selected := (VIndex = FItemIndex);
+      if (FItemHeight > 0) then
+        VOptionElement.Style.SetProperty('min-height', IntToStr(FItemHeight) + 'px');
       TJSHTMLSelectElement(HandleElement).Add(VOptionElement);
     end;
     { add dummy item at the end to avoid problems with the ItemIndex }
@@ -793,6 +800,8 @@ end;
 
 procedure TCustomListBox.SetItemHeight(AValue: NativeInt);
 begin
+  if (AValue < 0) then
+    AValue := 0;
   if FItemHeight <> AValue then begin
     FItemHeight := AValue;
     Changed;
@@ -941,6 +950,8 @@ begin
         opt := TJSHTMLOptionElement(Document.CreateElement('option'));
         opt.Value := v;
         opt.Text := v;
+        if FItemHeight > 0 then
+          opt.Style.SetProperty('min-height', IntToStr(FItemHeight) + 'px');
         if FMultiselect then
           opt.Selected := FSelected[idx]
         else
@@ -1109,15 +1120,15 @@ begin
   begin
     with TJSHTMLInputElement(HandleElement) do
     begin
-      FSelLength := (SelectionStart);
+      FSelStart := (SelectionStart);
     end;
   end;
-  Result := FSelLength;
+  Result := FSelStart;
 end;
 
 function TCustomEdit.GetSelText: string;
 begin
-  Result := Copy(RealGetText, FSelStart + 1, FSelLength);
+  Result := Copy(RealGetText, SelStart + 1, SelLength);
 end;
 
 procedure TCustomEdit.SetCharCase(AValue: TEditCharCase);
@@ -1217,7 +1228,7 @@ begin
     VStart := SelStart;
     if (VLength = 0) then
     begin
-      System.Insert(AValue, VText, VStart);
+      System.Insert(AValue, VText, VStart + 1);
     end
     else
     begin
@@ -1229,6 +1240,9 @@ begin
       VText := Copy(VText, 1, MaxLength);
     end;
     RealSetText(VText);
+    FSelStart := VStart + Length(AValue);
+    FSelLength := 0;
+    Changed;
   end;
 end;
 
@@ -1508,17 +1522,17 @@ function TCustomMemo.GetSelStart: NativeInt;
 begin
   if (Assigned(HandleElement)) then
   begin
-    with TJSHTMLInputElement(HandleElement) do
+    with TJSHTMLTextAreaElement(HandleElement) do
     begin
-      FSelLength := (SelectionStart);
+      FSelStart := (SelectionStart);
     end;
   end;
-  Result := FSelLength;
+  Result := FSelStart;
 end;
 
 function TCustomMemo.GetSelText: string;
 begin
-  Result := Copy(RealGetText, FSelStart + 1, FSelLength);
+  Result := Copy(RealGetText, SelStart + 1, SelLength);
 end;
 
 procedure TCustomMemo.HandleLinesChange(aSender: TObject);
@@ -1599,7 +1613,7 @@ begin
       VLength := SelLength;
       VStart := SelStart;
       if (VLength = 0) then begin
-         System.Insert(AValue, VText, VStart);
+         System.Insert(AValue, VText, VStart + 1);
       end else begin
          System.Delete(VText, VStart + 1, VLength);
          System.Insert(AValue, VText, VStart + 1);
@@ -1608,7 +1622,9 @@ begin
          VText := Copy(VText, 1, MaxLength);
       end;
       RealSetText(VText);
-      { TODO: SelStart and SelLength }
+      FSelStart := VStart + Length(AValue);
+      FSelLength := 0;
+      Changed;
    end;
 end;
 
@@ -1746,6 +1762,7 @@ begin
          // AGGIORNA IL DOM SOLO SE NON STA SCRIVENDO L'UTENTE
          if not FIsUserTyping then begin
             Value := RealGetText;
+            SetSelectionRange(FSelStart, FSelStart + FSelLength);
 			end;
 		end;
       HandleElement.setAttribute('name', Name );
@@ -2206,6 +2223,8 @@ begin
     begin
       /// Clear
       InnerHTML := '';
+      /// Font
+      UpdateHtmlElementFont(TJSHTMLElement(FContentElement), Font, False);
       /// Layout
       Style.SetProperty('display', 'table-cell');
       Style.SetProperty('width', IntToStr(Self.Width) + 'px');

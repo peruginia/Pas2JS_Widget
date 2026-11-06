@@ -192,6 +192,35 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
+  { TSizeConstraints }
+
+  TSizeConstraints = class(TPersistent)
+  private
+    FMaxHeight: NativeInt;
+    FMaxWidth: NativeInt;
+    FMinHeight: NativeInt;
+    FMinWidth: NativeInt;
+    FUpdateCount: NativeInt;
+    FOnChange: TNotifyEvent;
+    procedure SetMaxHeight(AValue: NativeInt);
+    procedure SetMaxWidth(AValue: NativeInt);
+    procedure SetMinHeight(AValue: NativeInt);
+    procedure SetMinWidth(AValue: NativeInt);
+  protected
+    procedure Changed; virtual;
+  public
+    constructor Create; reintroduce;
+    procedure Assign(Source: TPersistent); override;
+    procedure BeginUpdate; virtual;
+    procedure EndUpdate; virtual;
+  published
+    property MaxHeight: NativeInt read FMaxHeight write SetMaxHeight default 0;
+    property MaxWidth: NativeInt read FMaxWidth write SetMaxWidth default 0;
+    property MinHeight: NativeInt read FMinHeight write SetMinHeight default 0;
+    property MinWidth: NativeInt read FMinWidth write SetMinWidth default 0;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
   { TControl }
 
   TControl = class(TComponent)
@@ -203,6 +232,7 @@ type
     FBorderStyle: TBorderStyle;
     FCaption: TCaption;
     FColor: TColor;
+    FConstraints: TSizeConstraints;
     FControlFlags: TControlFlags;
     FControls: TJSArray; /// The child controls
     FCursor: TCursor;
@@ -250,6 +280,7 @@ type
     procedure SetClientHeight(AValue: NativeInt);
     procedure SetClientWidth(AValue: NativeInt);
     procedure SetColor(AValue: TColor);
+    procedure SetConstraints(AValue: TSizeConstraints);
     procedure SetCursor(AValue: TCursor);
     procedure SetEnabled(AValue: boolean);
     procedure SetFont(AValue: TFont);
@@ -322,6 +353,7 @@ type
     procedure RealSetText(const AValue: string); virtual;
     procedure BorderSpacingChanged(Sender: TObject); virtual;
     procedure ColorChanged(Sender: TObject); virtual;
+    procedure ConstraintsChanged(Sender: TObject); virtual;
     procedure FontChanged(Sender: TObject); virtual;
     function TabOrderArray: TJSArray; virtual;
     function CompareTabOrder(A, B: JSValue): NativeInt; virtual;
@@ -369,6 +401,7 @@ type
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
     property OnResize: TNotifyEvent read FOnResize write FOnResize;
   published
+    property Constraints: TSizeConstraints read FConstraints write SetConstraints;
     property Cursor: TCursor read FCursor write SetCursor;
     property Left: NativeInt read FLeft write SetLeft;
     property Height: NativeInt read FHeight write SetHeight;
@@ -1038,6 +1071,110 @@ begin
   end;
 end;
 
+{ TSizeConstraints }
+
+procedure TSizeConstraints.SetMaxHeight(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FMaxHeight <> AValue) then
+  begin
+    FMaxHeight := AValue;
+    Changed;
+  end;
+end;
+
+procedure TSizeConstraints.SetMaxWidth(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FMaxWidth <> AValue) then
+  begin
+    FMaxWidth := AValue;
+    Changed;
+  end;
+end;
+
+procedure TSizeConstraints.SetMinHeight(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FMinHeight <> AValue) then
+  begin
+    FMinHeight := AValue;
+    Changed;
+  end;
+end;
+
+procedure TSizeConstraints.SetMinWidth(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FMinWidth <> AValue) then
+  begin
+    FMinWidth := AValue;
+    Changed;
+  end;
+end;
+
+procedure TSizeConstraints.Changed;
+begin
+  if (FUpdateCount = 0) and (Assigned(FOnChange)) then
+  begin
+    FOnChange(Self);
+  end;
+end;
+
+constructor TSizeConstraints.Create;
+begin
+  inherited Create;
+  FMaxHeight := 0;
+  FMaxWidth := 0;
+  FMinHeight := 0;
+  FMinWidth := 0;
+  FUpdateCount := 0;
+end;
+
+procedure TSizeConstraints.Assign(Source: TPersistent);
+var
+  VConstraints: TSizeConstraints;
+begin
+  if (Assigned(Source)) and (Source is TSizeConstraints) then
+  begin
+    BeginUpdate;
+    try
+      VConstraints := TSizeConstraints(Source);
+      FMaxHeight := VConstraints.MaxHeight;
+      FMaxWidth := VConstraints.MaxWidth;
+      FMinHeight := VConstraints.MinHeight;
+      FMinWidth := VConstraints.MinWidth;
+    finally
+      EndUpdate;
+    end;
+  end
+  else
+  begin
+    inherited Assign(Source);
+  end;
+end;
+
+procedure TSizeConstraints.BeginUpdate;
+begin
+  Inc(FUpdateCount);
+end;
+
+procedure TSizeConstraints.EndUpdate;
+begin
+  if (FUpdateCount > 0) then
+  begin
+    Dec(FUpdateCount);
+    if (FUpdateCount = 0) then
+    begin
+      Changed;
+    end;
+  end;
+end;
+
 { TControl }
 
 function TControl.GetClientHeight: NativeInt;
@@ -1162,6 +1299,11 @@ begin
     FParentColor := False;
     ColorChanged(Self);
   end;
+end;
+
+procedure TControl.SetConstraints(AValue: TSizeConstraints);
+begin
+  FConstraints.Assign(AValue);
 end;
 
 procedure TControl.SetCursor(AValue: TCursor);
@@ -2047,6 +2189,16 @@ end;
 {$push}
 {$hints off}
 
+procedure TControl.ConstraintsChanged(Sender: TObject);
+begin
+  SetBounds(FLeft, FTop, FWidth, FHeight);
+end;
+
+{$pop}
+
+{$push}
+{$hints off}
+
 procedure TControl.FontChanged(Sender: TObject);
 begin
   Changed;
@@ -2134,6 +2286,8 @@ begin
   FControls := TJSArray.New;
   FBorderSpacing := TControlBorderSpacing.Create;
   FBorderSpacing.OnChange := @BorderSpacingChanged;
+  FConstraints := TSizeConstraints.Create;
+  FConstraints.OnChange := @ConstraintsChanged;
   FBorderStyle := bsSingle;
   FFont := TFont.Create;
   FFont.OnChange := @FontChanged;
@@ -2171,6 +2325,8 @@ begin
     FControls.Length := 0;
   FBorderSpacing.Free;
   FBorderSpacing := nil;
+  FConstraints.Free;
+  FConstraints := nil;
   FFont.Free;
   FFont := nil;
   inherited Destroy;
@@ -2282,27 +2438,27 @@ end;
 
 procedure TControl.SetBounds(ALeft, ATop, AWidth, AHeight: NativeInt);
 begin
-  { TODO: Constraint max min width and height }
+  if (AWidth < 0) then
+    AWidth := 0;
+  if (AHeight < 0) then
+    AHeight := 0;
+  if Assigned(FConstraints) then
+  begin
+    if (FConstraints.MinWidth > 0) and (AWidth < FConstraints.MinWidth) then
+      AWidth := FConstraints.MinWidth;
+    if (FConstraints.MaxWidth > 0) and (AWidth > FConstraints.MaxWidth) then
+      AWidth := FConstraints.MaxWidth;
+    if (FConstraints.MinHeight > 0) and (AHeight < FConstraints.MinHeight) then
+      AHeight := FConstraints.MinHeight;
+    if (FConstraints.MaxHeight > 0) and (AHeight > FConstraints.MaxHeight) then
+      AHeight := FConstraints.MaxHeight;
+  end;
   if (FLeft <> ALeft) or (FTop <> ATop) or (FWidth <> AWidth) or (FHeight <> AHeight) then
   begin
     FLeft := ALeft;
     FTop := ATop;
-    if (AWidth > 0) then
-    begin
-      FWidth := AWidth;
-    end
-    else
-    begin
-      FWidth := 0;
-    end;
-    if (AHeight > 0) then
-    begin
-      FHeight := AHeight;
-    end
-    else
-    begin
-      FHeight := 0;
-    end;
+    FWidth := AWidth;
+    FHeight := AHeight;
     Changed;
     ReAlign;
   end;

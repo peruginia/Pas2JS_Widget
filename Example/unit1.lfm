@@ -69,6 +69,7 @@ object WForm1: TWForm1
         Width = 75
         Caption = 'OK'
         TabOrder = 3
+        OnClick = WButton1Click
       end
       object WButton2: TWButton
         Left = 240
@@ -190,6 +191,7 @@ object WForm1: TWForm1
         ResponsiveMode = False
         ResponsiveBreakpoint = 0
         FilterBox = True
+        InfiniteScroll = False
         TabOrder = 0
         RowSelect = True
       end

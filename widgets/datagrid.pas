@@ -826,7 +826,6 @@ begin
    if Assigned(fontouchmove) then Body.AddEventListener('touchmove', fontouchmove);
     if Assigned(fontouchcancel) then Body.AddEventListener('touchcancel', fontouchcancel);
 
-   console.log('WCL: RenderTableBody FData=' + BoolToStr(Assigned(FData), True) + ' FDataJSon=' + BoolToStr(Assigned(FDataJSon), True));
    if (Assigned(FData)) then begin
       VDisplayRow := 0;
       for VRowIndex := 0 to (FData.Length - 1) do begin
@@ -1066,7 +1065,6 @@ begin
     VContainer := TJSHTMLElement(HandleElement.QuerySelector('.dg-card-container'));
     if not Assigned(VContainer) then Exit;
 
-   console.log('WCL: RenderTableBody FData=' + BoolToStr(Assigned(FData), True) + ' FDataJSon=' + BoolToStr(Assigned(FDataJSon), True));
    if (Assigned(FData)) then begin
       for VRowIndex := 0 to (FData.Length - 1) do begin
          VJSValue := FData[VRowIndex];
@@ -1295,7 +1293,9 @@ begin
         begin
           VCol := FColumns[VColIdx];
           if VColIdx > 0 then VCSV := VCSV + ',';
-          VVal := String(VObj[VCol.Name]);
+          /// Use the same formatting as the grid so booleans/dates/numbers
+          /// are exported consistently (e.g. True/False, not true/false).
+          VVal := FormatCellValue(VCol, VObj[VCol.Name]);
           VCSV := VCSV + '"' + StringReplace(VVal, '"', '""', [rfReplaceAll]) + '"';
         end;
         VCSV := VCSV + #13#10;
@@ -1311,7 +1311,8 @@ begin
       begin
         VCol := FColumns[VColIdx];
         if VColIdx > 0 then VCSV := VCSV + ',';
-        VCSV := VCSV + '"' + FDataJSon.FieldByName(VCol.Name).AsString + '"';
+        VVal := FDataJSon.FieldByName(VCol.Name).AsString;
+        VCSV := VCSV + '"' + StringReplace(VVal, '"', '""', [rfReplaceAll]) + '"';
       end;
       VCSV := VCSV + #13#10;
       FDataJSon.Next;
@@ -1977,7 +1978,6 @@ var
   VScrollPos: Double;
 begin
    inherited Changed;
-   console.log('WCL: Changed called, Updating=' + BoolToStr(IsUpdating, True) + ' Loading=' + BoolToStr(csLoading in ComponentState, True));
    if Enabled=false then exit;
    if (not IsUpdating) and not (csLoading in ComponentState) then begin
       VIsCard := (FResponsiveMode and (FResponsiveBreakpoint = 0)) or FIsCardVisible;
@@ -2234,7 +2234,7 @@ begin
   Result := '';
   case GetValueType(AValue) of
        jvtArray, jvtObject, jvtNull: ;
-       jvtBoolean: Result := BoolToStr(boolean(AValue));
+       jvtBoolean: Result := BoolToStr(boolean(AValue), True);
        jvtInteger: Result := FloatToStr(NativeInt(AValue));
        jvtFloat:
           case AColumn.Format of
