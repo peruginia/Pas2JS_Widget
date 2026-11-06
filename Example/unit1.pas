@@ -77,7 +77,12 @@ type
     FDemoInfo: TWLabel;
     FDemoMode: NativeInt;
     FDemoTable: TWWebDBTable;
+    FLayoutInfo: TWLabel;
+    FLayoutLeft: TWPanel;
+    FLayoutTop: TWPanel;
     procedure BuildGridModesTab;
+    procedure BuildSplitterTab;
+    procedure DemoSplitterMoved(Sender: TObject);
     procedure DemoAddRow(AData: TJSArray; const AName: string; AAge: NativeInt;
       const ACity: string; AActive: Boolean);
     function DemoDataArray: TJSArray;
@@ -143,6 +148,7 @@ begin
   WColorPicker1.OnChange := @WColorPickChange;
   WTimer1.OnTimer := @WTimerTick;
   BuildGridModesTab;
+  BuildSplitterTab;
 end;
 
 procedure TWForm1.LoadFromArray(Sender: TObject);
@@ -502,6 +508,74 @@ begin
   end;
 
   DemoUpdateInfo;
+end;
+
+{ --- TSplitter demo: two panels split vertically and horizontally --- }
+
+procedure TWForm1.DemoSplitterMoved(Sender: TObject);
+begin
+  if Assigned(FLayoutInfo) then
+    FLayoutInfo.Caption := 'Left panel: ' + IntToStr(FLayoutLeft.Width) + ' px' + #10 +
+      'Top panel: ' + IntToStr(FLayoutTop.Height) + ' px' + #10 +
+      'Drag the grey bars.';
+end;
+
+procedure TWForm1.BuildSplitterTab;
+var
+  VSheet: TCustomTabSheet;
+  VClient, VBottom: TWPanel;
+  VSplitV, VSplitH: TWSplitter;
+begin
+  VSheet := WPageControl1.AddTabSheet;
+  VSheet.Caption := 'Layout';
+  VSheet.SetBounds(0, 0, WPageControl1.Width, WPageControl1.Height);
+
+  /// alClient first, then the alLeft chain (AlignControls places alLeft in
+  /// declaration order, so the panel comes before its splitter).
+  VClient := TWPanel.Create(Self);
+  VClient.Parent := VSheet;
+  VClient.Align := alClient;
+  VClient.Color := clWhite;
+
+  FLayoutLeft := TWPanel.Create(Self);
+  FLayoutLeft.Parent := VSheet;
+  FLayoutLeft.Align := alLeft;
+  FLayoutLeft.Width := 160;
+  FLayoutLeft.Color := clSilver;
+
+  VSplitV := TWSplitter.Create(Self);
+  VSplitV.Parent := VSheet;
+  VSplitV.Align := alLeft;
+  VSplitV.Width := 6;
+  VSplitV.MinSize := 80;
+  VSplitV.OnMoved := @DemoSplitterMoved;
+
+  /// Inside the client area: horizontal split.
+  VBottom := TWPanel.Create(Self);
+  VBottom.Parent := VClient;
+  VBottom.Align := alClient;
+  VBottom.Color := clGray;
+
+  FLayoutTop := TWPanel.Create(Self);
+  FLayoutTop.Parent := VClient;
+  FLayoutTop.Align := alTop;
+  FLayoutTop.Height := 100;
+  FLayoutTop.Color := clSilver;
+
+  VSplitH := TWSplitter.Create(Self);
+  VSplitH.Parent := VClient;
+  VSplitH.Align := alTop;
+  VSplitH.Height := 6;
+  VSplitH.MinSize := 40;
+  VSplitH.OnMoved := @DemoSplitterMoved;
+
+  FLayoutInfo := TWLabel.Create(Self);
+  FLayoutInfo.Parent := FLayoutTop;
+  FLayoutInfo.Align := alClient;
+  FLayoutInfo.BorderSpacing.Around := 8;
+  FLayoutInfo.AutoSize := False;
+
+  DemoSplitterMoved(nil);
 end;
 
 end.

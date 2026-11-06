@@ -681,6 +681,48 @@ type
     property OnExit;
   end;
 
+  { TWSplitter }
+
+  TWSplitter = class(TCustomSplitter)
+  published
+    property Align;
+    property Anchors;
+    property AutoSnap;
+    property Beveled;
+    property BorderSpacing;
+    property Color;
+    property Constraints;
+    property Cursor;
+    property Enabled;
+    property Font;
+    property HandleClass;
+    property HandleId;
+    property Height;
+    property Hint;
+    property Left;
+    property MinSize;
+    property ParentColor;
+    property ParentFont;
+    property ParentShowHint;
+    property ResizeStyle;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Top;
+    property Visible;
+    property Width;
+    property OnClick;
+    property OnEnter;
+    property OnExit;
+    property OnMoved;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnResize;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)

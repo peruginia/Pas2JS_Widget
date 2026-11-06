@@ -857,6 +857,18 @@ type
     property HandleId: string read FHandleId write FHandleId;
   end;
 
+  { TWSplitter }
+
+  TWSplitter = class(TCustomSplitter)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property Constraints;
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)
@@ -1280,6 +1292,7 @@ begin
     TWProgressBar,
     TWTrackBar,
     TWColorPicker,
+    TWSplitter,
     TWWebDBConnection,
     TWWebDBTable
     ]);

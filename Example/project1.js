@@ -27437,6 +27437,252 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
     var $r = this.$rtti;
     $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
   });
+  this.TResizeStyle = {"0": "rsNone", rsNone: 0, "1": "rsLine", rsLine: 1, "2": "rsUpdate", rsUpdate: 2, "3": "rsPattern", rsPattern: 3};
+  this.$rtti.$Enum("TResizeStyle",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TResizeStyle});
+  rtl.createClass(this,"TCustomSplitter",pas.Controls.TCustomControl,function () {
+    this.$init = function () {
+      pas.Controls.TCustomControl.$init.call(this);
+      this.FAutoSnap = false;
+      this.FBeveled = false;
+      this.FDragging = false;
+      this.FMinSize = 0;
+      this.FResizeStyle = 0;
+      this.FStartCoord = 0.0;
+      this.FStartSize = 0;
+      this.FTarget = null;
+      this.FOnMoved = null;
+    };
+    this.$final = function () {
+      this.FTarget = undefined;
+      this.FOnMoved = undefined;
+      pas.Controls.TCustomControl.$final.call(this);
+    };
+    this.SetAutoSnap = function (AValue) {
+      if (this.FAutoSnap !== AValue) {
+        this.FAutoSnap = AValue;
+        this.Changed();
+      };
+    };
+    this.SetBeveled = function (AValue) {
+      if (this.FBeveled !== AValue) {
+        this.FBeveled = AValue;
+        this.Changed();
+      };
+    };
+    this.SetMinSize = function (AValue) {
+      if (AValue < 0) AValue = 0;
+      if (this.FMinSize !== AValue) {
+        this.FMinSize = AValue;
+        this.Changed();
+      };
+    };
+    this.SetResizeStyle = function (AValue) {
+      if (this.FResizeStyle !== AValue) {
+        this.FResizeStyle = AValue;
+        this.Changed();
+      };
+    };
+    this.Horizontal = function () {
+      var Result = false;
+      Result = !(this.FAlign in rtl.createSet(pas.Controls.TAlign.alTop,pas.Controls.TAlign.alBottom));
+      return Result;
+    };
+    this.FindTarget = function () {
+      var Result = null;
+      var VParent = null;
+      var VIndex = 0;
+      var VSelf = 0;
+      var VControl = null;
+      var VWant = 0;
+      Result = null;
+      VParent = this.FParent;
+      if (!(VParent != null)) return Result;
+      var $tmp = this.FAlign;
+      if ($tmp === pas.Controls.TAlign.alLeft) {
+        VWant = pas.Controls.TAlign.alLeft}
+       else if ($tmp === pas.Controls.TAlign.alRight) {
+        VWant = pas.Controls.TAlign.alRight}
+       else if ($tmp === pas.Controls.TAlign.alTop) {
+        VWant = pas.Controls.TAlign.alTop}
+       else if ($tmp === pas.Controls.TAlign.alBottom) {
+        VWant = pas.Controls.TAlign.alBottom}
+       else {
+        return Result;
+      };
+      VSelf = VParent.GetControlIndex(this);
+      if (VSelf < 0) return Result;
+      if (VWant in rtl.createSet(pas.Controls.TAlign.alLeft,pas.Controls.TAlign.alTop)) {
+        for (var $l = VSelf - 1; $l >= 0; $l--) {
+          VIndex = $l;
+          VControl = VParent.GetControl(VIndex);
+          if ((VControl != null) && (VControl.FAlign === VWant) && VControl.FVisible) {
+            Result = VControl;
+            return Result;
+          };
+        };
+      } else {
+        for (var $l1 = VSelf + 1, $end = VParent.GetControlCount() - 1; $l1 <= $end; $l1++) {
+          VIndex = $l1;
+          VControl = VParent.GetControl(VIndex);
+          if ((VControl != null) && (VControl.FAlign === VWant) && VControl.FVisible) {
+            Result = VControl;
+            return Result;
+          };
+        };
+      };
+      return Result;
+    };
+    this.MaxTargetSize = function () {
+      var Result = 0;
+      var VParent = null;
+      var VIndex = 0;
+      var VControl = null;
+      var VAvailable = 0;
+      VParent = this.FParent;
+      if (!(VParent != null)) {
+        Result = this.FMinSize;
+        return Result;
+      };
+      if (this.Horizontal()) {
+        VAvailable = VParent.GetClientWidth()}
+       else VAvailable = VParent.GetClientHeight();
+      for (var $l = 0, $end = VParent.GetControlCount() - 1; $l <= $end; $l++) {
+        VIndex = $l;
+        VControl = VParent.GetControl(VIndex);
+        if (!(VControl != null) || (VControl === this) || (VControl === this.FTarget)) continue;
+        if (!VControl.FVisible) continue;
+        if (this.Horizontal()) {
+          if (VControl.FAlign in rtl.createSet(pas.Controls.TAlign.alLeft,pas.Controls.TAlign.alRight)) VAvailable = VAvailable - VControl.FWidth;
+        } else {
+          if (VControl.FAlign in rtl.createSet(pas.Controls.TAlign.alTop,pas.Controls.TAlign.alBottom)) VAvailable = VAvailable - VControl.FHeight;
+        };
+      };
+      Result = VAvailable - this.FMinSize;
+      if (Result < this.FMinSize) Result = this.FMinSize;
+      return Result;
+    };
+    this.ApplySize = function (ANewSize) {
+      if (!(this.FTarget != null)) return;
+      if (ANewSize < this.FMinSize) ANewSize = this.FMinSize;
+      if (ANewSize > this.MaxTargetSize()) ANewSize = this.MaxTargetSize();
+      if (this.Horizontal()) {
+        if (this.FTarget.FWidth !== ANewSize) this.FTarget.SetWidth(ANewSize);
+      } else {
+        if (this.FTarget.FHeight !== ANewSize) this.FTarget.SetHeight(ANewSize);
+      };
+      if (this.FParent != null) this.FParent.ReAlign();
+    };
+    this.Changed = function () {
+      pas.Controls.TControl.Changed.call(this);
+      if (!this.IsUpdating() && rtl.eqSet(rtl.intersectSet(rtl.createSet(pas.Classes.TComponentStateItem.csLoading,pas.Classes.TComponentStateItem.csDestroying),this.FComponentState),{})) {
+        if (this.Horizontal()) {
+          if (this.FCursor !== -14) this.SetCursor(-14);
+        } else {
+          if (this.FCursor !== -15) this.SetCursor(-15);
+        };
+        if (this.FBeveled) {
+          this.FHandleElement.style.setProperty("box-shadow","inset 0 0 0 1px #b0b0b0")}
+         else this.FHandleElement.style.removeProperty("box-shadow");
+      };
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("div");
+      return Result;
+    };
+    this.CheckChildClassAllowed = function (AChildClass) {
+      var Result = false;
+      Result = false;
+      return Result;
+    };
+    this.HandleMouseDown = function (AEvent) {
+      var Result = false;
+      Result = pas.Controls.TControl.HandleMouseDown.call(this,AEvent);
+      if (!this.FEnabled || this.FDragging) return Result;
+      this.FTarget = this.FindTarget();
+      if (!(this.FTarget != null)) return Result;
+      this.FDragging = true;
+      if (this.Horizontal()) {
+        this.FStartCoord = AEvent.clientX;
+        this.FStartSize = this.FTarget.FWidth;
+      } else {
+        this.FStartCoord = AEvent.clientY;
+        this.FStartSize = this.FTarget.FHeight;
+      };
+      document.addEventListener("mousemove",rtl.createCallback(this,"HandleDocMouseMove"));
+      document.addEventListener("mouseup",rtl.createCallback(this,"HandleDocMouseUp"));
+      AEvent.preventDefault();
+      AEvent.stopPropagation();
+      Result = true;
+      return Result;
+    };
+    this.HandleDocMouseMove = function (AEvent) {
+      var Result = false;
+      var VDelta = 0.0;
+      Result = false;
+      if (!this.FDragging || !(this.FTarget != null)) return Result;
+      if (this.Horizontal()) {
+        VDelta = AEvent.clientX - this.FStartCoord}
+       else VDelta = AEvent.clientY - this.FStartCoord;
+      if ((this.FAlign === pas.Controls.TAlign.alRight) || (this.FAlign === pas.Controls.TAlign.alBottom)) VDelta = -VDelta;
+      if (this.FResizeStyle !== $mod.TResizeStyle.rsNone) this.ApplySize(this.FStartSize + Math.round(VDelta));
+      AEvent.preventDefault();
+      Result = true;
+      return Result;
+    };
+    this.HandleDocMouseUp = function (AEvent) {
+      var Result = false;
+      Result = false;
+      if (!this.FDragging) return Result;
+      document.removeEventListener("mousemove",rtl.createCallback(this,"HandleDocMouseMove"));
+      document.removeEventListener("mouseup",rtl.createCallback(this,"HandleDocMouseUp"));
+      if (this.FResizeStyle === $mod.TResizeStyle.rsNone) this.HandleDocMouseMove(AEvent);
+      this.FDragging = false;
+      this.FTarget = null;
+      if (this.FOnMoved != null) this.FOnMoved(this);
+      AEvent.stopPropagation();
+      Result = true;
+      return Result;
+    };
+    this.GetControlClassDefaultSize = function () {
+      var Result = pas.Types.TSize.$new();
+      Result.cx = 5;
+      Result.cy = 100;
+      return Result;
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.FAutoSnap = true;
+      this.FBeveled = false;
+      this.FDragging = false;
+      this.FMinSize = 30;
+      this.FResizeStyle = $mod.TResizeStyle.rsUpdate;
+      this.FTarget = null;
+      this.FOnMoved = null;
+      this.BeginUpdate();
+      try {
+        this.SetAlign(pas.Controls.TAlign.alLeft);
+        this.SetColor(-2147483633);
+        this.SetWidth(5);
+        this.SetHeight(100);
+      } finally {
+        this.EndUpdate();
+      };
+      return this;
+    };
+    this.Destroy = function () {
+      if (this.FDragging) {
+        document.removeEventListener("mousemove",rtl.createCallback(this,"HandleDocMouseMove"));
+        document.removeEventListener("mouseup",rtl.createCallback(this,"HandleDocMouseUp"));
+        this.FDragging = false;
+      };
+      this.FTarget = null;
+      pas.Controls.TCustomControl.Destroy.call(this);
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+  });
   $mod.$implcode = function () {
     $impl._WCLExtRulesRegistered = false;
     $impl._RegisterWCLExtRules = function () {
@@ -47105,6 +47351,46 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnEnter","FOnEnter");
     $r.addProperty("OnExit",0,pas.Classes.$rtti["TNotifyEvent"],"FOnExit","FOnExit");
   });
+  rtl.createClass(this,"TWSplitter",pas.ExtCtrls.TCustomSplitter,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
+    $r.addProperty("Anchors",14,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors",{stored: "IsAnchorsStored", Default: rtl.createSet(pas.Controls.TAnchorKind.akLeft,pas.Controls.TAnchorKind.akTop)});
+    $r.addProperty("AutoSnap",2,rtl.boolean,"FAutoSnap","SetAutoSnap",{Default: true});
+    $r.addProperty("Beveled",2,rtl.boolean,"FBeveled","SetBeveled",{Default: false});
+    $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
+    $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
+    $r.addProperty("Constraints",2,pas.Controls.$rtti["TSizeConstraints"],"FConstraints","SetConstraints");
+    $r.addProperty("Cursor",2,pas.Controls.$rtti["TCursor"],"FCursor","SetCursor");
+    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
+    $r.addProperty("Font",2,pas.Graphics.$rtti["TFont"],"FFont","SetFont");
+    $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
+    $r.addProperty("HandleId",2,rtl.string,"FHandleId","SetHandleId");
+    $r.addProperty("Height",2,rtl.nativeint,"FHeight","SetHeight");
+    $r.addProperty("Hint",2,rtl.string,"FHint","SetHint");
+    $r.addProperty("Left",2,rtl.nativeint,"FLeft","SetLeft");
+    $r.addProperty("MinSize",2,rtl.nativeint,"FMinSize","SetMinSize",{Default: 30});
+    $r.addProperty("ParentColor",2,rtl.boolean,"FParentColor","SetParentColor");
+    $r.addProperty("ParentFont",2,rtl.boolean,"FParentFont","SetParentFont");
+    $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
+    $r.addProperty("ResizeStyle",2,pas.ExtCtrls.$rtti["TResizeStyle"],"FResizeStyle","SetResizeStyle",{Default: pas.ExtCtrls.TResizeStyle.rsUpdate});
+    $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
+    $r.addProperty("TabOrder",2,rtl.nativeint,"FTabOrder","SetTabOrder");
+    $r.addProperty("TabStop",2,rtl.boolean,"FTabStop","SetTabStop");
+    $r.addProperty("Top",2,rtl.nativeint,"FTop","SetTop");
+    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
+    $r.addProperty("Width",2,rtl.nativeint,"FWidth","SetWidth");
+    $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
+    $r.addProperty("OnEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnEnter","FOnEnter");
+    $r.addProperty("OnExit",0,pas.Classes.$rtti["TNotifyEvent"],"FOnExit","FOnExit");
+    $r.addProperty("OnMoved",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMoved","FOnMoved");
+    $r.addProperty("OnMouseDown",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseDown","FOnMouseDown");
+    $r.addProperty("OnMouseEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseEnter","FOnMouseEnter");
+    $r.addProperty("OnMouseLeave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseLeave","FOnMouseLeave");
+    $r.addProperty("OnMouseMove",0,pas.Controls.$rtti["TMouseMoveEvent"],"FOnMouseMove","FOnMouseMove");
+    $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
+    $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
+  });
   rtl.createClass(this,"TWFloatEdit",pas.NumCtrls.TCustomNumericEdit,function () {
     this.GetValue = function () {
       var Result = 0.0;
@@ -49602,6 +49888,9 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoInfo = null;
       this.FDemoMode = 0;
       this.FDemoTable = null;
+      this.FLayoutInfo = null;
+      this.FLayoutLeft = null;
+      this.FLayoutTop = null;
     };
     this.$final = function () {
       this.btnAggiornaApp = undefined;
@@ -49656,6 +49945,9 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoGrid = undefined;
       this.FDemoInfo = undefined;
       this.FDemoTable = undefined;
+      this.FLayoutInfo = undefined;
+      this.FLayoutLeft = undefined;
+      this.FLayoutTop = undefined;
       pas.Forms.TWForm.$final.call(this);
     };
     this.btnAggiornaAppClick = function (Sender) {
@@ -49810,6 +50102,55 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       $with5.FOnClick = rtl.createCallback(this,"DemoExportCSV");
       this.DemoUpdateInfo();
     };
+    this.BuildSplitterTab = function () {
+      var VSheet = null;
+      var VClient = null;
+      var VBottom = null;
+      var VSplitV = null;
+      var VSplitH = null;
+      VSheet = this.WPageControl1.AddTabSheet();
+      VSheet.SetText("Layout");
+      VSheet.SetBounds(0,0,this.WPageControl1.FWidth,this.WPageControl1.FHeight);
+      VClient = pas.WebCtrls.TWPanel.$create("Create$1",[this]);
+      VClient.SetParent(VSheet);
+      VClient.SetAlign(pas.Controls.TAlign.alClient);
+      VClient.SetColor(16777215);
+      this.FLayoutLeft = pas.WebCtrls.TWPanel.$create("Create$1",[this]);
+      this.FLayoutLeft.SetParent(VSheet);
+      this.FLayoutLeft.SetAlign(pas.Controls.TAlign.alLeft);
+      this.FLayoutLeft.SetWidth(160);
+      this.FLayoutLeft.SetColor(12632256);
+      VSplitV = pas.WebCtrls.TWSplitter.$create("Create$1",[this]);
+      VSplitV.SetParent(VSheet);
+      VSplitV.SetAlign(pas.Controls.TAlign.alLeft);
+      VSplitV.SetWidth(6);
+      VSplitV.SetMinSize(80);
+      VSplitV.FOnMoved = rtl.createCallback(this,"DemoSplitterMoved");
+      VBottom = pas.WebCtrls.TWPanel.$create("Create$1",[this]);
+      VBottom.SetParent(VClient);
+      VBottom.SetAlign(pas.Controls.TAlign.alClient);
+      VBottom.SetColor(8421504);
+      this.FLayoutTop = pas.WebCtrls.TWPanel.$create("Create$1",[this]);
+      this.FLayoutTop.SetParent(VClient);
+      this.FLayoutTop.SetAlign(pas.Controls.TAlign.alTop);
+      this.FLayoutTop.SetHeight(100);
+      this.FLayoutTop.SetColor(12632256);
+      VSplitH = pas.WebCtrls.TWSplitter.$create("Create$1",[this]);
+      VSplitH.SetParent(VClient);
+      VSplitH.SetAlign(pas.Controls.TAlign.alTop);
+      VSplitH.SetHeight(6);
+      VSplitH.SetMinSize(40);
+      VSplitH.FOnMoved = rtl.createCallback(this,"DemoSplitterMoved");
+      this.FLayoutInfo = pas.WebCtrls.TWLabel.$create("Create$1",[this]);
+      this.FLayoutInfo.SetParent(this.FLayoutTop);
+      this.FLayoutInfo.SetAlign(pas.Controls.TAlign.alClient);
+      this.FLayoutInfo.FBorderSpacing.SetAround(8);
+      this.FLayoutInfo.SetAutoSize(false);
+      this.DemoSplitterMoved(null);
+    };
+    this.DemoSplitterMoved = function (Sender) {
+      if (this.FLayoutInfo != null) this.FLayoutInfo.SetText("Left panel: " + pas.SysUtils.IntToStr(this.FLayoutLeft.FWidth) + " px" + "\n" + "Top panel: " + pas.SysUtils.IntToStr(this.FLayoutTop.FHeight) + " px" + "\n" + "Drag the grey bars.");
+    };
     this.DemoAddRow = function (AData, AName, AAge, ACity, AActive) {
       var VRow = null;
       VRow = new Object();
@@ -49955,6 +50296,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.WColorPicker1.FOnChange = rtl.createCallback(this,"WColorPickChange");
       this.WTimer1.SetOnTimer(rtl.createCallback(this,"WTimerTick"));
       this.BuildGridModesTab();
+      this.BuildSplitterTab();
     };
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;

@@ -68,6 +68,7 @@ lib/
 # Lazarus local files
 *.lps
 *.compiled
+packagefiles.xml
 
 # Delphi history and backups
 __history/

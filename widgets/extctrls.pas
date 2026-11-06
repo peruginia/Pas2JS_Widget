@@ -358,6 +358,49 @@ type
     property Value: NativeInt read FValue write SetValue default 0;
   end;
 
+  { TSplitter }
+
+  TResizeStyle = (rsNone, rsLine, rsUpdate, rsPattern);
+
+  TCustomSplitter = class(TCustomControl)
+  private
+    FAutoSnap: Boolean;
+    FBeveled: Boolean;
+    FDragging: Boolean;
+    FMinSize: NativeInt;
+    FResizeStyle: TResizeStyle;
+    FStartCoord: Double;
+    FStartSize: NativeInt;
+    FTarget: TControl;
+    FOnMoved: TNotifyEvent;
+    procedure SetAutoSnap(AValue: Boolean);
+    procedure SetBeveled(AValue: Boolean);
+    procedure SetMinSize(AValue: NativeInt);
+    procedure SetResizeStyle(AValue: TResizeStyle);
+  protected
+    function Horizontal: Boolean; virtual;
+    function FindTarget: TControl; virtual;
+    function MaxTargetSize: NativeInt; virtual;
+    procedure ApplySize(ANewSize: NativeInt); virtual;
+  protected
+    procedure Changed; override;
+    function CreateHandleElement: TJSHTMLElement; override;
+    function CheckChildClassAllowed(AChildClass: TClass): boolean; override;
+    function HandleMouseDown(AEvent: TJSMouseEvent): boolean; override;
+    function HandleDocMouseMove(AEvent: TJSMouseEvent): boolean; virtual;
+    function HandleDocMouseUp(AEvent: TJSMouseEvent): boolean; virtual;
+  protected
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    property AutoSnap: Boolean read FAutoSnap write SetAutoSnap default True;
+    property Beveled: Boolean read FBeveled write SetBeveled default False;
+    property MinSize: NativeInt read FMinSize write SetMinSize default 30;
+    property ResizeStyle: TResizeStyle read FResizeStyle write SetResizeStyle default rsUpdate;
+    property OnMoved: TNotifyEvent read FOnMoved write FOnMoved;
+  end;
+
 implementation
 
 uses
@@ -1528,6 +1571,310 @@ begin
     FColor := AValue;
     Changed;
   end;
+end;
+
+{ TCustomSplitter }
+
+procedure TCustomSplitter.SetAutoSnap(AValue: Boolean);
+begin
+  if (FAutoSnap <> AValue) then
+  begin
+    FAutoSnap := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomSplitter.SetBeveled(AValue: Boolean);
+begin
+  if (FBeveled <> AValue) then
+  begin
+    FBeveled := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomSplitter.SetMinSize(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FMinSize <> AValue) then
+  begin
+    FMinSize := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomSplitter.SetResizeStyle(AValue: TResizeStyle);
+begin
+  if (FResizeStyle <> AValue) then
+  begin
+    FResizeStyle := AValue;
+    Changed;
+  end;
+end;
+
+function TCustomSplitter.Horizontal: Boolean;
+begin
+  /// A splitter aligned left/right resizes the width of its neighbour.
+  Result := not (Align in [alTop, alBottom]);
+end;
+
+function TCustomSplitter.FindTarget: TControl;
+var
+  VParent: TWinControl;
+  VIndex: NativeInt;
+  VSelf: NativeInt;
+  VControl: TControl;
+  VWant: TAlign;
+begin
+  Result := nil;
+  VParent := Parent;
+  if (not Assigned(VParent)) then
+    Exit;
+  case Align of
+    alLeft: VWant := alLeft;
+    alRight: VWant := alRight;
+    alTop: VWant := alTop;
+    alBottom: VWant := alBottom;
+  else
+    Exit;
+  end;
+  VSelf := VParent.ControlIndex[Self];
+  if (VSelf < 0) then
+    Exit;
+  /// AlignControls lays out alLeft/alTop in declaration order and
+  /// alRight/alBottom from the opposite edge, so the neighbour is the
+  /// closest sibling with the same alignment on the matching side.
+  if (VWant in [alLeft, alTop]) then
+  begin
+    for VIndex := (VSelf - 1) downto 0 do
+    begin
+      VControl := VParent.Controls[VIndex];
+      if (Assigned(VControl)) and (VControl.Align = VWant) and VControl.Visible then
+      begin
+        Result := VControl;
+        Exit;
+      end;
+    end;
+  end
+  else
+  begin
+    for VIndex := (VSelf + 1) to (VParent.ControlCount - 1) do
+    begin
+      VControl := VParent.Controls[VIndex];
+      if (Assigned(VControl)) and (VControl.Align = VWant) and VControl.Visible then
+      begin
+        Result := VControl;
+        Exit;
+      end;
+    end;
+  end;
+end;
+
+function TCustomSplitter.MaxTargetSize: NativeInt;
+var
+  VParent: TWinControl;
+  VIndex: NativeInt;
+  VControl: TControl;
+  VAvailable: NativeInt;
+begin
+  VParent := Parent;
+  if (not Assigned(VParent)) then
+  begin
+    Result := FMinSize;
+    Exit;
+  end;
+  /// Space available for the target plus the alClient control.
+  if Horizontal then
+    VAvailable := VParent.ClientWidth
+  else
+    VAvailable := VParent.ClientHeight;
+  for VIndex := 0 to (VParent.ControlCount - 1) do
+  begin
+    VControl := VParent.Controls[VIndex];
+    if (not Assigned(VControl)) or (VControl = Self) or (VControl = FTarget) then
+      Continue;
+    if (not VControl.Visible) then
+      Continue;
+    if Horizontal then
+    begin
+      if (VControl.Align in [alLeft, alRight]) then
+        VAvailable := VAvailable - VControl.Width;
+    end
+    else
+    begin
+      if (VControl.Align in [alTop, alBottom]) then
+        VAvailable := VAvailable - VControl.Height;
+    end;
+  end;
+  Result := VAvailable - FMinSize;
+  if (Result < FMinSize) then
+    Result := FMinSize;
+end;
+
+procedure TCustomSplitter.ApplySize(ANewSize: NativeInt);
+begin
+  if (not Assigned(FTarget)) then
+    Exit;
+  if (ANewSize < FMinSize) then
+    ANewSize := FMinSize;
+  if (ANewSize > MaxTargetSize) then
+    ANewSize := MaxTargetSize;
+  if Horizontal then
+  begin
+    if (FTarget.Width <> ANewSize) then
+      FTarget.Width := ANewSize;
+  end
+  else
+  begin
+    if (FTarget.Height <> ANewSize) then
+      FTarget.Height := ANewSize;
+  end;
+  /// Let the parent place the splitter and give the rest to the alClient control.
+  if (Assigned(Parent)) then
+    Parent.ReAlign;
+end;
+
+procedure TCustomSplitter.Changed;
+begin
+  inherited Changed;
+  if (not IsUpdating) and ([csLoading, csDestroying] * ComponentState = []) then
+  begin
+    /// The cursor tells the user the splitter can be dragged.
+    if Horizontal then
+    begin
+      if (Cursor <> crHSplit) then
+        Cursor := crHSplit;
+    end
+    else
+    begin
+      if (Cursor <> crVSplit) then
+        Cursor := crVSplit;
+    end;
+    if FBeveled then
+      HandleElement.Style.SetProperty('box-shadow', 'inset 0 0 0 1px #b0b0b0')
+    else
+      HandleElement.Style.RemoveProperty('box-shadow');
+  end;
+end;
+
+function TCustomSplitter.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('div'));
+end;
+
+{$push}
+{$hints off}
+
+function TCustomSplitter.CheckChildClassAllowed(AChildClass: TClass): boolean;
+begin
+  Result := False;
+end;
+
+{$pop}
+
+function TCustomSplitter.HandleMouseDown(AEvent: TJSMouseEvent): boolean;
+begin
+  Result := inherited HandleMouseDown(AEvent);
+  if (not Enabled) or FDragging then
+    Exit;
+  FTarget := FindTarget;
+  if (not Assigned(FTarget)) then
+    Exit;
+  FDragging := True;
+  if Horizontal then
+  begin
+    FStartCoord := AEvent.ClientX;
+    FStartSize := FTarget.Width;
+  end
+  else
+  begin
+    FStartCoord := AEvent.ClientY;
+    FStartSize := FTarget.Height;
+  end;
+  /// Listen on the document: the splitter itself is only a few pixels wide.
+  Document.AddEventListener('mousemove', @HandleDocMouseMove);
+  Document.AddEventListener('mouseup', @HandleDocMouseUp);
+  AEvent.PreventDefault;
+  AEvent.StopPropagation;
+  Result := True;
+end;
+
+function TCustomSplitter.HandleDocMouseMove(AEvent: TJSMouseEvent): boolean;
+var
+  VDelta: Double;
+begin
+  Result := False;
+  if (not FDragging) or (not Assigned(FTarget)) then
+    Exit;
+  if Horizontal then
+    VDelta := AEvent.ClientX - FStartCoord
+  else
+    VDelta := AEvent.ClientY - FStartCoord;
+  /// Dragging towards the opposite edge grows the target.
+  if (Align = alRight) or (Align = alBottom) then
+    VDelta := -VDelta;
+  if (FResizeStyle <> rsNone) then
+    ApplySize(FStartSize + Round(VDelta));
+  AEvent.PreventDefault;
+  Result := True;
+end;
+
+function TCustomSplitter.HandleDocMouseUp(AEvent: TJSMouseEvent): boolean;
+begin
+  Result := False;
+  if (not FDragging) then
+    Exit;
+  Document.RemoveEventListener('mousemove', @HandleDocMouseMove);
+  Document.RemoveEventListener('mouseup', @HandleDocMouseUp);
+  /// rsNone resizes only on release.
+  if (FResizeStyle = rsNone) then
+    HandleDocMouseMove(AEvent);
+  FDragging := False;
+  FTarget := nil;
+  if (Assigned(FOnMoved)) then
+    FOnMoved(Self);
+  AEvent.StopPropagation;
+  Result := True;
+end;
+
+class function TCustomSplitter.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 5;
+  Result.Cy := 100;
+end;
+
+constructor TCustomSplitter.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FAutoSnap := True;
+  FBeveled := False;
+  FDragging := False;
+  FMinSize := 30;
+  FResizeStyle := rsUpdate;
+  FTarget := nil;
+  FOnMoved := nil;
+  BeginUpdate;
+  try
+    Align := alLeft;
+    Color := clBtnFace;
+    Width := 5;
+    Height := 100;
+  finally
+    EndUpdate;
+  end;
+end;
+
+destructor TCustomSplitter.Destroy;
+begin
+  if FDragging then
+  begin
+    Document.RemoveEventListener('mousemove', @HandleDocMouseMove);
+    Document.RemoveEventListener('mouseup', @HandleDocMouseUp);
+    FDragging := False;
+  end;
+  FTarget := nil;
+  inherited Destroy;
 end;
 
 end.

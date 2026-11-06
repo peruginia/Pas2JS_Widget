@@ -45,6 +45,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWTrackBar** | `<input type="range">` | Slider with `Min`/`Max`/`Position`/`Frequency`/`Orientation` |
 | **TWProgressBar** | `<progress>` | Progress bar with `Min`/`Max`/`Value` |
 | **TWColorPicker** | `<input type="color">` | Native color picker with `Color`, `OnChange` |
+| **TWSplitter** | `<div>` | Draggable splitter: `Align`, `MinSize`, `ResizeStyle`, `AutoSnap`, `Beveled`, `OnMoved` |
 | **TWForm** | form overlay | Application form, `ModalResult`, `AlphaBlend` |
 | **TWFrame** | frame container | Embeddable frame |
 
@@ -255,6 +256,18 @@ WEdit1.Constraints.MaxWidth := 120;   // Width := 400 clamps to 120
 
 **Application** — new `BackgroundColor: TColor`, applied to `document.body` in `Run` (falls back to `MainForm.Color`, `clDefault` clears it).
 
+**TWSplitter** — new component in `widgets/extctrls.pas` (`TCustomSplitter`) and `widgets/webctrls.pas` (`TWSplitter`), registered in the design package.
+
+```pascal
+VSplitter.Align  := alLeft;   // or alRight / alTop / alBottom
+VSplitter.MinSize := 80;
+VSplitter.OnMoved := @SplitterMoved;
+```
+
+It resizes the nearest sibling with the same alignment, clamping to `MinSize` and leaving room for the `alClient` control; `Parent.ReAlign` then repositions everything. Dragging is tracked on `document`, so the pointer can leave the few-pixels-wide splitter. `ResizeStyle = rsNone` applies the size only on release.
+
+The **Layout** tab in the demo shows a vertical and a horizontal splitter.
+
 **DataGrid fixes** — found while building the demo tab:
 
 * `FormatCellValue` used `BoolToStr` without the `UseBoolStrs` flag, so boolean cells rendered as `-1`/`0` instead of `True`/`False` (FPC's default). Fixed, and `ExportToCSV` now uses the same formatting, so a boolean column exports `True`/`False` too (it used to export lowercase `true`/`false`, and the dataset branch did not escape quotes).
@@ -264,5 +277,4 @@ WEdit1.Constraints.MaxWidth := 120;   // Width := 400 clamps to 120
 
 ### Further plans
 - TPaintBox (Canvas 2D)
-- TSplitter
 - TShape
