@@ -3,7 +3,7 @@
 RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LCL-compatible components.
 
 ### Live Demo
-🔗 [**perugini.it/ExWidget/project1.html**](https://www.perugini.it/ExWidget/project1.html) — all components demo (DataGrid with progressive loading, filtering, sorting)
+🔗 [**peruginia.github.io/Pas2JS_Widget/project1.html**](https://peruginia.github.io/Pas2JS_Widget/project1.html) — all components demo (DataGrid with progressive loading, filtering, sorting)
 
 ### Requirements
 - Lazarus 2.1+
