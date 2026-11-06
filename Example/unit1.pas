@@ -109,6 +109,9 @@ var
 
 implementation
 
+uses
+  uLogin;
+
 {$R *.lfm}
 
 procedure TWForm1.AfterConstruction;
@@ -187,7 +190,14 @@ end;
 
 procedure TWForm1.btnScollegaUtenteClick(Sender: TObject);
 begin
-   ShowMessage('Bye bye....');
+   /// Disconnect: back to the login form.
+   WUserPannel.Visible := False;
+   Hide;
+   if (Assigned(FormLogin)) then
+   begin
+      FormLogin.PrepareLogin;
+      FormLogin.Show;
+   end;
 end;
 
 procedure TWForm1.btnAggiornaAppClick(Sender: TObject);

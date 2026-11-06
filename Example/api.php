@@ -12,6 +12,36 @@
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
+/**
+ * Fake login endpoint used by the multi-form demo (Example/uLogin.pas).
+ *
+ *   GET api.php?cmd=Login&UserName=demo&Password=demo
+ *   -> {"result":true,"userId":1,"SessionId":"...","scade":"...","Name":"Demo User"}
+ *   -> {"result":false} for anything else
+ *
+ * The client falls back to a local demo/demo check when the API is not
+ * reachable (e.g. the demo is served as static files by GitHub Pages).
+ */
+$cmd = $_GET['cmd'] ?? '';
+
+if ($cmd === 'Login') {
+    $user = $_GET['UserName'] ?? '';
+    $pass = $_GET['Password'] ?? '';
+
+    if ($user === 'demo' && $pass === 'demo') {
+        echo json_encode([
+            'result'    => true,
+            'userId'    => 1,
+            'SessionId' => bin2hex(random_bytes(8)),
+            'scade'     => date('Y-m-d H:i:s', strtotime('+1 day')),
+            'Name'      => 'Demo User',
+        ]);
+    } else {
+        echo json_encode(['result' => false]);
+    }
+    exit;
+}
+
 $table   = $_GET['table']  ?? 'Clienti';
 $offset  = (int)($_GET['offset'] ?? -1);
 $limit   = (int)($_GET['limit']  ?? 0);

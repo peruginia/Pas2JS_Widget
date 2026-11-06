@@ -362,10 +362,15 @@ type
 
   TResizeStyle = (rsNone, rsLine, rsUpdate, rsPattern);
 
+  /// Method pointer used for the document-level drag listeners.
+  TMouseDragHandler = function(AEvent: TJSMouseEvent): boolean of object;
+
   TCustomSplitter = class(TCustomControl)
   private
     FAutoSnap: Boolean;
     FBeveled: Boolean;
+    FDragMove: TMouseDragHandler;
+    FDragUp: TMouseDragHandler;
     FDragging: Boolean;
     FMinSize: NativeInt;
     FResizeStyle: TResizeStyle;
@@ -382,6 +387,8 @@ type
     function FindTarget: TControl; virtual;
     function MaxTargetSize: NativeInt; virtual;
     procedure ApplySize(ANewSize: NativeInt); virtual;
+    procedure StartDragTracking; virtual;
+    procedure StopDragTracking; virtual;
   protected
     procedure Changed; override;
     function CreateHandleElement: TJSHTMLElement; override;
@@ -1773,6 +1780,25 @@ end;
 
 {$pop}
 
+procedure TCustomSplitter.StartDragTracking;
+begin
+  /// Capture phase: WCL controls call StopPropagation on their own mousemove,
+  /// so a bubble-phase listener on document never fires while the pointer is
+  /// over the splitter. Capture runs before the target handler.
+  asm
+    document.addEventListener('mousemove', this.FDragMove, true);
+    document.addEventListener('mouseup', this.FDragUp, true);
+  end;
+end;
+
+procedure TCustomSplitter.StopDragTracking;
+begin
+  asm
+    document.removeEventListener('mousemove', this.FDragMove, true);
+    document.removeEventListener('mouseup', this.FDragUp, true);
+  end;
+end;
+
 function TCustomSplitter.HandleMouseDown(AEvent: TJSMouseEvent): boolean;
 begin
   Result := inherited HandleMouseDown(AEvent);
@@ -1793,8 +1819,7 @@ begin
     FStartSize := FTarget.Height;
   end;
   /// Listen on the document: the splitter itself is only a few pixels wide.
-  Document.AddEventListener('mousemove', @HandleDocMouseMove);
-  Document.AddEventListener('mouseup', @HandleDocMouseUp);
+  StartDragTracking();
   AEvent.PreventDefault;
   AEvent.StopPropagation;
   Result := True;
@@ -1825,8 +1850,7 @@ begin
   Result := False;
   if (not FDragging) then
     Exit;
-  Document.RemoveEventListener('mousemove', @HandleDocMouseMove);
-  Document.RemoveEventListener('mouseup', @HandleDocMouseUp);
+  StopDragTracking();
   /// rsNone resizes only on release.
   if (FResizeStyle = rsNone) then
     HandleDocMouseMove(AEvent);
@@ -1849,6 +1873,8 @@ begin
   inherited Create(AOwner);
   FAutoSnap := True;
   FBeveled := False;
+  FDragMove := @HandleDocMouseMove;
+  FDragUp := @HandleDocMouseUp;
   FDragging := False;
   FMinSize := 30;
   FResizeStyle := rsUpdate;
@@ -1869,8 +1895,7 @@ destructor TCustomSplitter.Destroy;
 begin
   if FDragging then
   begin
-    Document.RemoveEventListener('mousemove', @HandleDocMouseMove);
-    Document.RemoveEventListener('mouseup', @HandleDocMouseUp);
+    StopDragTracking();
     FDragging := False;
   end;
   FTarget := nil;

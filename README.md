@@ -196,6 +196,10 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, and CSV export — all in memory, so it works without a backend.
 
+The **Layout** tab shows `TWSplitter` in both orientations.
+
+The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
+
 ```bash
 # Start the PHP backend
 cd Example
@@ -208,6 +212,7 @@ The `api.php` endpoint supports:
 - `GET api.php?table=Clienti` → full JSON array
 - `GET api.php?table=Clienti&offset=0&limit=100` → `{ "data": [...], "total": 5000 }`
 - `GET api.php?table=Clienti&count=10000` → change total record count
+- `GET api.php?cmd=Login&UserName=demo&Password=demo` → `{ "result": true, "SessionId": "...", "scade": "...", "Name": "Demo User" }`
 
 > **GitHub Pages note:** the compiled `project1.js` is committed, so the demo can be served statically (see below). `api.php` needs a PHP server, so it is not executed by GitHub Pages — keep it on your own host and point **Load from URL** at it (`api.php` sends `Access-Control-Allow-Origin: *`, so cross-origin calls work). The **Grid Modes** tab needs no backend at all.
 
@@ -231,6 +236,48 @@ git commit -m "chore: rebuild demo"
 `project1.js.map` (about 5 MB) stays ignored on purpose.
 
 ---
+
+### Multi-form login
+
+The demo shows the classic two-form flow: a login window first, then the application.
+
+```
+Example/uLogin.pas    TFormLogin (TWForm)   username / password / Accedi
+Example/unit1.pas     TWForm1               the component demo
+Example/project1.lpr  creates both, login first
+```
+
+`TApplication.UpdateMainForm` keeps the **first** form created as `MainForm`, and `Application.Run` shows it. Creating the login first therefore makes it the start screen; the main form stays hidden until the login succeeds:
+
+```pascal
+Application.Initialize;
+Application.CreateForm(TFormLogin, FormLogin);   // first => MainForm
+Application.CreateForm(TWForm1, WForm1);         // created, still hidden
+Application.Run;
+```
+
+On success the login hides itself and shows the main form; the **Disconnect** button in the user panel does the opposite, so the app returns to the login:
+
+```pascal
+// TFormLogin.LoginSucceeded
+WForm1.Caption := 'WCL Component Demo - ' + AName;
+WForm1.Show;
+Hide;
+
+// TWForm1.btnScollegaUtenteClick
+WUserPannel.Visible := False;
+Hide;
+FormLogin.PrepareLogin;   // clears password + error, keeps the username
+FormLogin.Show;
+```
+
+The login asks `api.php?cmd=Login` and accepts `demo` / `demo`:
+
+```pascal
+VRaw := await fetch(url, { cache: 'no-store' })...   // JSON: result / Name / SessionId
+```
+
+Because GitHub Pages does not execute PHP, the client falls back to a local `demo` / `demo` check when the endpoint is unreachable or does not return valid JSON — the multi-form demo works on a static host too. Passwords are typed in the login window; nothing is stored.
 
 ### Notes
 - Use only components from the _WCL_ palette tab
