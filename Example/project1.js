@@ -50040,6 +50040,8 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoGrouped = false;
       this.FDemoInfo = null;
       this.FDemoMode = 0;
+      this.FDemoLastCity = "";
+      this.FDemoSeparators = false;
       this.FDemoTable = null;
       this.FLayoutInfo = null;
       this.FLayoutLeft = null;
@@ -50181,6 +50183,8 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoMode = 0;
       this.FDemoCards = false;
       this.FDemoGrouped = false;
+      this.FDemoSeparators = false;
+      this.FDemoLastCity = "";
       this.FDemoTable = pas.WebCtrls.TWWebDBTable.$create("Create$1",[this]);
       this.FDemoTable.FTableName = "Demo";
       this.FDemoTable.FOnLoad = rtl.createCallback(this,"DemoTableLoaded");
@@ -50197,6 +50201,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoGrid.FRowSelect = true;
       this.FDemoGrid.SetAlternateRowColor(15921906);
       this.FDemoGrid.SetResponsiveBreakpoint(600);
+      this.FDemoGrid.fOnAddSeparator = rtl.createCallback(this,"DemoAddSeparator");
       this.FDemoGrid.SetData(this.FDemoData);
       VBar = pas.WebCtrls.TWPanel.$create("Create$1",[this]);
       VBar.SetParent(VSheet);
@@ -50258,6 +50263,14 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       $with5.SetHeight(28);
       $with5.SetText("Export CSV");
       $with5.FOnClick = rtl.createCallback(this,"DemoExportCSV");
+      var $with6 = pas.WebCtrls.TWButton.$create("Create$1",[this]);
+      $with6.SetParent(VBar);
+      $with6.SetLeft(422);
+      $with6.SetTop(44);
+      $with6.SetWidth(130);
+      $with6.SetHeight(28);
+      $with6.SetText("Toggle separators");
+      $with6.FOnClick = rtl.createCallback(this,"DemoToggleSeparators");
       this.DemoUpdateInfo();
     };
     this.BuildSplitterTab = function () {
@@ -50318,17 +50331,35 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       VRow["Active"] = AActive;
       AData.push(VRow);
     };
+    this.DemoAddSeparator = function (ASender, AData) {
+      var VCity = "";
+      AData.set("");
+      if (!this.FDemoSeparators || (this.FDemoMode === 0)) return;
+      if (!(this.FDemoTable != null) || !this.FDemoTable.GetActive()) return;
+      if (this.FDemoTable.FDataJson.GetRecNo() <= 1) this.FDemoLastCity = "";
+      VCity = this.FDemoTable.FDataJson.FieldByName("City").GetAsString();
+      if (VCity === "") return;
+      if (VCity === this.FDemoLastCity) return;
+      this.FDemoLastCity = VCity;
+      AData.set('<td colspan="4" style="background:#e8e8e8;font-weight:bold;' + 'padding:6px 8px;border-top:1px solid #c9c3ba">' + VCity + "</td>");
+    };
     this.DemoDataArray = function () {
       var Result = null;
       Result = new Array();
       this.DemoAddRow(Result,"Mario Rossi",30,"Rome",true);
-      this.DemoAddRow(Result,"Luigi Bianchi",25,"Milan",false);
-      this.DemoAddRow(Result,"Anna Verdi",28,"Naples",true);
-      this.DemoAddRow(Result,"Sofia Neri",35,"Florence",true);
-      this.DemoAddRow(Result,"Marco Gialli",42,"Turin",false);
       this.DemoAddRow(Result,"Elena Blu",31,"Rome",true);
+      this.DemoAddRow(Result,"Luca Ferri",45,"Rome",false);
+      this.DemoAddRow(Result,"Luigi Bianchi",25,"Milan",false);
       this.DemoAddRow(Result,"Paolo Rosa",38,"Milan",true);
+      this.DemoAddRow(Result,"Chiara Costa",29,"Milan",true);
+      this.DemoAddRow(Result,"Anna Verdi",28,"Naples",true);
       this.DemoAddRow(Result,"Giulia Viola",27,"Naples",false);
+      this.DemoAddRow(Result,"Simone Greco",36,"Naples",true);
+      this.DemoAddRow(Result,"Sofia Neri",35,"Florence",true);
+      this.DemoAddRow(Result,"Davide Ricci",41,"Florence",false);
+      this.DemoAddRow(Result,"Francesca Romano",24,"Florence",true);
+      this.DemoAddRow(Result,"Marco Gialli",42,"Turin",false);
+      this.DemoAddRow(Result,"Martina Colombo",33,"Turin",true);
       return Result;
     };
     this.DemoExportCSV = function (Sender) {
@@ -50383,6 +50414,16 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.DemoRefresh();
       this.DemoUpdateInfo();
     };
+    this.DemoToggleSeparators = function (Sender) {
+      this.FDemoSeparators = !this.FDemoSeparators;
+      this.FDemoLastCity = "";
+      if (this.FDemoSeparators && (this.FDemoMode === 0)) {
+        this.DemoModeTable(null)}
+       else {
+        this.DemoRefresh();
+        this.DemoUpdateInfo();
+      };
+    };
     this.DemoUpdateInfo = function () {
       var VMode = "";
       var VRows = "";
@@ -50397,7 +50438,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       if (this.FDemoMode === 0) {
         VRows = "rows: " + pas.SysUtils.IntToStr(this.FDemoData.length)}
        else VRows = "rows: " + pas.SysUtils.IntToStr(this.FDemoTable.FLoadedRecords) + " / " + pas.SysUtils.IntToStr(this.FDemoTable.FTotalRecords);
-      this.FDemoInfo.SetText("Source: " + VMode + "\n" + VRows + "\n" + "Cards: " + pas.SysUtils.BoolToStr(this.FDemoCards,true) + "   Group: " + pas.SysUtils.BoolToStr(this.FDemoGrouped,true));
+      this.FDemoInfo.SetText("Source: " + VMode + "\n" + VRows + "\n" + "Cards: " + pas.SysUtils.BoolToStr(this.FDemoCards,true) + "   Group: " + pas.SysUtils.BoolToStr(this.FDemoGrouped,true) + "   Separators: " + pas.SysUtils.BoolToStr(this.FDemoSeparators,true));
     };
     this.WButton2Click = function (Sender) {
       this.WEdit1.SetText("");

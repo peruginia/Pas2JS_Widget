@@ -76,6 +76,8 @@ type
     FDemoGrouped: Boolean;
     FDemoInfo: TWLabel;
     FDemoMode: NativeInt;
+    FDemoLastCity: string;
+    FDemoSeparators: Boolean;
     FDemoTable: TWWebDBTable;
     FLayoutInfo: TWLabel;
     FLayoutLeft: TWPanel;
@@ -85,6 +87,7 @@ type
     procedure DemoSplitterMoved(Sender: TObject);
     procedure DemoAddRow(AData: TJSArray; const AName: string; AAge: NativeInt;
       const ACity: string; AActive: Boolean);
+    procedure DemoAddSeparator(ASender: TObject; var AData: string);
     function DemoDataArray: TJSArray;
     procedure DemoExportCSV(Sender: TObject);
     procedure DemoModeArray(Sender: TObject);
@@ -94,6 +97,7 @@ type
     procedure DemoTableLoaded(Sender: TObject);
     procedure DemoToggleCards(Sender: TObject);
     procedure DemoToggleGroup(Sender: TObject);
+    procedure DemoToggleSeparators(Sender: TObject);
     procedure DemoUpdateInfo;
     procedure WButton2Click(Sender: TObject);
     procedure WCombo1Change(Sender: TObject);
@@ -314,14 +318,27 @@ end;
 function TWForm1.DemoDataArray: TJSArray;
 begin
   Result := TJSArray.New;
+  /// Rows are ordered so cities repeat in blocks: with OnAddSeparator this
+  /// produces one separator per group instead of one per row.
+  // Rome
   DemoAddRow(Result, 'Mario Rossi', 30, 'Rome', True);
-  DemoAddRow(Result, 'Luigi Bianchi', 25, 'Milan', False);
-  DemoAddRow(Result, 'Anna Verdi', 28, 'Naples', True);
-  DemoAddRow(Result, 'Sofia Neri', 35, 'Florence', True);
-  DemoAddRow(Result, 'Marco Gialli', 42, 'Turin', False);
   DemoAddRow(Result, 'Elena Blu', 31, 'Rome', True);
+  DemoAddRow(Result, 'Luca Ferri', 45, 'Rome', False);
+  // Milan
+  DemoAddRow(Result, 'Luigi Bianchi', 25, 'Milan', False);
   DemoAddRow(Result, 'Paolo Rosa', 38, 'Milan', True);
+  DemoAddRow(Result, 'Chiara Costa', 29, 'Milan', True);
+  // Naples
+  DemoAddRow(Result, 'Anna Verdi', 28, 'Naples', True);
   DemoAddRow(Result, 'Giulia Viola', 27, 'Naples', False);
+  DemoAddRow(Result, 'Simone Greco', 36, 'Naples', True);
+  // Florence
+  DemoAddRow(Result, 'Sofia Neri', 35, 'Florence', True);
+  DemoAddRow(Result, 'Davide Ricci', 41, 'Florence', False);
+  DemoAddRow(Result, 'Francesca Romano', 24, 'Florence', True);
+  // Turin
+  DemoAddRow(Result, 'Marco Gialli', 42, 'Turin', False);
+  DemoAddRow(Result, 'Martina Colombo', 33, 'Turin', True);
 end;
 
 procedure TWForm1.DemoRefresh;
@@ -365,7 +382,48 @@ begin
   FDemoInfo.Caption :=
     'Source: ' + VMode + #10 +
     VRows + #10 +
-    'Cards: ' + BoolToStr(FDemoCards, True) + '   Group: ' + BoolToStr(FDemoGrouped, True);
+    'Cards: ' + BoolToStr(FDemoCards, True) + '   Group: ' + BoolToStr(FDemoGrouped, True) +
+    '   Separators: ' + BoolToStr(FDemoSeparators, True);
+end;
+
+{ OnAddSeparator is called before every row: writing HTML into AData inserts
+  an extra <tr> in front of that row. }
+procedure TWForm1.DemoAddSeparator(ASender: TObject; var AData: string);
+var
+  VCity: string;
+begin
+  AData := '';
+  if (not FDemoSeparators) or (FDemoMode = DM_ARRAY) then
+    Exit;
+  if (not Assigned(FDemoTable)) or (not FDemoTable.Active) then
+    Exit;
+  /// Reset on the first record so a re-render starts from scratch.
+  if (FDemoTable.DataJson.RecNo <= 1) then
+    FDemoLastCity := '';
+  VCity := FDemoTable.DataJson.FieldByName('City').AsString;
+  /// An unpositioned dataset yields an empty value: never emit a blank row.
+  if (VCity = '') then
+    Exit;
+  if (VCity = FDemoLastCity) then
+    Exit;
+  FDemoLastCity := VCity;
+  AData := '<td colspan="4" style="background:#e8e8e8;font-weight:bold;' +
+    'padding:6px 8px;border-top:1px solid #c9c3ba">' + VCity + '</td>';
+end;
+
+procedure TWForm1.DemoToggleSeparators(Sender: TObject);
+begin
+  FDemoSeparators := not FDemoSeparators;
+  FDemoLastCity := '';
+  /// The separator reads the dataset cursor, so switch to a dataset source
+  /// when the grid is showing a plain array.
+  if FDemoSeparators and (FDemoMode = DM_ARRAY) then
+    DemoModeTable(nil)
+  else
+  begin
+    DemoRefresh;
+    DemoUpdateInfo;
+  end;
 end;
 
 procedure TWForm1.DemoModeArray(Sender: TObject);
@@ -433,6 +491,8 @@ begin
   FDemoMode := DM_ARRAY;
   FDemoCards := False;
   FDemoGrouped := False;
+  FDemoSeparators := False;
+  FDemoLastCity := '';
 
   FDemoTable := TWWebDBTable.Create(Self);
   FDemoTable.TableName := 'Demo';
@@ -455,6 +515,7 @@ begin
   FDemoGrid.RowSelect := True;
   FDemoGrid.AlternateRowColor := 15921906;
   FDemoGrid.ResponsiveBreakpoint := 600;
+  FDemoGrid.OnAddSeparator := @DemoAddSeparator;
   FDemoGrid.Data := FDemoData;
 
   VBar := TWPanel.Create(Self);
@@ -515,6 +576,13 @@ begin
     Left := 284; Top := 44; Width := 130; Height := 28;
     Caption := 'Export CSV';
     OnClick := @DemoExportCSV;
+  end;
+  with TWButton.Create(Self) do
+  begin
+    Parent := VBar;
+    Left := 422; Top := 44; Width := 130; Height := 28;
+    Caption := 'Toggle separators';
+    OnClick := @DemoToggleSeparators;
   end;
 
   DemoUpdateInfo;

@@ -156,6 +156,29 @@ That means a sort on a partially loaded table re-queries the backend, while a so
 
 `ExportToCSV` writes a CSV with the column titles as header and escapes embedded quotes. It exports from `Data` when that is set, otherwise it walks the `DataJSon` dataset record by record.
 
+#### Separator rows
+
+`OnAddSeparator` is called **before every row**. Write HTML into `Data` and the grid inserts an extra `<tr>` with that content in front of the row:
+
+```pascal
+procedure TWForm1.GridAddSeparator(ASender: TObject; var AData: string);
+begin
+  AData := '';
+  if (not Grid.DataTable.Active) then Exit;
+  if (Grid.DataTable.DataJson.RecNo <= 1) then FLastCity := '';   // reset each render
+  VCity := Grid.DataTable.DataJson.FieldByName('City').AsString;
+  if (VCity = '') or (VCity = FLastCity) then Exit;
+  FLastCity := VCity;
+  AData := '<td colspan="4" style="font-weight:bold">' + VCity + '</td>';
+end;
+```
+
+Three things to keep in mind:
+
+* the event carries **no row index** — the only way to know which record is being drawn is the dataset cursor, so separators work with `DataTable`/`DataJSon`, not with a plain `Data` array;
+* the dataset is **not positioned** before the first row, so `FieldByName` can return an empty string; skip that case or you get a blank separator at the top;
+* reset your state when `RecNo <= 1`, otherwise a re-render (sort, filter, reload) misses the first separator.
+
 #### Limitations
 
 * **Read-only.** There is no cell editing and no write-back to the dataset — no `Edit`/`Post` path. To modify data, act on the table and reload.
@@ -194,7 +217,7 @@ Selection and scroll position are preserved across data loads.
 
 A demo project showcasing all components including `TWWebDBConnection` + `TWWebDBTable` with progressive loading.
 
-The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, and CSV export — all in memory, so it works without a backend.
+The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
 The **Layout** tab shows `TWSplitter` in both orientations.
 
