@@ -24473,12 +24473,12 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
     this.RegisterHandleEvents = function () {
       window.addEventListener("error",rtl.createCallback(this,"HandleError"));
       window.addEventListener("resize",rtl.createSafeCallback(this,"HandleResize"));
-      window.addEventListener("unload",rtl.createCallback(this,"HandleUnload"));
+      window.addEventListener("pagehide",rtl.createCallback(this,"HandleUnload"));
     };
     this.UnRegisterHandleEvents = function () {
       window.removeEventListener("error",rtl.createCallback(this,"HandleError"));
       window.removeEventListener("resize",rtl.createSafeCallback(this,"HandleResize"));
-      window.removeEventListener("unload",rtl.createCallback(this,"HandleUnload"));
+      window.removeEventListener("pagehide",rtl.createCallback(this,"HandleUnload"));
     };
     var CLE = pas.System.LineEnding;
     var CError = "Error Message: %s " + CLE + "Line Nro: %d " + CLE + "Column Nro: %d " + CLE;

@@ -1089,7 +1089,10 @@ begin
   begin
     AddEventListener('error', @HandleError);
     AddEventListener('resize', @HandleResize);
-    AddEventListener('unload', @HandleUnload);
+    /// 'pagehide' instead of 'unload': modern browsers block unload handlers
+    /// through the Permissions Policy and log a violation for every page load.
+    /// pagehide fires in the same situations (navigation, tab close, bfcache).
+    AddEventListener('pagehide', @HandleUnload);
   end;
 end;
 
@@ -1099,7 +1102,7 @@ begin
   begin
     RemoveEventListener('error', @HandleError);
     RemoveEventListener('resize', @HandleResize);
-    RemoveEventListener('unload', @HandleUnload);
+    RemoveEventListener('pagehide', @HandleUnload);
   end;
 end;
 
