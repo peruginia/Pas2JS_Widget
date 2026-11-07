@@ -5,7 +5,7 @@ unit Unit1;
 interface
 
 uses
-  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls;
+  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls, Menus;
 
 type
 
@@ -15,7 +15,15 @@ type
 		  btnAggiornaApp: TWButton;
 		  btnScollegaUtente: TWButton;
 		  LabelUserName: TWLabel;
+		  MenuItem1: TMenuItem;
+		  MenuItem2: TMenuItem;
+		  MenuItem3: TMenuItem;
+		  MenuItem4: TMenuItem;
+		  MenuItem5: TMenuItem;
+		  MenuItem6: TMenuItem;
+		  MenuItem7: TMenuItem;
 		  Panel1: TWPanel;
+		  Separator1: TMenuItem;
 		  TabSheet4: TTabSheet;
 		  TopMenuRight: TWPanel;
 		  WButton3: TWButton;

@@ -107,9 +107,15 @@ type
     FDocClick: TMouseMenuHandler;
     FDocKeyDown: TKeyMenuHandler;
     FMenu: TMainMenu;
-    FOpenIndex: NativeInt;
+    /// Path of the open submenu chain, e.g. '0' or '0-5-1'.
+    FOpenPath: string;
     procedure SetMenu(AValue: TMainMenu);
     function GetDataAttr(AElement: TJSElement; const AName: string): string;
+    function IsPathOpen(const APath: string): Boolean;
+    function ParentPath(const APath: string): string;
+    function FindItem(const APath: string): TMenuItem;
+    procedure RenderItems(AItems: TMenuItems; const APath: string;
+      ALevel: NativeInt; var AHtml: string);
     procedure StartDocTracking;
     procedure StopDocTracking;
   protected
@@ -127,7 +133,6 @@ type
     procedure CloseDropdown;
     procedure Render;
     property Menu: TMainMenu read FMenu write SetMenu;
-    property OpenIndex: NativeInt read FOpenIndex;
   end;
 
   { TMainMenu }
@@ -177,10 +182,13 @@ const
     '.wcl-menubar-drop{position:absolute;top:100%;left:0;min-width:190px;' +
     'background:#fff;border:1px solid #c9c3ba;box-shadow:0 4px 12px rgba(0,0,0,.18);' +
     'padding:4px 0;z-index:1000}' +
-    '.wcl-menubar-entry{display:flex;align-items:center;gap:16px;' +
+    '.wcl-menubar-entry{position:relative;display:flex;align-items:center;gap:16px;' +
     'justify-content:space-between;padding:6px 14px;cursor:pointer;white-space:nowrap}' +
     '.wcl-menubar-entry:hover{background:#2a7efe;color:#fff}' +
     '.wcl-menubar-entry.wcl-disabled{color:#aaa;pointer-events:none}' +
+    '.wcl-menubar-entry.wcl-has-sub::after{content:"\25B8";font-size:10px;color:#888;margin-left:8px}' +
+    '.wcl-menubar-entry:hover.wcl-has-sub::after{color:#fff}' +
+    '.wcl-menubar-entry .wcl-menubar-drop{left:100%;top:-5px}' +
     '.wcl-menubar-sep{height:1px;background:#ddd;margin:4px 0}' +
     '.wcl-menubar-shortcut{color:#888;font-size:12px}' +
     '.wcl-menubar-entry:hover .wcl-menubar-shortcut{color:#eee}';
@@ -513,7 +521,7 @@ begin
   FDocClick := @HandleDocClick;
   FDocKeyDown := @HandleDocKeyDown;
   FMenu := nil;
-  FOpenIndex := -1;
+  FOpenPath := '';
   _RegisterMenuRules;
   BeginUpdate;
   try
@@ -590,21 +598,123 @@ end;
 
 procedure TMenuBar.CloseDropdown;
 begin
-  if (FOpenIndex < 0) then
+  if (FOpenPath = '') then
     Exit;
-  FOpenIndex := -1;
+  FOpenPath := '';
   StopDocTracking();
   Render;
+end;
+
+function TMenuBar.IsPathOpen(const APath: string): Boolean;
+begin
+  Result := (FOpenPath = APath) or
+    (Copy(FOpenPath, 1, Length(APath) + 1) = APath + '-');
+end;
+
+function TMenuBar.ParentPath(const APath: string): string;
+var
+  VPos: NativeInt;
+begin
+  VPos := LastDelimiter('-', APath);
+  if (VPos = 0) then
+    Result := ''
+  else
+    Result := Copy(APath, 1, VPos - 1);
+end;
+
+function TMenuBar.FindItem(const APath: string): TMenuItem;
+var
+  VRest: string;
+  VPart: string;
+  VPos: NativeInt;
+  VItems: TMenuItems;
+  VItem: TMenuItem;
+begin
+  Result := nil;
+  if (not Assigned(FMenu)) or (APath = '') then
+    Exit;
+  VItems := FMenu.Items;
+  VRest := APath;
+  VItem := nil;
+  while (VRest <> '') do
+  begin
+    VPos := Pos('-', VRest);
+    if (VPos = 0) then
+    begin
+      VPart := VRest;
+      VRest := '';
+    end
+    else
+    begin
+      VPart := Copy(VRest, 1, VPos - 1);
+      VRest := Copy(VRest, VPos + 1, MaxInt);
+    end;
+    if (not Assigned(VItems)) then
+      Exit;
+    VItem := VItems[StrToIntDef(VPart, -1)];
+    if (not Assigned(VItem)) then
+      Exit;
+    VItems := VItem.Items;
+  end;
+  Result := VItem;
+end;
+
+procedure TMenuBar.RenderItems(AItems: TMenuItems; const APath: string;
+  ALevel: NativeInt; var AHtml: string);
+var
+  VIndex: NativeInt;
+  VItem: TMenuItem;
+  VClass: string;
+  VCheck: string;
+  VShortCut: string;
+  VPath: string;
+begin
+  if (not Assigned(AItems)) then
+    Exit;
+  for VIndex := 0 to (AItems.Count - 1) do
+  begin
+    VItem := AItems[VIndex];
+    if (not Assigned(VItem)) or (not VItem.Visible) then
+      Continue;
+    if VItem.IsSeparator then
+    begin
+      AHtml := AHtml + '<div class="wcl-menubar-sep"></div>';
+      Continue;
+    end;
+    VPath := IntToStr(VIndex);
+    if (APath <> '') then
+      VPath := APath + '-' + VPath;
+    VClass := 'wcl-menubar-entry';
+    if (not VItem.Enabled) then
+      VClass := VClass + ' wcl-disabled';
+    if (VItem.Items.Count > 0) then
+      VClass := VClass + ' wcl-has-sub';
+    VCheck := '';
+    if VItem.Checked or VItem.RadioItem then
+      VCheck := '&#10003; ';
+    AHtml := AHtml + '<div class="' + VClass + '" data-path="' + VPath + '">' +
+      '<span>' + VCheck + EscapeMenuText(VItem.Caption) + '</span>';
+    VShortCut := ShortCutToText(VItem.ShortCut);
+    if (VShortCut <> '') then
+      AHtml := AHtml + '<span class="wcl-menubar-shortcut">' +
+        EscapeMenuText(VShortCut) + '</span>';
+    if (VItem.Items.Count > 0) and IsPathOpen(VPath) then
+    begin
+      AHtml := AHtml + '<div class="wcl-menubar-drop">';
+      RenderItems(VItem.Items, VPath, ALevel + 1, AHtml);
+      AHtml := AHtml + '</div>';
+    end;
+    AHtml := AHtml + '</div>';
+  end;
 end;
 
 procedure TMenuBar.Render;
 var
   VHtml: string;
-  VIndex, VSubIndex: NativeInt;
-  VItem, VSub: TMenuItem;
+  VIndex: NativeInt;
+  VItem: TMenuItem;
   VClass: string;
-  VCheck: string;
-  VShortCut: string;
+  VPath: string;
 begin
   if (not Assigned(FMenu)) then
     Exit;
@@ -615,39 +725,16 @@ begin
     VItem := FMenu.Items[VIndex];
     if (not Assigned(VItem)) or (not VItem.Visible) then
       Continue;
+    VPath := IntToStr(VIndex);
     VClass := 'wcl-menubar-item';
-    if (VIndex = FOpenIndex) then
+    if IsPathOpen(VPath) then
       VClass := VClass + ' wcl-open';
-    VHtml := VHtml + '<div class="' + VClass + '" data-i="' + IntToStr(VIndex) + '">' +
+    VHtml := VHtml + '<div class="' + VClass + '" data-path="' + VPath + '">' +
       EscapeMenuText(VItem.Caption);
-    if (VIndex = FOpenIndex) and (VItem.Items.Count > 0) then
+    if (VItem.Items.Count > 0) and IsPathOpen(VPath) then
     begin
       VHtml := VHtml + '<div class="wcl-menubar-drop">';
-      for VSubIndex := 0 to (VItem.Items.Count - 1) do
-      begin
-        VSub := VItem.Items[VSubIndex];
-        if (not Assigned(VSub)) or (not VSub.Visible) then
-          Continue;
-        if VSub.IsSeparator then
-        begin
-          VHtml := VHtml + '<div class="wcl-menubar-sep"></div>';
-          Continue;
-        end;
-        VClass := 'wcl-menubar-entry';
-        if (not VSub.Enabled) then
-          VClass := VClass + ' wcl-disabled';
-        VCheck := '';
-        if VSub.Checked or VSub.RadioItem then
-          VCheck := '&#10003; ';
-        VHtml := VHtml + '<div class="' + VClass + '" data-i="' + IntToStr(VIndex) +
-          '" data-j="' + IntToStr(VSubIndex) + '">' +
-          '<span>' + VCheck + EscapeMenuText(VSub.Caption) + '</span>';
-        VShortCut := ShortCutToText(VSub.ShortCut);
-        if (VShortCut <> '') then
-          VHtml := VHtml + '<span class="wcl-menubar-shortcut">' +
-            EscapeMenuText(VShortCut) + '</span>';
-        VHtml := VHtml + '</div>';
-      end;
+      RenderItems(VItem.Items, VPath, 1, VHtml);
       VHtml := VHtml + '</div>';
     end;
     VHtml := VHtml + '</div>';
@@ -659,11 +746,8 @@ end;
 function TMenuBar.HandleClick(AEvent: TJSMouseEvent): boolean;
 var
   VElement: TJSElement;
-  VIndex: string;
-  VSubIndex: string;
+  VPath: string;
   VItem: TMenuItem;
-  VSub: TMenuItem;
-  VNumber: NativeInt;
 begin
   Result := inherited HandleClick(AEvent);
   if (not Assigned(FMenu)) then
@@ -671,34 +755,27 @@ begin
   VElement := AEvent.targetElement;
   while Assigned(VElement) and (VElement <> HandleElement) do
   begin
-    VSubIndex := GetDataAttr(VElement, 'data-j');
-    VIndex := GetDataAttr(VElement, 'data-i');
-    if (VSubIndex <> '') and (VIndex <> '') then
+    VPath := GetDataAttr(VElement, 'data-path');
+    if (VPath <> '') then
     begin
-      VNumber := StrToIntDef(VIndex, -1);
-      VItem := FMenu.Items[VNumber];
-      if Assigned(VItem) then
+      VItem := FindItem(VPath);
+      if Assigned(VItem) and (VItem.Items.Count > 0) then
       begin
-        VSub := VItem.Items[StrToIntDef(VSubIndex, -1)];
-        CloseDropdown;
-        if Assigned(VSub) then
-          VSub.Click;
-      end
-      else
-        CloseDropdown;
-      Result := True;
-      Exit;
-    end;
-    if (VIndex <> '') then
-    begin
-      VNumber := StrToIntDef(VIndex, -1);
-      if (VNumber = FOpenIndex) then
-        CloseDropdown
-      else if (VNumber >= 0) and (VNumber < FMenu.Items.Count) then
-      begin
-        FOpenIndex := VNumber;
+        /// Submenu: open it, or close it and keep the parent open.
+        if IsPathOpen(VPath) and (FOpenPath = VPath) then
+          FOpenPath := ParentPath(VPath)
+        else
+          FOpenPath := VPath;
         Render;
         StartDocTracking;
+      end
+      else
+      begin
+        FOpenPath := '';
+        StopDocTracking();
+        Render;
+        if Assigned(VItem) then
+          VItem.Click;
       end;
       Result := True;
       Exit;
@@ -712,7 +789,7 @@ var
   VTarget: TJSElement;
 begin
   Result := False;
-  if (FOpenIndex < 0) then
+  if (FOpenPath = '') then
     Exit;
   VTarget := AEvent.targetElement;
   if Assigned(VTarget) and HandleElement.Contains(VTarget) then
@@ -724,7 +801,7 @@ end;
 function TMenuBar.HandleDocKeyDown(AEvent: TJSKeyBoardEvent): boolean;
 begin
   Result := False;
-  if (FOpenIndex < 0) then
+  if (FOpenPath = '') then
     Exit;
   if (AEvent.key = 'Escape') then
   begin

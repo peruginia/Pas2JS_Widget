@@ -463,6 +463,12 @@ object WForm1: TWForm1
         Caption = 'Disabled'
         Enabled = False
       end
+      object MenuItem6: TMenuItem
+        Caption = 'SubMenu'
+        object MenuItem7: TMenuItem
+          Caption = 'Ciao'
+        end
+      end
     end
   end
 end

@@ -349,7 +349,7 @@ begin
 end;
 ```
 
-`TMainMenu` creates a bar parented to its owner (a form) with `Align := alTop`, so the rest of the layout reflows by itself. Clicking a top item opens its dropdown; choosing an entry runs `OnClick` and closes it. Clicking outside, pressing `Esc`, or clicking the same top item again closes it.
+`TMainMenu` creates a bar parented to its owner (a form) with `Align := alTop`, so the rest of the layout reflows by itself. Clicking a top item opens its dropdown; choosing an entry runs `OnClick` and closes it. Submenus open on click at any depth, with an arrow marker. Clicking outside, pressing `Esc`, or clicking the same item again closes the open level.
 
 Items expose `Caption`, `ShortCut` (display text), `Enabled`, `Checked`, `RadioItem`, `Visible` and `OnClick`; a caption of `-` renders a separator, and `Checked`/`RadioItem` show a check mark.
 
