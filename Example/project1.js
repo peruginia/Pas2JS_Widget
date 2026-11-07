@@ -2226,6 +2226,7 @@ rtl.module("System",[],function () {
   this.$rtti.$DynArray("TArray<Generics.Collections.TPair<Generics.Collections.TDictionary.TKey,Generics.Collections.TDictionary.TValue>>",{});
   this.$rtti.$DynArray("TArray<Generics.Collections.TPair<Generics.Collections.TObjectDictionary.TKey,Generics.Collections.TObjectDictionary.TValue>>",{});
   this.$rtti.$DynArray("TArray<System.Longint>",{eltype: rtl.longint});
+  this.$rtti.$DynArray("TArray<Menus.TMenuItem>",{});
   $mod.$implcode = function () {
     $mod.$rtti.$ExtClass("TJSObj",{jsclass: "Object"});
     $mod.$rtti.$ExtClass("TJSArray",{jsclass: "Array"});
@@ -20965,6 +20966,9 @@ rtl.module("Generics.Defaults",["System"],function () {
   $mod.$rtti.$Interface("IComparer<System.Longint>");
   $mod.$rtti.$Interface("IEnumerator<System.Longint>");
   $mod.$rtti.$Interface("IEnumerable<System.Longint>");
+  $mod.$rtti.$Interface("IComparer<Menus.TMenuItem>");
+  $mod.$rtti.$Interface("IEnumerator<Menus.TMenuItem>");
+  $mod.$rtti.$Interface("IEnumerable<Menus.TMenuItem>");
   rtl.createInterface(this,"IComparer$G18","{505778ED-F783-4456-9691-32F419CC5E18}",["Compare"],pas.System.IUnknown,function () {
     var $r = this.$rtti;
     $r.addMethod("Compare",1,[["Left",rtl.longint,2],["Right",rtl.longint,2]],rtl.longint);
@@ -20980,6 +20984,27 @@ rtl.module("Generics.Defaults",["System"],function () {
     var $r = this.$rtti;
     $r.addMethod("GetEnumerator",1,[],$mod.$rtti["IEnumerator<System.Longint>"]);
   },"IEnumerable<System.Longint>");
+  rtl.createInterface(this,"IComparer$G19","{505778ED-F783-4456-9691-32F419CC5E18}",["Compare"],pas.System.IUnknown,function () {
+    this.$initSpec = function () {
+      var $r = this.$rtti;
+      $r.addMethod("Compare",1,[["Left",pas.Menus.$rtti["TMenuItem"],2],["Right",pas.Menus.$rtti["TMenuItem"],2]],rtl.longint);
+    };
+  },"IComparer<Menus.TMenuItem>");
+  rtl.createInterface(this,"IEnumerator$G6","{87B776D0-269D-34EC-B154-E2F2FC9F1563}",["GetCurrent","MoveNext","Reset"],pas.System.IUnknown,function () {
+    this.$initSpec = function () {
+      var $r = this.$rtti;
+      $r.addMethod("GetCurrent",1,[],pas.Menus.$rtti["TMenuItem"]);
+      $r.addMethod("MoveNext",1,[],rtl.boolean);
+      $r.addMethod("Reset",0,[]);
+      $r.addProperty("Current",1,pas.Menus.$rtti["TMenuItem"],"GetCurrent","");
+    };
+  },"IEnumerator<Menus.TMenuItem>");
+  rtl.createInterface(this,"IEnumerable$G5","{1343256D-D69D-34F9-A52A-F0DA0D6D9EC0}",["GetEnumerator"],pas.System.IUnknown,function () {
+    this.$initSpec = function () {
+      var $r = this.$rtti;
+      $r.addMethod("GetEnumerator",1,[],$mod.$rtti["IEnumerator<Menus.TMenuItem>"]);
+    };
+  },"IEnumerable<Menus.TMenuItem>");
 });
 rtl.module("Generics.Collections",["System","Classes","SysUtils","RTLConsts","Types","JS","Generics.Strings","Generics.Defaults"],function () {
   "use strict";
@@ -20996,6 +21021,13 @@ rtl.module("Generics.Collections",["System","Classes","SysUtils","RTLConsts","Ty
   $mod.$rtti.$Class("TCustomList<System.Longint>");
   $mod.$rtti.$Class("TCustomListEnumerator<System.Longint>");
   $mod.$rtti.$Class("TList<System.Longint>");
+  $mod.$rtti.$Class("TEnumerator<Menus.TMenuItem>");
+  $mod.$rtti.$Class("TEnumerable<Menus.TMenuItem>");
+  $mod.$rtti.$Class("TCustomArrayHelper<Menus.TMenuItem>");
+  $mod.$rtti.$Class("TArrayHelper<Menus.TMenuItem>");
+  $mod.$rtti.$Class("TCustomList<Menus.TMenuItem>");
+  $mod.$rtti.$Class("TCustomListEnumerator<Menus.TMenuItem>");
+  $mod.$rtti.$Class("TList<Menus.TMenuItem>");
   this.TCollectionNotification = {"0": "cnAdded", cnAdded: 0, "1": "cnRemoved", cnRemoved: 1, "2": "cnExtracted", cnExtracted: 2};
   this.$rtti.$Enum("TCollectionNotification",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TCollectionNotification});
   rtl.recNewT(this,"TBinarySearchResult",function () {
@@ -21642,6 +21674,589 @@ rtl.module("Generics.Collections",["System","Classes","SysUtils","RTLConsts","Ty
       return Result;
     };
   },"TList<System.Longint>");
+  rtl.createClass(this,"TEnumerator$G19",pas.System.TObject,function () {
+    this.$initSpec = function () {
+    };
+    this.MoveNext = function () {
+      var Result = false;
+      Result = this.DoMoveNext();
+      return Result;
+    };
+  },"TEnumerator<Menus.TMenuItem>");
+  rtl.createClass(this,"TEnumerable$G18",pas.System.TObject,function () {
+    this.$initSpec = function () {
+    };
+    this.GetEnumerator = function () {
+      var Result = null;
+      Result = this.DoGetEnumerator();
+      return Result;
+    };
+    this.ToArray = function () {
+      var Result = [];
+      var LEnumerator = null;
+      Result = [];
+      LEnumerator = this.GetEnumerator();
+      try {
+        while (LEnumerator.MoveNext()) Result.push(LEnumerator.DoGetCurrent());
+      } finally {
+        LEnumerator = rtl.freeLoc(LEnumerator);
+      };
+      return Result;
+    };
+  },"TEnumerable<Menus.TMenuItem>");
+  this.$rtti.$MethodVar("TCollectionNotifyEvent<Menus.TMenuItem>",{init: function () {
+      this.procsig = rtl.newTIProcSig([["ASender",pas.System.$rtti["TObject"]],["AItem",pas.Menus.$rtti["TMenuItem"],2],["AAction",$mod.$rtti["TCollectionNotification"]]]);
+    }, methodkind: 0});
+  rtl.createClass(this,"TCustomArrayHelper$G13",pas.System.TObject,function () {
+    this.$initSpec = function () {
+    };
+    this.Sort = function (AValues, AComparer) {
+      this.Sort$1(AValues,AComparer,0,rtl.length(AValues.get()));
+    };
+    this.Sort$1 = function (AValues, AComparer, AIndex, ACount) {
+      if (ACount <= 1) return;
+      this.QuickSort(AValues,AIndex,(AIndex + ACount) - 1,AComparer);
+    };
+    this.BinarySearch$2 = function (AValues, AItem, AFoundIndex, AComparer) {
+      var Result = false;
+      Result = this.BinarySearch$1(AValues,AItem,AFoundIndex,AComparer,0,rtl.length(AValues));
+      return Result;
+    };
+    this.BinarySearch$3 = function (AValues, AItem, ASearchResult, AComparer) {
+      var Result = false;
+      Result = this.BinarySearch(AValues,AItem,ASearchResult,AComparer,0,rtl.length(AValues));
+      return Result;
+    };
+  },"TCustomArrayHelper<Menus.TMenuItem>");
+  rtl.createClass(this,"TArrayHelper$G12",this.TCustomArrayHelper$G13,function () {
+    this.$initSpec = function () {
+    };
+    this.QuickSort = function (AValues, ALeft, ARight, AComparer) {
+      var I = 0;
+      var J = 0;
+      var P = null;
+      var Q = null;
+      if (((ARight - ALeft) <= 0) || (rtl.length(AValues.get()) === 0)) return;
+      do {
+        I = ALeft;
+        J = ARight;
+        P = AValues.get()[ALeft + Math.floor((ARight - ALeft) / 2)];
+        do {
+          while (AComparer.Compare(AValues.get()[I],P) < 0) I += 1;
+          while (AComparer.Compare(AValues.get()[J],P) > 0) J -= 1;
+          if (I <= J) {
+            if (I !== J) {
+              Q = AValues.get()[I];
+              AValues.get()[I] = AValues.get()[J];
+              AValues.get()[J] = Q;
+            };
+            I += 1;
+            J -= 1;
+          };
+        } while (!(I > J));
+        if ((J - ALeft) < (ARight - I)) {
+          if (ALeft < J) this.QuickSort(AValues,ALeft,J,AComparer);
+          ALeft = I;
+        } else {
+          if (I < ARight) this.QuickSort(AValues,I,ARight,AComparer);
+          ARight = J;
+        };
+      } while (!(ALeft >= ARight));
+    };
+    this.BinarySearch = function (AValues, AItem, ASearchResult, AComparer, AIndex, ACount) {
+      var Result = false;
+      var imin = 0;
+      var imax = 0;
+      var imid = 0;
+      var ilo = 0;
+      imin = AIndex;
+      imax = (AIndex + ACount) - 1;
+      ilo = imid * imid;
+      imid = ilo * imid;
+      while (imin < imax) {
+        imid = rtl.trunc((imax + imin) / 2);
+        ASearchResult.CompareResult = AComparer.Compare(AValues[imid],AItem);
+        if (ASearchResult.CompareResult < 0) {
+          imin = imid + 1}
+         else {
+          if (ASearchResult.CompareResult === 0) {
+            ASearchResult.FoundIndex = imid;
+            ASearchResult.CandidateIndex = imid;
+            return true;
+          };
+          imax = imid;
+        };
+      };
+      Result = imax === imin;
+      if (Result) {
+        ASearchResult.CompareResult = AComparer.Compare(AValues[imin],AItem);
+        ASearchResult.CandidateIndex = imin;
+        Result = ASearchResult.CompareResult === 0;
+        if (Result) {
+          ASearchResult.FoundIndex = imin}
+         else ASearchResult.FoundIndex = -1;
+      } else {
+        ASearchResult.CompareResult = 0;
+        ASearchResult.FoundIndex = -1;
+        ASearchResult.CandidateIndex = -1;
+      };
+      return Result;
+    };
+    this.BinarySearch$1 = function (AValues, AItem, AFoundIndex, AComparer, AIndex, ACount) {
+      var Result = false;
+      var imin = 0;
+      var imax = 0;
+      var imid = 0;
+      var LCompare = 0;
+      imin = AIndex;
+      imax = (AIndex + ACount) - 1;
+      while (imin < imax) {
+        imid = rtl.trunc((imin + imax) / 2);
+        LCompare = AComparer.Compare(AValues[imid],AItem);
+        if (LCompare < 0) {
+          imin = imid + 1}
+         else {
+          if (LCompare === 0) {
+            AFoundIndex.set(imid);
+            return true;
+          };
+          imax = imid;
+        };
+      };
+      LCompare = AComparer.Compare(AValues[imin],AItem);
+      Result = (imax === imin) && (LCompare === 0);
+      if (Result) {
+        AFoundIndex.set(imin)}
+       else AFoundIndex.set(-1);
+      return Result;
+    };
+  },"TArrayHelper<Menus.TMenuItem>");
+  rtl.createClass(this,"TCustomList$G11",this.TEnumerable$G18,function () {
+    this.$initSpec = function () {
+      var $r = this.$rtti;
+      $mod.$rtti.$DynArray("TCustomList<Menus.TMenuItem>.FItems$a",{eltype: pas.Menus.$rtti["TMenuItem"]});
+    };
+    this.$init = function () {
+      $mod.TEnumerable$G18.$init.call(this);
+      this.FOnNotify = null;
+      this.FLength = 0;
+      this.FItems = [];
+    };
+    this.$final = function () {
+      this.FOnNotify = undefined;
+      this.FItems = undefined;
+      $mod.TEnumerable$G18.$final.call(this);
+    };
+    this.GetCapacity = function () {
+      var Result = 0;
+      Result = rtl.length(this.FItems);
+      return Result;
+    };
+    this.PrepareAddingItem = function () {
+      var Result = 0;
+      if (this.FLength === rtl.length(this.FItems)) this.FItems.push(null);
+      Result = this.FLength;
+      this.FLength += 1;
+      return Result;
+    };
+    this.PrepareAddingRange = function (ACount) {
+      var Result = 0;
+      var l = 0;
+      if (ACount < 0) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      if (ACount === 0) return this.FLength - 1;
+      for (var $l = rtl.length(this.FItems) + 1, $end = this.FLength + ACount; $l <= $end; $l++) {
+        l = $l;
+        this.FItems.push(null);
+      };
+      Result = this.FLength;
+      this.FLength += ACount;
+      return Result;
+    };
+    this.Notify = function (AValue, ACollectionNotification) {
+      if (this.FOnNotify != null) this.FOnNotify(this,AValue,ACollectionNotification);
+    };
+    this.DoRemove = function (AIndex, ACollectionNotification) {
+      var Result = null;
+      if ((AIndex < 0) || (AIndex >= this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      Result = this.FItems[AIndex];
+      this.FLength -= 1;
+      this.FItems[AIndex] = null;
+      this.FItems.splice(AIndex,1);
+      this.Notify(Result,ACollectionNotification);
+      return Result;
+    };
+    this.GetCount = function () {
+      var Result = 0;
+      Result = this.FLength;
+      return Result;
+    };
+  },"TCustomList<Menus.TMenuItem>");
+  rtl.createClass(this,"TCustomListEnumerator$G9",this.TEnumerator$G19,function () {
+    this.$initSpec = function () {
+    };
+    this.$init = function () {
+      $mod.TEnumerator$G19.$init.call(this);
+      this.FList = null;
+      this.FIndex = 0;
+    };
+    this.$final = function () {
+      this.FList = undefined;
+      $mod.TEnumerator$G19.$final.call(this);
+    };
+    this.DoMoveNext = function () {
+      var Result = false;
+      this.FIndex += 1;
+      Result = (this.FList.FLength > 0) && (this.FIndex < this.FList.FLength);
+      return Result;
+    };
+    this.DoGetCurrent = function () {
+      var Result = null;
+      Result = this.GetCurrent();
+      return Result;
+    };
+    this.GetCurrent = function () {
+      var Result = null;
+      Result = this.FList.FItems[this.FIndex];
+      return Result;
+    };
+    this.Create$1 = function (AList) {
+      pas.System.TObject.Create.call(this);
+      this.FIndex = -1;
+      this.FList = AList;
+      return this;
+    };
+  },"TCustomListEnumerator<Menus.TMenuItem>");
+  rtl.createClass(this,"TList$G4",this.TCustomList$G11,function () {
+    this.$initSpec = function () {
+      rtl.createClass(this,"TEnumerator",$mod.TCustomListEnumerator$G9,function () {
+      },"TList<Menus.TMenuItem>.TEnumerator");
+    };
+    this.$init = function () {
+      $mod.TCustomList$G11.$init.call(this);
+      this.FComparer = null;
+    };
+    this.$final = function () {
+      rtl.setIntfP(this,"FComparer",null);
+      $mod.TCustomList$G11.$final.call(this);
+    };
+    this.SameValue = function (Left, Right) {
+      var Result = false;
+      if (this.FComparer != null) {
+        Result = this.FComparer.Compare(Left,Right) === 0}
+       else Result = Left === Right;
+      return Result;
+    };
+    this.SetCapacity = function (AValue) {
+      if (AValue < this.FLength) this.SetCount(AValue);
+      this.FItems = rtl.arraySetLength(this.FItems,null,AValue);
+    };
+    this.SetCount = function (AValue) {
+      if (AValue < 0) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      if (AValue > this.GetCapacity()) {
+        this.SetCapacity(AValue)}
+       else if (AValue < this.FLength) this.DeleteRange(AValue,this.FLength - AValue);
+      this.FLength = AValue;
+    };
+    this.InitializeList = function () {
+    };
+    this.InternalInsert = function (AIndex, AValue) {
+      if ((AIndex < 0) || (AIndex > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      this.FItems.splice(AIndex,0,AValue);
+      this.FLength += 1;
+      this.FItems[AIndex] = AValue;
+      this.Notify(AValue,$mod.TCollectionNotification.cnAdded);
+    };
+    this.DoGetEnumerator = function () {
+      var Result = null;
+      Result = this.GetEnumerator$1();
+      return Result;
+    };
+    this.GetItem = function (AIndex) {
+      var Result = null;
+      if ((AIndex < 0) || (AIndex >= this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      Result = this.FItems[AIndex];
+      return Result;
+    };
+    this.SetItem = function (AIndex, AValue) {
+      if ((AIndex < 0) || (AIndex >= this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      this.Notify(this.FItems[AIndex],$mod.TCollectionNotification.cnRemoved);
+      this.FItems[AIndex] = AValue;
+      this.Notify(AValue,$mod.TCollectionNotification.cnAdded);
+    };
+    this.GetEnumerator$1 = function () {
+      var Result = null;
+      Result = this.TEnumerator.$create("Create$1",[this]);
+      return Result;
+    };
+    this.Create$1 = function () {
+      this.InitializeList();
+      return this;
+    };
+    this.Create$2 = function (AComparer) {
+      this.InitializeList();
+      rtl.setIntfP(this,"FComparer",AComparer);
+      return this;
+    };
+    this.Create$3 = function (ACollection) {
+      var LItem = null;
+      this.Create$1();
+      var $in = ACollection.GetEnumerator();
+      try {
+        while ($in.MoveNext()) {
+          LItem = $in.DoGetCurrent();
+          this.Add(LItem);
+        }
+      } finally {
+        $in = rtl.freeLoc($in)
+      };
+      return this;
+    };
+    this.Destroy = function () {
+      this.SetCapacity(0);
+    };
+    this.Add = function (AValue) {
+      var Result = 0;
+      Result = this.PrepareAddingItem();
+      this.FItems[Result] = AValue;
+      this.Notify(AValue,$mod.TCollectionNotification.cnAdded);
+      return Result;
+    };
+    this.AddRange = function (AValues) {
+      this.InsertRange(this.FLength,AValues);
+    };
+    this.AddRange$1 = function (AEnumerable) {
+      var LValue = null;
+      var $in = AEnumerable.GetEnumerator();
+      try {
+        while ($in.MoveNext()) {
+          LValue = $in.GetCurrent();
+          this.Add(LValue);
+        }
+      } finally {
+        rtl._Release($in)
+      };
+    };
+    this.AddRange$2 = function (AEnumerable) {
+      var LValue = null;
+      var $in = AEnumerable.GetEnumerator();
+      try {
+        while ($in.MoveNext()) {
+          LValue = $in.DoGetCurrent();
+          this.Add(LValue);
+        }
+      } finally {
+        $in = rtl.freeLoc($in)
+      };
+    };
+    this.Insert = function (AIndex, AValue) {
+      if ((AIndex < 0) || (AIndex > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      this.InternalInsert(AIndex,AValue);
+    };
+    this.InsertRange = function (AIndex, AValues) {
+      var LLength = 0;
+      var i = 0;
+      var LValue = null;
+      if ((AIndex < 0) || (AIndex > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      LLength = rtl.length(AValues);
+      if (LLength === 0) return;
+      if (AIndex !== this.PrepareAddingRange(LLength)) {
+        for (var $l = AIndex, $end = this.FLength - LLength - 1; $l <= $end; $l++) {
+          i = $l;
+          this.FItems[i + LLength] = this.FItems[i];
+        };
+        for (var $l1 = 0, $end1 = LLength - 1; $l1 <= $end1; $l1++) {
+          i = $l1;
+          this.FItems[AIndex + i] = null;
+        };
+      };
+      for (var $l2 = 0, $end2 = LLength - 1; $l2 <= $end2; $l2++) {
+        i = $l2;
+        LValue = AValues[i];
+        this.FItems[i + AIndex] = LValue;
+        this.Notify(LValue,$mod.TCollectionNotification.cnAdded);
+      };
+    };
+    this.InsertRange$1 = function (AIndex, AEnumerable) {
+      var LValue = null;
+      var i = 0;
+      if ((AIndex < 0) || (AIndex > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      i = 0;
+      var $in = AEnumerable.GetEnumerator();
+      try {
+        while ($in.MoveNext()) {
+          LValue = $in.GetCurrent();
+          this.InternalInsert(AIndex + i,LValue);
+          i += 1;
+        }
+      } finally {
+        rtl._Release($in)
+      };
+    };
+    this.InsertRange$2 = function (AIndex, AEnumerable) {
+      var LValue = null;
+      var i = 0;
+      if ((AIndex < 0) || (AIndex > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      i = 0;
+      var $in = AEnumerable.GetEnumerator();
+      try {
+        while ($in.MoveNext()) {
+          LValue = $in.DoGetCurrent();
+          this.InternalInsert(AIndex + i,LValue);
+          i += 1;
+        }
+      } finally {
+        $in = rtl.freeLoc($in)
+      };
+    };
+    this.Remove = function (AValue) {
+      var Result = 0;
+      Result = this.IndexOf(AValue);
+      if (Result >= 0) this.DoRemove(Result,$mod.TCollectionNotification.cnRemoved);
+      return Result;
+    };
+    this.RemoveItem = function (AValue, Direction) {
+      var Result = 0;
+      if (Direction === $mod.TDirection.fromEnd) {
+        Result = this.LastIndexOf(AValue)}
+       else Result = this.IndexOf(AValue);
+      if (Result >= 0) this.DoRemove(Result,$mod.TCollectionNotification.cnRemoved);
+      return Result;
+    };
+    this.Delete = function (AIndex) {
+      this.DoRemove(AIndex,$mod.TCollectionNotification.cnRemoved);
+    };
+    this.DeleteRange = function (AIndex, ACount) {
+      var LDeleted = [];
+      var i = 0;
+      if (ACount === 0) return;
+      if ((ACount < 0) || (AIndex < 0) || ((AIndex + ACount) > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      LDeleted = this.FItems.splice(AIndex,this.FLength);
+      this.FLength -= ACount;
+      for (var $l = 0, $end = rtl.length(LDeleted) - 1; $l <= $end; $l++) {
+        i = $l;
+        this.Notify(LDeleted[i],$mod.TCollectionNotification.cnRemoved);
+      };
+    };
+    this.ExtractIndex = function (AIndex) {
+      var Result = null;
+      Result = this.DoRemove(AIndex,$mod.TCollectionNotification.cnExtracted);
+      return Result;
+    };
+    this.Extract = function (AValue) {
+      var Result = null;
+      var LIndex = 0;
+      LIndex = this.IndexOf(AValue);
+      if (LIndex < 0) {
+        Result = null}
+       else Result = this.DoRemove(LIndex,$mod.TCollectionNotification.cnExtracted);
+      return Result;
+    };
+    this.Exchange = function (AIndex1, AIndex2) {
+      var LTemp = null;
+      LTemp = this.FItems[AIndex1];
+      this.FItems[AIndex1] = this.FItems[AIndex2];
+      this.FItems[AIndex2] = LTemp;
+    };
+    this.Move = function (AIndex, ANewIndex) {
+      var Arr = null;
+      var LTemp = undefined;
+      var i = 0;
+      if (ANewIndex === AIndex) return;
+      if ((ANewIndex < 0) || (ANewIndex >= this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      Arr = this.FItems;
+      LTemp = Arr[AIndex];
+      if (AIndex < ANewIndex) {
+        for (var $l = AIndex, $end = ANewIndex - 1; $l <= $end; $l++) {
+          i = $l;
+          Arr[i] = Arr[i + 1];
+        }}
+       else for (var $l1 = AIndex, $end1 = ANewIndex + 1; $l1 >= $end1; $l1--) {
+        i = $l1;
+        Arr[i] = Arr[i - 1];
+      };
+      Arr[ANewIndex] = LTemp;
+    };
+    this.First = function () {
+      var Result = null;
+      Result = this.GetItem(0);
+      return Result;
+    };
+    this.Last = function () {
+      var Result = null;
+      Result = this.GetItem(this.FLength - 1);
+      return Result;
+    };
+    this.Clear = function () {
+      this.SetCount(0);
+      this.SetCapacity(0);
+    };
+    this.Contains = function (AValue) {
+      var Result = false;
+      Result = this.IndexOf(AValue) >= 0;
+      return Result;
+    };
+    this.IndexOf = function (AValue) {
+      var Result = 0;
+      var i = 0;
+      for (var $l = 0, $end = this.FLength - 1; $l <= $end; $l++) {
+        i = $l;
+        if (this.SameValue(AValue,this.FItems[i])) return i;
+      };
+      Result = -1;
+      return Result;
+    };
+    this.LastIndexOf = function (AValue) {
+      var Result = 0;
+      var i = 0;
+      for (var $l = this.FLength - 1; $l >= 0; $l--) {
+        i = $l;
+        if (this.SameValue(AValue,this.FItems[i])) return i;
+      };
+      Result = -1;
+      return Result;
+    };
+    this.Reverse = function () {
+      var a = 0;
+      var b = 0;
+      var LTemp = null;
+      a = 0;
+      b = this.FLength - 1;
+      while (a < b) {
+        LTemp = this.FItems[a];
+        this.FItems[a] = this.FItems[b];
+        this.FItems[b] = LTemp;
+        a += 1;
+        b -= 1;
+      };
+    };
+    this.TrimExcess = function () {
+      this.SetCapacity(this.FLength);
+    };
+    this.Sort = function () {
+      $mod.TArrayHelper$G12.Sort$1({p: this, get: function () {
+          return this.p.FItems;
+        }, set: function (v) {
+          this.p.FItems = v;
+        }},this.FComparer,0,this.FLength);
+    };
+    this.Sort$1 = function (AComparer) {
+      $mod.TArrayHelper$G12.Sort$1({p: this, get: function () {
+          return this.p.FItems;
+        }, set: function (v) {
+          this.p.FItems = v;
+        }},AComparer,0,this.FLength);
+    };
+    this.BinarySearch = function (AItem, AIndex) {
+      var Result = false;
+      Result = $mod.TArrayHelper$G12.BinarySearch$1(this.FItems,AItem,AIndex,this.FComparer,0,this.FLength);
+      return Result;
+    };
+    this.BinarySearch$1 = function (AItem, AIndex, AComparer) {
+      var Result = false;
+      Result = $mod.TArrayHelper$G12.BinarySearch$1(this.FItems,AItem,AIndex,AComparer,0,this.FLength);
+      return Result;
+    };
+  },"TList<Menus.TMenuItem>");
   $mod.$implcode = function () {
     $mod.$resourcestrings = {SErrDictKeyNotFound: {org: "Key value not found"}, SErrDictDuplicateKey: {org: "Duplicate key value"}};
   };
@@ -46835,7 +47450,437 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
     };
   };
 },["Math","MaskUtils"]);
-rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Controls","Forms","StdCtrls","ExtCtrls","ComCtrls","NumCtrls","DttCtrls","BtnCtrls","DataGrid","WebDB"],function () {
+rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections","JS","Web","Graphics","Controls"],function () {
+  "use strict";
+  var $mod = this;
+  var $impl = $mod.$impl;
+  this.$rtti.$Class("TMainMenu");
+  this.$rtti.$Class("TMenuItem");
+  this.$rtti.$Class("TMenuItems");
+  this.$rtti.$MethodVar("TMouseMenuHandler",{procsig: rtl.newTIProcSig([["AEvent",pas.Web.$rtti["TJSMouseEvent"]]],rtl.boolean), methodkind: 1});
+  this.$rtti.$MethodVar("TKeyMenuHandler",{procsig: rtl.newTIProcSig([["AEvent",pas.Web.$rtti["TJSKeyboardEvent"]]],rtl.boolean), methodkind: 1});
+  rtl.createClass(this,"TMenuItem",pas.Classes.TComponent,function () {
+    this.$init = function () {
+      pas.Classes.TComponent.$init.call(this);
+      this.FCaption = "";
+      this.FChecked = false;
+      this.FEnabled = false;
+      this.FItems = null;
+      this.FRadioItem = false;
+      this.FShortCut = "";
+      this.FVisible = false;
+      this.FOnClick = null;
+      this.FRoot = null;
+    };
+    this.$final = function () {
+      this.FItems = undefined;
+      this.FOnClick = undefined;
+      this.FRoot = undefined;
+      pas.Classes.TComponent.$final.call(this);
+    };
+    this.SetCaption = function (AValue) {
+      if (this.FCaption !== AValue) {
+        this.FCaption = AValue;
+        this.MenuChanged();
+      };
+    };
+    this.SetChecked = function (AValue) {
+      if (this.FChecked !== AValue) {
+        this.FChecked = AValue;
+        this.MenuChanged();
+      };
+    };
+    this.SetEnabled = function (AValue) {
+      if (this.FEnabled !== AValue) {
+        this.FEnabled = AValue;
+        this.MenuChanged();
+      };
+    };
+    this.SetRadioItem = function (AValue) {
+      if (this.FRadioItem !== AValue) {
+        this.FRadioItem = AValue;
+        this.MenuChanged();
+      };
+    };
+    this.SetShortCut = function (AValue) {
+      if (this.FShortCut !== AValue) {
+        this.FShortCut = AValue;
+        this.MenuChanged();
+      };
+    };
+    this.SetVisible = function (AValue) {
+      if (this.FVisible !== AValue) {
+        this.FVisible = AValue;
+        this.MenuChanged();
+      };
+    };
+    this.MenuChanged = function () {
+      if (this.FRoot != null) this.FRoot.Update();
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Classes.TComponent.Create$1.call(this,AOwner);
+      this.FChecked = false;
+      this.FEnabled = true;
+      this.FRadioItem = false;
+      this.FVisible = true;
+      this.FCaption = "";
+      this.FShortCut = "";
+      if ($mod.TMenuItem.isPrototypeOf(AOwner)) this.FRoot = AOwner.FRoot;
+      this.FItems = $mod.TMenuItems.$create("Create$1",[this,this.FRoot]);
+      return this;
+    };
+    this.Destroy = function () {
+      rtl.free(this,"FItems");
+      this.FItems = null;
+      pas.Classes.TComponent.Destroy.call(this);
+    };
+    this.Click = function () {
+      if (!this.FEnabled) return;
+      if (this.FOnClick != null) this.FOnClick(this);
+    };
+    this.IsSeparator = function () {
+      var Result = false;
+      Result = pas.SysUtils.Trim(this.FCaption) === "-";
+      return Result;
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+    $r.addProperty("Caption",2,rtl.string,"FCaption","SetCaption");
+    $r.addProperty("Checked",2,rtl.boolean,"FChecked","SetChecked",{Default: false});
+    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled",{Default: true});
+    $r.addProperty("RadioItem",2,rtl.boolean,"FRadioItem","SetRadioItem",{Default: false});
+    $r.addProperty("ShortCut",2,rtl.string,"FShortCut","SetShortCut");
+    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible",{Default: true});
+    $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
+  });
+  rtl.createClass(this,"TMenuItems",pas.Classes.TPersistent,function () {
+    this.$init = function () {
+      pas.Classes.TPersistent.$init.call(this);
+      this.FItems = null;
+      this.FOwnerItem = null;
+      this.FRoot = null;
+    };
+    this.$final = function () {
+      this.FItems = undefined;
+      this.FOwnerItem = undefined;
+      this.FRoot = undefined;
+      pas.Classes.TPersistent.$final.call(this);
+    };
+    this.GetCount = function () {
+      var Result = 0;
+      Result = this.FItems.FLength;
+      return Result;
+    };
+    this.GetItem = function (AIndex) {
+      var Result = null;
+      if ((AIndex >= 0) && (AIndex < this.FItems.FLength)) {
+        Result = this.FItems.GetItem(AIndex)}
+       else Result = null;
+      return Result;
+    };
+    this.Create$1 = function (AOwnerItem, ARoot) {
+      pas.System.TObject.Create.call(this);
+      this.FOwnerItem = AOwnerItem;
+      this.FRoot = ARoot;
+      this.FItems = pas["Generics.Collections"].TList$G4.$create("Create$1");
+      return this;
+    };
+    this.Destroy = function () {
+      this.Clear();
+      rtl.free(this,"FItems");
+      this.FItems = null;
+      pas.System.TObject.Destroy.call(this);
+    };
+    this.Add = function (ACaption, AOnClick) {
+      var Result = null;
+      Result = $mod.TMenuItem.$create("Create$1",[this.FOwnerItem]);
+      Result.FRoot = this.FRoot;
+      Result.FCaption = ACaption;
+      Result.FOnClick = AOnClick;
+      this.FItems.Add(Result);
+      if (this.FRoot != null) this.FRoot.Update();
+      return Result;
+    };
+    this.AddSeparator = function () {
+      var Result = null;
+      Result = this.Add("-",null);
+      return Result;
+    };
+    this.Clear = function () {
+      var VIndex = 0;
+      var VItem = null;
+      for (var $l = this.FItems.FLength - 1; $l >= 0; $l--) {
+        VIndex = $l;
+        VItem = this.FItems.GetItem(VIndex);
+        VItem = rtl.freeLoc(VItem);
+      };
+      this.FItems.Clear();
+    };
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwnerItem",$mod.$rtti["TMenuItem"]],["ARoot",$mod.$rtti["TMainMenu"]]]);
+  });
+  rtl.createClass(this,"TMenuBar",pas.Controls.TCustomControl,function () {
+    this.$init = function () {
+      pas.Controls.TCustomControl.$init.call(this);
+      this.FDocClick = null;
+      this.FDocKeyDown = null;
+      this.FMenu = null;
+      this.FOpenIndex = 0;
+    };
+    this.$final = function () {
+      this.FDocClick = undefined;
+      this.FDocKeyDown = undefined;
+      this.FMenu = undefined;
+      pas.Controls.TCustomControl.$final.call(this);
+    };
+    this.SetMenu = function (AValue) {
+      this.FMenu = AValue;
+      this.Render();
+    };
+    this.GetDataAttr = function (AElement, AName) {
+      var Result = "";
+      Result = "";
+      if (rtl.isExt(AElement,HTMLElement)) {
+        Result = AElement.getAttribute(AName);
+        if (Result == null) Result = "";
+      };
+      return Result;
+    };
+    this.StartDocTracking = function () {
+      document.addEventListener('click', this.FDocClick, true);
+      document.addEventListener('keydown', this.FDocKeyDown, true);
+    };
+    this.StopDocTracking = function () {
+      document.removeEventListener('click', this.FDocClick, true);
+      document.removeEventListener('keydown', this.FDocKeyDown, true);
+    };
+    this.Changed = function () {
+      pas.Controls.TControl.Changed.call(this);
+      if (!this.IsUpdating() && rtl.eqSet(rtl.intersectSet(rtl.createSet(pas.Classes.TComponentStateItem.csLoading,pas.Classes.TComponentStateItem.csDestroying),this.FComponentState),{})) this.FHandleElement.style.setProperty("overflow","visible");
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("div");
+      return Result;
+    };
+    this.CheckChildClassAllowed = function (AChildClass) {
+      var Result = false;
+      Result = false;
+      return Result;
+    };
+    this.HandleClick = function (AEvent) {
+      var Result = false;
+      var VElement = null;
+      var VIndex = "";
+      var VSubIndex = "";
+      var VItem = null;
+      var VSub = null;
+      var VNumber = 0;
+      Result = pas.Controls.TControl.HandleClick.call(this,AEvent);
+      if (!(this.FMenu != null)) return Result;
+      VElement = pas.Web.TJSEventHelper.GetTargetElement.call(AEvent);
+      while ((VElement != null) && (VElement !== this.FHandleElement)) {
+        VSubIndex = this.GetDataAttr(VElement,"data-j");
+        VIndex = this.GetDataAttr(VElement,"data-i");
+        if ((VSubIndex !== "") && (VIndex !== "")) {
+          VNumber = pas.SysUtils.StrToIntDef(VIndex,-1);
+          VItem = this.FMenu.FItems.GetItem(VNumber);
+          if (VItem != null) {
+            VSub = VItem.FItems.GetItem(pas.SysUtils.StrToIntDef(VSubIndex,-1));
+            this.CloseDropdown();
+            if (VSub != null) VSub.Click();
+          } else this.CloseDropdown();
+          Result = true;
+          return Result;
+        };
+        if (VIndex !== "") {
+          VNumber = pas.SysUtils.StrToIntDef(VIndex,-1);
+          if (VNumber === this.FOpenIndex) {
+            this.CloseDropdown()}
+           else if ((VNumber >= 0) && (VNumber < this.FMenu.FItems.GetCount())) {
+            this.FOpenIndex = VNumber;
+            this.Render();
+            this.StartDocTracking();
+          };
+          Result = true;
+          return Result;
+        };
+        VElement = VElement.parentElement;
+      };
+      return Result;
+    };
+    this.HandleDocClick = function (AEvent) {
+      var Result = false;
+      var VTarget = null;
+      Result = false;
+      if (this.FOpenIndex < 0) return Result;
+      VTarget = pas.Web.TJSEventHelper.GetTargetElement.call(AEvent);
+      if ((VTarget != null) && this.FHandleElement.contains(VTarget)) return Result;
+      this.CloseDropdown();
+      Result = true;
+      return Result;
+    };
+    this.HandleDocKeyDown = function (AEvent) {
+      var Result = false;
+      Result = false;
+      if (this.FOpenIndex < 0) return Result;
+      if (AEvent.key === "Escape") {
+        this.CloseDropdown();
+        Result = true;
+      };
+      return Result;
+    };
+    this.GetControlClassDefaultSize = function () {
+      var Result = pas.Types.TSize.$new();
+      Result.cx = 300;
+      Result.cy = 26;
+      return Result;
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.FDocClick = rtl.createCallback(this,"HandleDocClick");
+      this.FDocKeyDown = rtl.createCallback(this,"HandleDocKeyDown");
+      this.FMenu = null;
+      this.FOpenIndex = -1;
+      $impl._RegisterMenuRules();
+      this.BeginUpdate();
+      try {
+        this.SetColor(16777215);
+        this.SetHeight(26);
+      } finally {
+        this.EndUpdate();
+      };
+      return this;
+    };
+    this.Destroy = function () {
+      this.StopDocTracking();
+      pas.Controls.TCustomControl.Destroy.call(this);
+    };
+    this.CloseDropdown = function () {
+      if (this.FOpenIndex < 0) return;
+      this.FOpenIndex = -1;
+      this.StopDocTracking();
+      this.Render();
+    };
+    this.Render = function () {
+      var VHtml = "";
+      var VIndex = 0;
+      var VSubIndex = 0;
+      var VItem = null;
+      var VSub = null;
+      var VClass = "";
+      var VCheck = "";
+      if (!(this.FMenu != null)) return;
+      $impl._RegisterMenuRules();
+      VHtml = '<div class="wcl-menubar-items">';
+      for (var $l = 0, $end = this.FMenu.FItems.GetCount() - 1; $l <= $end; $l++) {
+        VIndex = $l;
+        VItem = this.FMenu.FItems.GetItem(VIndex);
+        if (!(VItem != null) || !VItem.FVisible) continue;
+        VClass = "wcl-menubar-item";
+        if (VIndex === this.FOpenIndex) VClass = VClass + " wcl-open";
+        VHtml = VHtml + '<div class="' + VClass + '" data-i="' + pas.SysUtils.IntToStr(VIndex) + '">' + $impl.EscapeMenuText(VItem.FCaption);
+        if ((VIndex === this.FOpenIndex) && (VItem.FItems.GetCount() > 0)) {
+          VHtml = VHtml + '<div class="wcl-menubar-drop">';
+          for (var $l1 = 0, $end1 = VItem.FItems.GetCount() - 1; $l1 <= $end1; $l1++) {
+            VSubIndex = $l1;
+            VSub = VItem.FItems.GetItem(VSubIndex);
+            if (!(VSub != null) || !VSub.FVisible) continue;
+            if (VSub.IsSeparator()) {
+              VHtml = VHtml + '<div class="wcl-menubar-sep"></div>';
+              continue;
+            };
+            VClass = "wcl-menubar-entry";
+            if (!VSub.FEnabled) VClass = VClass + " wcl-disabled";
+            VCheck = "";
+            if (VSub.FChecked || VSub.FRadioItem) VCheck = "&#10003; ";
+            VHtml = VHtml + '<div class="' + VClass + '" data-i="' + pas.SysUtils.IntToStr(VIndex) + '" data-j="' + pas.SysUtils.IntToStr(VSubIndex) + '">' + "<span>" + VCheck + $impl.EscapeMenuText(VSub.FCaption) + "</span>";
+            if (VSub.FShortCut !== "") VHtml = VHtml + '<span class="wcl-menubar-shortcut">' + $impl.EscapeMenuText(VSub.FShortCut) + "</span>";
+            VHtml = VHtml + "</div>";
+          };
+          VHtml = VHtml + "</div>";
+        };
+        VHtml = VHtml + "</div>";
+      };
+      VHtml = VHtml + "</div>";
+      this.FHandleElement.innerHTML = VHtml;
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+  });
+  rtl.createClass(this,"TMainMenu",pas.Classes.TComponent,function () {
+    this.$init = function () {
+      pas.Classes.TComponent.$init.call(this);
+      this.FBar = null;
+      this.FItems = null;
+      this.FOnChange = null;
+    };
+    this.$final = function () {
+      this.FBar = undefined;
+      this.FItems = undefined;
+      this.FOnChange = undefined;
+      pas.Classes.TComponent.$final.call(this);
+    };
+    this.SetOnChange = function (AValue) {
+      this.FOnChange = AValue;
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Classes.TComponent.Create$1.call(this,AOwner);
+      this.FBar = null;
+      this.FItems = $mod.TMenuItems.$create("Create$1",[null,this]);
+      this.Update();
+      return this;
+    };
+    this.Destroy = function () {
+      rtl.free(this,"FItems");
+      this.FItems = null;
+      if (this.FBar != null) {
+        this.FBar.SetMenu(null);
+        rtl.free(this,"FBar");
+        this.FBar = null;
+      };
+      pas.Classes.TComponent.Destroy.call(this);
+    };
+    this.Update = function () {
+      var VParent = null;
+      if (!(this.FBar != null) && pas.Controls.TWinControl.isPrototypeOf(this.FOwner)) {
+        VParent = this.FOwner;
+        this.FBar = $mod.TMenuBar.$create("Create$1",[this]);
+        this.FBar.SetParent(VParent);
+        this.FBar.SetAlign(pas.Controls.TAlign.alTop);
+        this.FBar.SetHeight(26);
+        this.FBar.SetMenu(this);
+      };
+      if (this.FBar != null) this.FBar.Render();
+      if (this.FOnChange != null) this.FOnChange(this);
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+    $r.addProperty("OnChange",2,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","SetOnChange");
+  });
+  $mod.$implcode = function () {
+    $impl.MenuRules = ".wcl-menubar-items{display:flex;align-items:stretch;height:100%;" + "font:13px system-ui,-apple-system,Segoe UI,sans-serif}" + ".wcl-menubar-item{position:relative;display:flex;align-items:center;" + "padding:0 12px;cursor:pointer;color:#222;user-select:none;white-space:nowrap}" + ".wcl-menubar-item:hover{background:#e8e8e8}" + ".wcl-menubar-item.wcl-open{background:#dcdcdc}" + ".wcl-menubar-drop{position:absolute;top:100%;left:0;min-width:190px;" + "background:#fff;border:1px solid #c9c3ba;box-shadow:0 4px 12px rgba(0,0,0,.18);" + "padding:4px 0;z-index:1000}" + ".wcl-menubar-entry{display:flex;align-items:center;gap:16px;" + "justify-content:space-between;padding:6px 14px;cursor:pointer;white-space:nowrap}" + ".wcl-menubar-entry:hover{background:#2a7efe;color:#fff}" + ".wcl-menubar-entry.wcl-disabled{color:#aaa;pointer-events:none}" + ".wcl-menubar-sep{height:1px;background:#ddd;margin:4px 0}" + ".wcl-menubar-shortcut{color:#888;font-size:12px}" + ".wcl-menubar-entry:hover .wcl-menubar-shortcut{color:#eee}";
+    $impl._MenuRulesRegistered = false;
+    $impl._RegisterMenuRules = function () {
+      if (!$impl._MenuRulesRegistered) {
+        $impl._MenuRulesRegistered = true;
+        pas.Controls.RegisterWCLStyle($impl.MenuRules);
+      };
+    };
+    $impl.EscapeMenuText = function (AText) {
+      var Result = "";
+      Result = pas.SysUtils.StringReplace(AText,"&","&amp;",rtl.createSet(pas.SysUtils.TStringReplaceFlag.rfReplaceAll));
+      Result = pas.SysUtils.StringReplace(Result,"<","&lt;",rtl.createSet(pas.SysUtils.TStringReplaceFlag.rfReplaceAll));
+      Result = pas.SysUtils.StringReplace(Result,">","&gt;",rtl.createSet(pas.SysUtils.TStringReplaceFlag.rfReplaceAll));
+      Result = pas.SysUtils.StringReplace(Result,'"',"&quot;",rtl.createSet(pas.SysUtils.TStringReplaceFlag.rfReplaceAll));
+      return Result;
+    };
+  };
+},[]);
+rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Controls","Forms","StdCtrls","ExtCtrls","ComCtrls","NumCtrls","DttCtrls","BtnCtrls","DataGrid","Menus","WebDB"],function () {
   "use strict";
   var $mod = this;
   rtl.createClass(this,"TWDataModule",pas.Forms.TCustomDataModule,function () {
@@ -47885,6 +48930,22 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnLoad",0,pas.Classes.$rtti["TNotifyEvent"],"FOnLoad","FOnLoad");
     $r.addProperty("OnSave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnSave","FOnSave");
     $r.addProperty("OnLoadError",0,pas.WebDB.$rtti["TOnDBErrorEvent"],"FOnLoadError","FOnLoadError");
+  });
+  rtl.createClass(this,"TWMenuItem",pas.Menus.TMenuItem,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addProperty("Caption",2,rtl.string,"FCaption","SetCaption");
+    $r.addProperty("Checked",2,rtl.boolean,"FChecked","SetChecked",{Default: false});
+    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled",{Default: true});
+    $r.addProperty("RadioItem",2,rtl.boolean,"FRadioItem","SetRadioItem",{Default: false});
+    $r.addProperty("ShortCut",2,rtl.string,"FShortCut","SetShortCut");
+    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible",{Default: true});
+    $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
+  });
+  rtl.createClass(this,"TWMainMenu",pas.Menus.TMainMenu,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addProperty("OnChange",2,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","SetOnChange");
   });
 });
 rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","Forms","WebCtrls"],function () {
@@ -50047,7 +51108,7 @@ rtl.module("uLogin",["System","JS","Classes","SysUtils","Graphics","Controls","F
   });
   this.FormLogin = null;
 },["Unit1"]);
-rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Forms","Dialogs","WebCtrls","ComCtrls","WebDB","Grids","StdCtrls"],function () {
+rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Forms","Dialogs","WebCtrls","ComCtrls","WebDB","Grids","StdCtrls","Menus"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
@@ -50111,6 +51172,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoLastCity = "";
       this.FDemoSeparators = false;
       this.FDemoTable = null;
+      this.FMainMenu = null;
       this.FLayoutInfo = null;
       this.FLayoutLeft = null;
       this.FLayoutTop = null;
@@ -50168,6 +51230,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoGrid = undefined;
       this.FDemoInfo = undefined;
       this.FDemoTable = undefined;
+      this.FMainMenu = undefined;
       this.FLayoutInfo = undefined;
       this.FLayoutLeft = undefined;
       this.FLayoutTop = undefined;
@@ -50341,6 +51404,33 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       $with6.FOnClick = rtl.createCallback(this,"DemoToggleSeparators");
       this.DemoUpdateInfo();
     };
+    this.BuildMainMenu = function () {
+      var VFile = null;
+      var VView = null;
+      var VHelp = null;
+      var VItem = null;
+      this.FMainMenu = pas.WebCtrls.TWMainMenu.$create("Create$1",[this]);
+      VFile = this.FMainMenu.FItems.Add("File",null);
+      VFile.FItems.Add("New",rtl.createCallback(this,"MenuDemoClick"));
+      VFile.FItems.Add("Open",rtl.createCallback(this,"MenuDemoClick"));
+      VFile.FItems.Add("Save",rtl.createCallback(this,"MenuDemoClick"));
+      VFile.FItems.AddSeparator();
+      VItem = VFile.FItems.Add("Disabled entry",null);
+      VItem.SetEnabled(false);
+      VFile.FItems.AddSeparator();
+      VFile.FItems.Add("Exit",rtl.createCallback(this,"MenuDemoClick"));
+      VView = this.FMainMenu.FItems.Add("View",null);
+      VView.FItems.Add("Grid Modes",rtl.createCallback(this,"MenuGotoGrid"));
+      VView.FItems.Add("Layout",rtl.createCallback(this,"MenuGotoLayout"));
+      VView.FItems.AddSeparator();
+      VItem = VView.FItems.Add("Checked entry",null);
+      VItem.SetChecked(true);
+      VItem = VView.FItems.Add("Shortcut entry",null);
+      VItem.SetShortCut("Ctrl+S");
+      VHelp = this.FMainMenu.FItems.Add("Help",null);
+      VHelp.FItems.Add("About",rtl.createCallback(this,"MenuAboutClick"));
+      this.FMainMenu.Update();
+    };
     this.BuildSplitterTab = function () {
       var VSheet = null;
       var VClient = null;
@@ -50386,6 +51476,18 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FLayoutInfo.FBorderSpacing.SetAround(8);
       this.FLayoutInfo.SetAutoSize(false);
       this.DemoSplitterMoved(null);
+    };
+    this.MenuAboutClick = function (Sender) {
+      pas.Dialogs.ShowMessage$1("WCL demo - TMainMenu built in code.");
+    };
+    this.MenuDemoClick = function (Sender) {
+      if (pas.Menus.TMenuItem.isPrototypeOf(Sender)) pas.Dialogs.ShowMessage$1("Menu item: " + Sender.FCaption);
+    };
+    this.MenuGotoGrid = function (Sender) {
+      this.WPageControl1.SetPageIndex(4);
+    };
+    this.MenuGotoLayout = function (Sender) {
+      this.WPageControl1.SetPageIndex(5);
     };
     this.DemoSplitterMoved = function (Sender) {
       if (this.FLayoutInfo != null) this.FLayoutInfo.SetText("Left panel: " + pas.SysUtils.IntToStr(this.FLayoutLeft.FWidth) + " px" + "\n" + "Top panel: " + pas.SysUtils.IntToStr(this.FLayoutTop.FHeight) + " px" + "\n" + "Drag the grey bars.");
@@ -50564,6 +51666,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.WTimer1.SetOnTimer(rtl.createCallback(this,"WTimerTick"));
       this.BuildGridModesTab();
       this.BuildSplitterTab();
+      this.BuildMainMenu();
     };
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;
@@ -50639,6 +51742,18 @@ rtl.module("program",["System","Interfaces","Forms","Unit1","uLogin"],function (
     pas.System.$rtti["TArray<Classes.TPersistentClass>"].eltype = pas.Classes.$rtti["TPersistentClass"];
     pas.System.$rtti["TArray<Generics.Collections.TPair<Generics.Collections.TDictionary.TKey,Generics.Collections.TDictionary.TValue>>"].eltype = pas["Generics.Collections"].$rtti["TPair<Generics.Collections.TDictionary.TKey,Generics.Collections.TDictionary.TValue>"];
     pas.System.$rtti["TArray<Generics.Collections.TPair<Generics.Collections.TObjectDictionary.TKey,Generics.Collections.TObjectDictionary.TValue>>"].eltype = pas["Generics.Collections"].$rtti["TPair<Generics.Collections.TObjectDictionary.TKey,Generics.Collections.TObjectDictionary.TValue>"];
+    pas["Generics.Collections"].TEnumerator$G19.$initSpec();
+    pas.System.$rtti["TArray<Menus.TMenuItem>"].eltype = pas.Menus.$rtti["TMenuItem"];
+    pas["Generics.Collections"].TEnumerable$G18.$initSpec();
+    pas["Generics.Collections"].$rtti["TCollectionNotifyEvent<Menus.TMenuItem>"].init();
+    pas["Generics.Defaults"].IComparer$G19.$initSpec();
+    pas["Generics.Collections"].TCustomArrayHelper$G13.$initSpec();
+    pas["Generics.Collections"].TArrayHelper$G12.$initSpec();
+    pas["Generics.Collections"].TCustomList$G11.$initSpec();
+    pas["Generics.Collections"].TCustomListEnumerator$G9.$initSpec();
+    pas["Generics.Defaults"].IEnumerator$G6.$initSpec();
+    pas["Generics.Defaults"].IEnumerable$G5.$initSpec();
+    pas["Generics.Collections"].TList$G4.$initSpec();
   };
   $mod.$main = function () {
     pas.Forms.Application().Initialize();

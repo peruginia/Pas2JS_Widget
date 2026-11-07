@@ -41,6 +41,7 @@ uses
   DttCtrls,
   BtnCtrls,
   DataGrid,
+  Menus,
   WebDB;
 
 type
@@ -1122,6 +1123,26 @@ type
     property OnLoad;
     property OnSave;
     property OnLoadError;
+  end;
+
+  { TWMenuItem }
+
+  TWMenuItem = class(TMenuItem)
+  published
+    property Caption;
+    property Checked;
+    property Enabled;
+    property RadioItem;
+    property ShortCut;
+    property Visible;
+    property OnClick;
+  end;
+
+  { TWMainMenu }
+
+  TWMainMenu = class(TMainMenu)
+  published
+    property OnChange;
   end;
 
 implementation

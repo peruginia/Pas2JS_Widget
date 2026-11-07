@@ -38,6 +38,7 @@ uses
   StdCtrls,
   ExtCtrls,
   ComCtrls,
+  Menus,
   NumCtrlsD,
   DttCtrlsD,
   BtnCtrlsD,
@@ -869,6 +870,11 @@ type
     property HandleId: string read FHandleId write FHandleId;
   end;
 
+  { TWMainMenu }
+
+  TWMainMenu = class(TMainMenu)
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)
@@ -1293,6 +1299,7 @@ begin
     TWTrackBar,
     TWColorPicker,
     TWSplitter,
+    TWMainMenu,
     TWWebDBConnection,
     TWWebDBTable
     ]);

@@ -65,7 +65,7 @@ MIT:
   SOFTWARE.
 }  "/>
     <Version Major="1"/>
-    <Files Count="19">
+    <Files Count="20">
       <Item1>
         <Filename Value="webextra.pas"/>
         <UnitName Value="WebExtra"/>
@@ -142,6 +142,10 @@ MIT:
         <Filename Value="webdb.pas"/>
         <UnitName Value="WebDB"/>
       </Item19>
+      <Item20>
+        <Filename Value="menus.pas"/>
+        <UnitName Value="Menus"/>
+      </Item20>
     </Files>
     <CompatibilityMode Value="True"/>
     <RequiredPkgs Count="1">

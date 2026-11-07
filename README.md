@@ -46,6 +46,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWProgressBar** | `<progress>` | Progress bar with `Min`/`Max`/`Value` |
 | **TWColorPicker** | `<input type="color">` | Native color picker with `Color`, `OnChange` |
 | **TWSplitter** | `<div>` | Draggable splitter: `Align`, `MinSize`, `ResizeStyle`, `AutoSnap`, `Beveled`, `OnMoved` |
+| **TWMainMenu** | `<div>` bar | Menu bar with dropdowns, separators, shortcuts and check marks |
 | **TWForm** | form overlay | Application form, `ModalResult`, `AlphaBlend` |
 | **TWFrame** | frame container | Embeddable frame |
 
@@ -219,7 +220,7 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
-The **Layout** tab shows `TWSplitter` in both orientations.
+The **Layout** tab shows `TWSplitter` in both orientations, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`.
 
 The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
 
@@ -335,6 +336,24 @@ The **Layout** tab in the demo shows a vertical and a horizontal splitter.
 **Graphics** — `TCanvas` supports `psSolid`, `psDash`, `psDot`, `psDashDot`, `psDashDotDot` and `psClear`; `TPicture` provides `Clear`, `IsEmpty`, `LoadFromDataURL`, `SaveToDataURL` and `LoadFromBase64`.
 
 **Application** — `BackgroundColor: TColor` is applied to `document.body` in `Run` (falls back to `MainForm.Color`; `clDefault` leaves it untouched).
+
+**TMainMenu** — `TMenuItem`, `TMenuItems` and `TMainMenu` in `widgets/menus.pas`; `TWMenuItem` and `TWMainMenu` in `widgets/webctrls.pas`.
+
+```pascal
+FMainMenu := TWMainMenu.Create(Self);
+with FMainMenu.Items.Add('File') do
+begin
+  Items.Add('New', @NewClick);
+  Items.AddSeparator;
+  Items.Add('Exit', @ExitClick);
+end;
+```
+
+`TMainMenu` creates a bar parented to its owner (a form) with `Align := alTop`, so the rest of the layout reflows by itself. Clicking a top item opens its dropdown; choosing an entry runs `OnClick` and closes it. Clicking outside, pressing `Esc`, or clicking the same top item again closes it.
+
+Items expose `Caption`, `ShortCut` (display text), `Enabled`, `Checked`, `RadioItem`, `Visible` and `OnClick`; a caption of `-` renders a separator, and `Checked`/`RadioItem` show a check mark.
+
+Menus are built in code: streaming items from the `.lfm` and the IDE menu designer are not supported yet.
 
 ### Further plans
 - TPaintBox (Canvas 2D)
