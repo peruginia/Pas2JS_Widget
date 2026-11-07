@@ -377,6 +377,9 @@ type
     FStartCoord: Double;
     FStartSize: NativeInt;
     FTarget: TControl;
+    FTouchEnd: TJSTouchEventHandler;
+    FTouchMove: TJSTouchEventHandler;
+    FTouchStart: TJSTouchEventHandler;
     FOnMoved: TNotifyEvent;
     procedure SetAutoSnap(AValue: Boolean);
     procedure SetBeveled(AValue: Boolean);
@@ -387,8 +390,11 @@ type
     function FindTarget: TControl; virtual;
     function MaxTargetSize: NativeInt; virtual;
     procedure ApplySize(ANewSize: NativeInt); virtual;
+    procedure DragTo(const AClientX, AClientY: Double); virtual;
     procedure StartDragTracking; virtual;
     procedure StopDragTracking; virtual;
+    procedure StartTouchTracking; virtual;
+    procedure StopTouchTracking; virtual;
   protected
     procedure Changed; override;
     function CreateHandleElement: TJSHTMLElement; override;
@@ -396,6 +402,9 @@ type
     function HandleMouseDown(AEvent: TJSMouseEvent): boolean; override;
     function HandleDocMouseMove(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleDocMouseUp(AEvent: TJSMouseEvent): boolean; virtual;
+    function HandleTouchStart(AEvent: TJSTouchEvent): boolean; virtual;
+    function HandleDocTouchMove(AEvent: TJSTouchEvent): boolean; virtual;
+    function HandleDocTouchEnd(AEvent: TJSTouchEvent): boolean; virtual;
   protected
     class function GetControlClassDefaultSize: TSize; override;
   public
@@ -1825,22 +1834,29 @@ begin
   Result := True;
 end;
 
-function TCustomSplitter.HandleDocMouseMove(AEvent: TJSMouseEvent): boolean;
+procedure TCustomSplitter.DragTo(const AClientX, AClientY: Double);
 var
   VDelta: Double;
 begin
-  Result := False;
   if (not FDragging) or (not Assigned(FTarget)) then
     Exit;
   if Horizontal then
-    VDelta := AEvent.ClientX - FStartCoord
+    VDelta := AClientX - FStartCoord
   else
-    VDelta := AEvent.ClientY - FStartCoord;
+    VDelta := AClientY - FStartCoord;
   /// Dragging towards the opposite edge grows the target.
   if (Align = alRight) or (Align = alBottom) then
     VDelta := -VDelta;
   if (FResizeStyle <> rsNone) then
     ApplySize(FStartSize + Round(VDelta));
+end;
+
+function TCustomSplitter.HandleDocMouseMove(AEvent: TJSMouseEvent): boolean;
+begin
+  Result := False;
+  if (not FDragging) or (not Assigned(FTarget)) then
+    Exit;
+  DragTo(AEvent.ClientX, AEvent.ClientY);
   AEvent.PreventDefault;
   Result := True;
 end;
@@ -1853,7 +1869,80 @@ begin
   StopDragTracking();
   /// rsNone resizes only on release.
   if (FResizeStyle = rsNone) then
-    HandleDocMouseMove(AEvent);
+    DragTo(AEvent.ClientX, AEvent.ClientY);
+  FDragging := False;
+  FTarget := nil;
+  if (Assigned(FOnMoved)) then
+    FOnMoved(Self);
+  AEvent.StopPropagation;
+  Result := True;
+end;
+
+{ Touch: same drag, driven by the first finger. The listeners are attached
+  with passive = false so the page does not scroll while dragging. }
+
+procedure TCustomSplitter.StartTouchTracking;
+begin
+  asm
+    document.addEventListener('touchmove', this.FTouchMove, { passive: false, capture: true });
+    document.addEventListener('touchend', this.FTouchEnd, { passive: false, capture: true });
+    document.addEventListener('touchcancel', this.FTouchEnd, { passive: false, capture: true });
+  end;
+end;
+
+procedure TCustomSplitter.StopTouchTracking;
+begin
+  asm
+    document.removeEventListener('touchmove', this.FTouchMove, { passive: false, capture: true });
+    document.removeEventListener('touchend', this.FTouchEnd, { passive: false, capture: true });
+    document.removeEventListener('touchcancel', this.FTouchEnd, { passive: false, capture: true });
+  end;
+end;
+
+function TCustomSplitter.HandleTouchStart(AEvent: TJSTouchEvent): boolean;
+begin
+  Result := False;
+  if (not Enabled) or FDragging then
+    Exit;
+  if (AEvent.Touches.Length = 0) then
+    Exit;
+  FTarget := FindTarget;
+  if (not Assigned(FTarget)) then
+    Exit;
+  FDragging := True;
+  if Horizontal then
+  begin
+    FStartCoord := AEvent.Touches[0].ClientX;
+    FStartSize := FTarget.Width;
+  end
+  else
+  begin
+    FStartCoord := AEvent.Touches[0].ClientY;
+    FStartSize := FTarget.Height;
+  end;
+  StartTouchTracking();
+  AEvent.PreventDefault;
+  Result := True;
+end;
+
+function TCustomSplitter.HandleDocTouchMove(AEvent: TJSTouchEvent): boolean;
+begin
+  Result := False;
+  if (not FDragging) or (not Assigned(FTarget)) then
+    Exit;
+  if (AEvent.Touches.Length = 0) then
+    Exit;
+  DragTo(AEvent.Touches[0].ClientX, AEvent.Touches[0].ClientY);
+  AEvent.PreventDefault;
+  Result := True;
+end;
+
+function TCustomSplitter.HandleDocTouchEnd(AEvent: TJSTouchEvent): boolean;
+begin
+  Result := False;
+  if (not FDragging) then
+    Exit;
+  StopTouchTracking();
   FDragging := False;
   FTarget := nil;
   if (Assigned(FOnMoved)) then
@@ -1875,11 +1964,18 @@ begin
   FBeveled := False;
   FDragMove := @HandleDocMouseMove;
   FDragUp := @HandleDocMouseUp;
+  FTouchStart := @HandleTouchStart;
+  FTouchMove := @HandleDocTouchMove;
+  FTouchEnd := @HandleDocTouchEnd;
   FDragging := False;
   FMinSize := 30;
   FResizeStyle := rsUpdate;
   FTarget := nil;
   FOnMoved := nil;
+  /// passive = false so a finger drag does not scroll the page.
+  asm
+    this.FHandleElement.addEventListener('touchstart', this.FTouchStart, { passive: false });
+  end;
   BeginUpdate;
   try
     Align := alLeft;
@@ -1896,7 +1992,11 @@ begin
   if FDragging then
   begin
     StopDragTracking();
+    StopTouchTracking();
     FDragging := False;
+  end;
+  asm
+    this.FHandleElement.removeEventListener('touchstart', this.FTouchStart, { passive: false });
   end;
   FTarget := nil;
   inherited Destroy;

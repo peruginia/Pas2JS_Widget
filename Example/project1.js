@@ -27454,12 +27454,18 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       this.FStartCoord = 0.0;
       this.FStartSize = 0;
       this.FTarget = null;
+      this.FTouchEnd = null;
+      this.FTouchMove = null;
+      this.FTouchStart = null;
       this.FOnMoved = null;
     };
     this.$final = function () {
       this.FDragMove = undefined;
       this.FDragUp = undefined;
       this.FTarget = undefined;
+      this.FTouchEnd = undefined;
+      this.FTouchMove = undefined;
+      this.FTouchStart = undefined;
       this.FOnMoved = undefined;
       pas.Controls.TCustomControl.$final.call(this);
     };
@@ -27578,6 +27584,15 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       };
       if (this.FParent != null) this.FParent.ReAlign();
     };
+    this.DragTo = function (AClientX, AClientY) {
+      var VDelta = 0.0;
+      if (!this.FDragging || !(this.FTarget != null)) return;
+      if (this.Horizontal()) {
+        VDelta = AClientX - this.FStartCoord}
+       else VDelta = AClientY - this.FStartCoord;
+      if ((this.FAlign === pas.Controls.TAlign.alRight) || (this.FAlign === pas.Controls.TAlign.alBottom)) VDelta = -VDelta;
+      if (this.FResizeStyle !== $mod.TResizeStyle.rsNone) this.ApplySize(this.FStartSize + Math.round(VDelta));
+    };
     this.StartDragTracking = function () {
       document.addEventListener('mousemove', this.FDragMove, true);
       document.addEventListener('mouseup', this.FDragUp, true);
@@ -27585,6 +27600,16 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
     this.StopDragTracking = function () {
       document.removeEventListener('mousemove', this.FDragMove, true);
       document.removeEventListener('mouseup', this.FDragUp, true);
+    };
+    this.StartTouchTracking = function () {
+      document.addEventListener('touchmove', this.FTouchMove, { passive: false, capture: true });
+      document.addEventListener('touchend', this.FTouchEnd, { passive: false, capture: true });
+      document.addEventListener('touchcancel', this.FTouchEnd, { passive: false, capture: true });
+    };
+    this.StopTouchTracking = function () {
+      document.removeEventListener('touchmove', this.FTouchMove, { passive: false, capture: true });
+      document.removeEventListener('touchend', this.FTouchEnd, { passive: false, capture: true });
+      document.removeEventListener('touchcancel', this.FTouchEnd, { passive: false, capture: true });
     };
     this.Changed = function () {
       pas.Controls.TControl.Changed.call(this);
@@ -27631,14 +27656,9 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
     };
     this.HandleDocMouseMove = function (AEvent) {
       var Result = false;
-      var VDelta = 0.0;
       Result = false;
       if (!this.FDragging || !(this.FTarget != null)) return Result;
-      if (this.Horizontal()) {
-        VDelta = AEvent.clientX - this.FStartCoord}
-       else VDelta = AEvent.clientY - this.FStartCoord;
-      if ((this.FAlign === pas.Controls.TAlign.alRight) || (this.FAlign === pas.Controls.TAlign.alBottom)) VDelta = -VDelta;
-      if (this.FResizeStyle !== $mod.TResizeStyle.rsNone) this.ApplySize(this.FStartSize + Math.round(VDelta));
+      this.DragTo(AEvent.clientX,AEvent.clientY);
       AEvent.preventDefault();
       Result = true;
       return Result;
@@ -27648,7 +27668,49 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       Result = false;
       if (!this.FDragging) return Result;
       this.StopDragTracking();
-      if (this.FResizeStyle === $mod.TResizeStyle.rsNone) this.HandleDocMouseMove(AEvent);
+      if (this.FResizeStyle === $mod.TResizeStyle.rsNone) this.DragTo(AEvent.clientX,AEvent.clientY);
+      this.FDragging = false;
+      this.FTarget = null;
+      if (this.FOnMoved != null) this.FOnMoved(this);
+      AEvent.stopPropagation();
+      Result = true;
+      return Result;
+    };
+    this.HandleTouchStart = function (AEvent) {
+      var Result = false;
+      Result = false;
+      if (!this.FEnabled || this.FDragging) return Result;
+      if (AEvent.touches.length === 0) return Result;
+      this.FTarget = this.FindTarget();
+      if (!(this.FTarget != null)) return Result;
+      this.FDragging = true;
+      if (this.Horizontal()) {
+        this.FStartCoord = AEvent.touches.item(0).clientX;
+        this.FStartSize = this.FTarget.FWidth;
+      } else {
+        this.FStartCoord = AEvent.touches.item(0).clientY;
+        this.FStartSize = this.FTarget.FHeight;
+      };
+      this.StartTouchTracking();
+      AEvent.preventDefault();
+      Result = true;
+      return Result;
+    };
+    this.HandleDocTouchMove = function (AEvent) {
+      var Result = false;
+      Result = false;
+      if (!this.FDragging || !(this.FTarget != null)) return Result;
+      if (AEvent.touches.length === 0) return Result;
+      this.DragTo(AEvent.touches.item(0).clientX,AEvent.touches.item(0).clientY);
+      AEvent.preventDefault();
+      Result = true;
+      return Result;
+    };
+    this.HandleDocTouchEnd = function (AEvent) {
+      var Result = false;
+      Result = false;
+      if (!this.FDragging) return Result;
+      this.StopTouchTracking();
       this.FDragging = false;
       this.FTarget = null;
       if (this.FOnMoved != null) this.FOnMoved(this);
@@ -27668,11 +27730,15 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       this.FBeveled = false;
       this.FDragMove = rtl.createCallback(this,"HandleDocMouseMove");
       this.FDragUp = rtl.createCallback(this,"HandleDocMouseUp");
+      this.FTouchStart = rtl.createSafeCallback(this,"HandleTouchStart");
+      this.FTouchMove = rtl.createSafeCallback(this,"HandleDocTouchMove");
+      this.FTouchEnd = rtl.createSafeCallback(this,"HandleDocTouchEnd");
       this.FDragging = false;
       this.FMinSize = 30;
       this.FResizeStyle = $mod.TResizeStyle.rsUpdate;
       this.FTarget = null;
       this.FOnMoved = null;
+      this.FHandleElement.addEventListener('touchstart', this.FTouchStart, { passive: false });
       this.BeginUpdate();
       try {
         this.SetAlign(pas.Controls.TAlign.alLeft);
@@ -27687,8 +27753,10 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
     this.Destroy = function () {
       if (this.FDragging) {
         this.StopDragTracking();
+        this.StopTouchTracking();
         this.FDragging = false;
       };
+      this.FHandleElement.removeEventListener('touchstart', this.FTouchStart, { passive: false });
       this.FTarget = null;
       pas.Controls.TCustomControl.Destroy.call(this);
     };

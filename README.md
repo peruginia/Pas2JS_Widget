@@ -326,7 +326,7 @@ VSplitter.MinSize := 80;
 VSplitter.OnMoved := @SplitterMoved;
 ```
 
-It resizes the nearest sibling with the same alignment, clamping to `MinSize` and leaving room for the `alClient` control; `Parent.ReAlign` then repositions everything. Dragging is tracked on `document`, so the pointer can leave the few-pixels-wide splitter. `ResizeStyle = rsNone` applies the size only on release.
+It resizes the nearest sibling with the same alignment, clamping to `MinSize` and leaving room for the `alClient` control; `Parent.ReAlign` then repositions everything. Dragging is tracked on `document`, so the pointer can leave the few-pixels-wide splitter, and works with both mouse and touch (the touch listeners are non-passive, so the page does not scroll while dragging). `ResizeStyle = rsNone` applies the size only on release.
 
 The **Layout** tab in the demo shows a vertical and a horizontal splitter.
 
