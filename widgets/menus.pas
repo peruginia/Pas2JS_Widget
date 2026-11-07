@@ -180,7 +180,7 @@ const
     '.wcl-menubar-item:hover{background:#e8e8e8}' +
     '.wcl-menubar-item.wcl-open{background:#dcdcdc}' +
     '.wcl-menubar-drop{position:absolute;top:100%;left:0;min-width:190px;' +
-    'background:#fff;border:1px solid #c9c3ba;box-shadow:0 4px 12px rgba(0,0,0,.18);' +
+    'background:#fff;color:#222;border:1px solid #c9c3ba;box-shadow:0 4px 12px rgba(0,0,0,.18);' +
     'padding:4px 0;z-index:1000}' +
     '.wcl-menubar-entry{position:relative;display:flex;align-items:center;gap:16px;' +
     'justify-content:space-between;padding:6px 14px;cursor:pointer;white-space:nowrap}' +
