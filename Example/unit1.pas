@@ -5,7 +5,7 @@ unit Unit1;
 interface
 
 uses
-  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls, Menus;
+  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls;
 
 type
 
@@ -27,6 +27,7 @@ type
 		  WImage1: TWImage;
 		  WLabel5: TWLabel;
 		  WListBox1: TWListBox;
+		  WMainMenu1: TWMainMenu;
     WPageControl1: TWPageControl;
     TabSheet1: TTabSheet;
       WLabel1: TWLabel;
@@ -79,17 +80,11 @@ type
     FDemoLastCity: string;
     FDemoSeparators: Boolean;
     FDemoTable: TWWebDBTable;
-    FMainMenu: TWMainMenu;
     FLayoutInfo: TWLabel;
     FLayoutLeft: TWPanel;
     FLayoutTop: TWPanel;
     procedure BuildGridModesTab;
-    procedure BuildMainMenu;
     procedure BuildSplitterTab;
-    procedure MenuAboutClick(Sender: TObject);
-    procedure MenuDemoClick(Sender: TObject);
-    procedure MenuGotoGrid(Sender: TObject);
-    procedure MenuGotoLayout(Sender: TObject);
     procedure DemoSplitterMoved(Sender: TObject);
     procedure DemoAddRow(AData: TJSArray; const AName: string; AAge: NativeInt;
       const ACity: string; AActive: Boolean);
@@ -162,7 +157,6 @@ begin
   WTimer1.OnTimer := @WTimerTick;
   BuildGridModesTab;
   BuildSplitterTab;
-  BuildMainMenu;
 end;
 
 procedure TWForm1.LoadFromArray(Sender: TObject);
@@ -661,60 +655,6 @@ begin
   FLayoutInfo.AutoSize := False;
 
   DemoSplitterMoved(nil);
-end;
-
-{ --- TMainMenu demo: the menu is built in code --- }
-
-procedure TWForm1.MenuDemoClick(Sender: TObject);
-begin
-  if (Sender is TMenuItem) then
-    ShowMessage('Menu item: ' + TMenuItem(Sender).Caption);
-end;
-
-procedure TWForm1.MenuAboutClick(Sender: TObject);
-begin
-  ShowMessage('WCL demo - TMainMenu built in code.');
-end;
-
-procedure TWForm1.MenuGotoGrid(Sender: TObject);
-begin
-  WPageControl1.TabIndex := 4;
-end;
-
-procedure TWForm1.MenuGotoLayout(Sender: TObject);
-begin
-  WPageControl1.TabIndex := 5;
-end;
-
-procedure TWForm1.BuildMainMenu;
-var
-  VFile, VView, VHelp, VItem: TMenuItem;
-begin
-  FMainMenu := TWMainMenu.Create(Self);
-
-  VFile := FMainMenu.Items.Add('File');
-  VFile.Items.Add('New', @MenuDemoClick);
-  VFile.Items.Add('Open', @MenuDemoClick);
-  VFile.Items.Add('Save', @MenuDemoClick);
-  VFile.Items.AddSeparator;
-  VItem := VFile.Items.Add('Disabled entry');
-  VItem.Enabled := False;
-  VFile.Items.AddSeparator;
-  VFile.Items.Add('Exit', @MenuDemoClick);
-
-  VView := FMainMenu.Items.Add('View');
-  VView.Items.Add('Grid Modes', @MenuGotoGrid);
-  VView.Items.Add('Layout', @MenuGotoLayout);
-  VView.Items.AddSeparator;
-  VItem := VView.Items.Add('Checked entry');
-  VItem.Checked := True;
-  VItem := VView.Items.Add('Shortcut entry');
-  VItem.ShortCut := 'Ctrl+S';
-
-  VHelp := FMainMenu.Items.Add('Help');
-  VHelp.Items.Add('About', @MenuAboutClick);
-
-  FMainMenu.Update;
 end;
 
 end.

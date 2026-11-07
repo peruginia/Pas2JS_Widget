@@ -353,7 +353,7 @@ end;
 
 Items expose `Caption`, `ShortCut` (display text), `Enabled`, `Checked`, `RadioItem`, `Visible` and `OnClick`; a caption of `-` renders a separator, and `Checked`/`RadioItem` show a check mark.
 
-Menus are built in code: streaming items from the `.lfm` and the IDE menu designer are not supported yet.
+Items can be built in code (above) or designed in the IDE: drop `TWMainMenu` on a form and use the menu designer. The items are streamed from the `.lfm` and attached to the tree automatically; `ShortCut` uses the LCL numeric encoding (`TShortCut`), so `Ctrl+S` designed in the IDE arrives as `16467` and is rendered back as `Ctrl+S`.
 
 ### Further plans
 - TPaintBox (Canvas 2D)
