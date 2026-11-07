@@ -47532,7 +47532,7 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     };
     this.Notification = function (AComponent, Operation) {
       pas.Classes.TComponent.Notification.call(this,AComponent,Operation);
-      if ($mod.TMenuItem.isPrototypeOf(AComponent) && (this.FItems != null)) {
+      if ($mod.TMenuItem.isPrototypeOf(AComponent) && (this.FItems != null) && (AComponent.FOwner === this)) {
         if (Operation === pas.Classes.TOperation.opInsert) {
           this.FItems.AddItem(AComponent)}
          else this.FItems.RemoveItem(AComponent);

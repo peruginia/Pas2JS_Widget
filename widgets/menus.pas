@@ -352,7 +352,7 @@ end;
 procedure TMenuItem.Notification(AComponent: TComponent; Operation: TOperation);
 begin
   inherited Notification(AComponent, Operation);
-  if (AComponent is TMenuItem) and Assigned(FItems) then
+  if (AComponent is TMenuItem) and Assigned(FItems) and (AComponent.Owner = Self) then
   begin
     if (Operation = opInsert) then
       FItems.AddItem(TMenuItem(AComponent))
