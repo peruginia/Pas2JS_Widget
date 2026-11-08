@@ -48,6 +48,8 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWSplitter** | `<div>` | Draggable splitter: `Align`, `MinSize`, `ResizeStyle`, `AutoSnap`, `Beveled`, `OnMoved` |
 | **TWMainMenu** | `<div>` bar | Menu bar with dropdowns, separators, shortcuts and check marks |
 | **TWPopupMenu** | `<div>` panel | Context menu shown by `TControl.PopupMenu` on right click |
+| **TWShape** | `<canvas>` | Geometric figure with `Shape`, `Pen`, `Brush`, `OnChange` |
+| **TWPaintBox** | `<canvas>` | Custom drawing in `OnPaint` through `Canvas` (Canvas 2D) |
 | **TWForm** | form overlay | Application form, `ModalResult`, `AlphaBlend` |
 | **TWFrame** | frame container | Embeddable frame |
 
@@ -221,7 +223,7 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
-The **Layout** tab shows `TWSplitter` in both orientations, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`.
+The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`.
 
 The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
 
@@ -381,6 +383,31 @@ FDemoGrid.PopupMenu := FGridPopup;
 
 `TControl.PopupMenu` is inherited by every control, so the same menu can be shared. The menu is rendered with the same CSS as the menu bar dropdowns (entries, separators, shortcuts, check marks, icons), opens at the mouse position, and flips left/up when it would leave the viewport. Choosing an entry runs its `OnClick`; clicking outside or pressing `Esc` closes it. `Items` accepts the same `TMenuItem` properties as `TMainMenu`, and the menu can also be designed in the IDE with the menu designer.
 
+**TShape and TPaintBox** — `TCustomShape`, `TCustomPaintBox` in `widgets/extctrls.pas`; `TWShape`, `TWPaintBox` in `widgets/webctrls.pas`. Both draw on an HTML `<canvas>` that fills the control:
+
+```pascal
+Shape1.Shape := stEllipse;
+Shape1.Brush.Color := clSkyBlue;
+Shape1.Pen.Color := clNavy;
+Shape1.Pen.Width := 2;
+
+PaintBox1.OnPaint := @PaintBox1Paint;
+
+procedure TForm1.PaintBox1Paint(Sender: TObject);
+begin
+  PaintBox1.Canvas.Clear;
+  PaintBox1.Canvas.Font.Size := 16;
+  PaintBox1.Canvas.TextOut(8, 8, 'Hello canvas');
+  PaintBox1.Canvas.Brush.Color := clSkyBlue;
+  PaintBox1.Canvas.FillRect(8, 40, 120, 24);
+end;
+```
+
+`TShape` supports `stRectangle`, `stSquare`, `stRoundRect`, `stRoundSquare`, `stCircle`, `stEllipse`, `stTriangle` and `stSquaredTriangle`; the figure is redrawn whenever the control changes or `Shape`/`Pen`/`Brush` change. `TPaintBox` repaints on every layout change and exposes `Canvas` and `OnPaint`.
+
+The canvas is a real Canvas 2D context, so the drawing primitives work on both controls: `FillRect`, `Rectangle`, `RoundRect`, `Ellipse`, `MoveTo`/`LineTo`, `Polygon`, `Polyline` and `TextOut`, with `Pen` (color, width, style) and `Brush` (color, style). `TCustomControl` repaints itself after layout changes, so `OnPaint` code runs again when the control is resized.
+
 ### Further plans
-- TPaintBox (Canvas 2D)
-- TShape
+
+See [TODO.md](TODO.md) for the remaining LCL features, in priority order:
+grid editing, actions, tree/list views, drag and drop, extra inputs, dialogs.

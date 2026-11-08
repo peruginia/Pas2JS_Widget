@@ -725,6 +725,78 @@ type
     property OnResize;
   end;
 
+  { TWShape }
+
+  TWShape = class(TCustomShape)
+  published
+    property Align;
+    property Anchors;
+    property BorderSpacing;
+    property Brush;
+    property Color;
+    property Constraints;
+    property Cursor;
+    property Enabled;
+    property HandleClass;
+    property HandleId;
+    property Height;
+    property Hint;
+    property Left;
+    property ParentColor;
+    property ParentShowHint;
+    property Pen;
+    property PopupMenu;
+    property Shape;
+    property ShowHint;
+    property Top;
+    property Visible;
+    property Width;
+    property OnChange;
+    property OnClick;
+    property OnDblClick;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnResize;
+  end;
+
+  { TWPaintBox }
+
+  TWPaintBox = class(TCustomPaintBox)
+  published
+    property Align;
+    property Anchors;
+    property BorderSpacing;
+    property Color;
+    property Constraints;
+    property Cursor;
+    property Enabled;
+    property HandleClass;
+    property HandleId;
+    property Height;
+    property Hint;
+    property Left;
+    property ParentColor;
+    property ParentShowHint;
+    property PopupMenu;
+    property ShowHint;
+    property Top;
+    property Visible;
+    property Width;
+    property OnClick;
+    property OnDblClick;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+    property OnPaint;
+    property OnResize;
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)

@@ -479,6 +479,7 @@ type
   protected
     procedure ColorChanged(Sender: TObject); override;
     procedure FontChanged(Sender: TObject); override;
+    procedure Changed; override;
     procedure Paint; virtual;
   public
     destructor Destroy; override;
@@ -986,7 +987,11 @@ begin
     Pen.Color := AControl.Font.Color;
     FControl := AControl;
     FControl.HandleElement.InsertBefore(FCanvasElement, AControl.HandleElement.FirstChild);
-    FControl.Invalidate;
+    /// The control is absolutely positioned, so the canvas can overlay it.
+    FCanvasElement.Style.SetProperty('position', 'absolute');
+    FCanvasElement.Style.SetProperty('left', '0px');
+    FCanvasElement.Style.SetProperty('top', '0px');
+    FCanvasElement.Style.SetProperty('display', 'block');
   end;
 end;
 
@@ -2943,6 +2948,16 @@ begin
   if (Assigned(FOnPaint)) then
   begin
     FOnPaint(Self);
+  end;
+end;
+
+procedure TCustomControl.Changed;
+begin
+  inherited Changed;
+  /// Controls that paint on their canvas follow every layout/style change.
+  if (not IsUpdating) and ([csLoading, csDestroying] * ComponentState = []) then
+  begin
+    Invalidate;
   end;
 end;
 

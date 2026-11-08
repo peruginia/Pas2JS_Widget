@@ -5,7 +5,7 @@ unit Unit1;
 interface
 
 uses
-  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls, Menus;
+  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls, Menus, ExtCtrls;
 
 type
 
@@ -95,6 +95,8 @@ type
     procedure BuildGridModesTab;
     procedure BuildGridPopup;
     procedure BuildSplitterTab;
+    procedure BuildCanvasTab;
+    procedure DemoPaintBoxPaint(Sender: TObject);
     procedure DemoSplitterMoved(Sender: TObject);
     procedure MenuDemoClick(Sender: TObject);
     procedure MenuGotoGrid(Sender: TObject);
@@ -173,6 +175,7 @@ begin
   WTimer1.OnTimer := @WTimerTick;
   BuildGridModesTab;
   BuildSplitterTab;
+  BuildCanvasTab;
   SetupMenu;
 end;
 
@@ -686,6 +689,127 @@ begin
   FLayoutInfo.AutoSize := False;
 
   DemoSplitterMoved(nil);
+end;
+
+{ --- TShape / TPaintBox demo --- }
+
+procedure TWForm1.DemoPaintBoxPaint(Sender: TObject);
+var
+  C: TCanvas;
+  VIndex: NativeInt;
+  VValues: array[0..4] of Double;
+  VBarWidth, VX, VY, VHeight, VMax: Double;
+
+  function BarTop(AValue: Double): Double;
+  begin
+    Result := 200 - (AValue / VMax) * 160;
+  end;
+
+begin
+  C := TWPaintBox(Sender).Canvas;
+  C.Clear;
+  VValues[0] := 48;
+  VValues[1] := 72;
+  VValues[2] := 36;
+  VValues[3] := 88;
+  VValues[4] := 60;
+  VMax := 100;
+  VBarWidth := 46;
+
+  /// Title
+  C.Brush.Style := bsClear;
+  C.Font.Color := clNavy;
+  C.Font.Size := 16;
+  C.Font.Style := [fsBold];
+  C.TextOut(16, 8, 'TPaintBox - Canvas 2D');
+
+  /// Horizontal grid and labels
+  C.Font.Size := 11;
+  C.Font.Style := [];
+  C.Font.Color := clGray;
+  C.Pen.Color := clSilver;
+  C.Pen.Width := 1;
+  for VIndex := 0 to 4 do
+  begin
+    VY := 200 - (VIndex * 40);
+    C.MoveTo(40, VY);
+    C.LineTo(360, VY);
+    C.TextOut(8, VY - 8, IntToStr(VIndex * 25));
+  end;
+
+  /// Bars
+  for VIndex := 0 to 4 do
+  begin
+    VHeight := (VValues[VIndex] / VMax) * 160;
+    VX := 56 + (VIndex * 62);
+    VY := BarTop(VValues[VIndex]);
+    C.Brush.Style := bsSolid;
+    C.Brush.Color := clSkyBlue;
+    C.Pen.Color := clNavy;
+    C.FillRect(VX, VY, VBarWidth, VHeight);
+    C.Brush.Style := bsClear;
+    C.Font.Color := clBlack;
+    C.TextOut(VX + 10, VY - 18, IntToStr(Trunc(VValues[VIndex])));
+    C.TextOut(VX + 10, 204, 'Q' + IntToStr(VIndex + 1));
+  end;
+
+  /// Trend line
+  C.Pen.Color := clRed;
+  C.Pen.Width := 2;
+  C.MoveTo(56 + (VBarWidth / 2), BarTop(VValues[0]));
+  for VIndex := 1 to 4 do
+  begin
+    C.LineTo(56 + (VIndex * 62) + (VBarWidth / 2), BarTop(VValues[VIndex]));
+  end;
+end;
+
+procedure TWForm1.BuildCanvasTab;
+var
+  VSheet: TCustomTabSheet;
+  VPaint: TWPaintBox;
+  VShape: TWShape;
+  VLabel: TWLabel;
+  VLeft: NativeInt;
+
+  procedure AddShape(AShape: TShapeType; const ACaption: string; AFill: TColor);
+  begin
+    VShape := TWShape.Create(Self);
+    VShape.Parent := VSheet;
+    VShape.SetBounds(VLeft, 280, 64, 64);
+    VShape.Shape := AShape;
+    VShape.Brush.Color := AFill;
+    VShape.Pen.Color := clNavy;
+    VShape.Pen.Width := 2;
+
+    VLabel := TWLabel.Create(Self);
+    VLabel.Parent := VSheet;
+    VLabel.SetBounds(VLeft, 350, 76, 20);
+    VLabel.Caption := ACaption;
+    VLabel.Font.Size := 11;
+
+    VLeft := VLeft + 84;
+  end;
+
+begin
+  VSheet := WPageControl1.AddTabSheet;
+  VSheet.Caption := 'Canvas';
+  VSheet.SetBounds(0, 0, WPageControl1.Width, WPageControl1.Height);
+
+  VPaint := TWPaintBox.Create(Self);
+  VPaint.Parent := VSheet;
+  VPaint.SetBounds(16, 16, 380, 240);
+  VPaint.Color := clWhite;
+  VPaint.OnPaint := @DemoPaintBoxPaint;
+
+  VLeft := 16;
+  AddShape(stRectangle, 'Rectangle', clSkyBlue);
+  AddShape(stSquare, 'Square', clMoneyGreen);
+  AddShape(stRoundRect, 'RoundRect', clCream);
+  AddShape(stRoundSquare, 'RoundSquare', clMedGray);
+  AddShape(stCircle, 'Circle', clYellow);
+  AddShape(stEllipse, 'Ellipse', clAqua);
+  AddShape(stTriangle, 'Triangle', clFuchsia);
+  AddShape(stSquaredTriangle, 'SquaredTri', clLime);
 end;
 
 { --- Menu: handlers on the IDE-designed items + a code-built radio group --- }

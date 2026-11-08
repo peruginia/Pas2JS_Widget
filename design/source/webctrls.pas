@@ -882,6 +882,16 @@ type
   TWPopupMenu = class(TPopupMenu)
   end;
 
+  { TWShape }
+
+  TWShape = class(TShape)
+  end;
+
+  { TWPaintBox }
+
+  TWPaintBox = class(TPaintBox)
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)
@@ -1308,6 +1318,8 @@ begin
     TWSplitter,
     TWMainMenu,
     TWPopupMenu,
+    TWShape,
+    TWPaintBox,
     TWWebDBConnection,
     TWWebDBTable
     ]);

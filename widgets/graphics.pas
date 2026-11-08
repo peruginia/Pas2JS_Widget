@@ -192,6 +192,14 @@ type
     procedure Rectangle(const ARect: TRect); virtual; overload;
     procedure Rectangle(const ALeft, ATop, AWidth, AHeight: double); virtual; overload;
     procedure TextOut(X, Y: double; const AText: string); virtual;
+    /// Draws an ellipse inside the given rectangle.
+    procedure Ellipse(X1, Y1, X2, Y2: double); virtual;
+    /// Draws a rectangle with elliptical corners.
+    procedure RoundRect(X1, Y1, X2, Y2, ARadiusX, ARadiusY: double); virtual;
+    /// Draws a closed polygon (filled with the brush, outlined with the pen).
+    procedure Polygon(const APoints: array of TPoint); virtual;
+    /// Draws an open polyline.
+    procedure Polyline(const APoints: array of TPoint); virtual;
     function TextExtent(const AText: string): TSize; virtual;
     function TextHeight(const AText: string): NativeInt; virtual;
     function TextWidth(const AText: string): NativeInt; virtual;
@@ -847,6 +855,10 @@ begin
     SetData('data:' + AMimeType + ';base64,' + ABase64);
 end;
 
+const
+  /// Full circle in radians, used by Ellipse (kept local to avoid Math).
+  TwoPi = 2 * 3.14159265358979323846;
+
 { TCanvas }
 
 procedure TCanvas.PrepareStyle;
@@ -985,6 +997,110 @@ begin
   if (FPen.Style <> psClear) then
   begin
     /// Strokes the current or given path with the current stroke style
+    FContextElement.Stroke();
+  end;
+end;
+
+procedure TCanvas.Ellipse(X1, Y1, X2, Y2: double);
+var
+  VCx, VCy, VRx, VRy: double;
+begin
+  /// Starts a new path by emptying the list of sub-paths.
+  FContextElement.BeginPath;
+  PrepareStyle;
+  VCx := (X1 + X2) / 2;
+  VCy := (Y1 + Y2) / 2;
+  VRx := Abs(X2 - X1) / 2;
+  VRy := Abs(Y2 - Y1) / 2;
+  if (VRx <= 0) or (VRy <= 0) then
+    Exit;
+  FContextElement.Ellipse(VCx, VCy, VRx, VRy, 0, 0, TwoPi);
+  if (FBrush.Style <> bsClear) then
+  begin
+    FContextElement.Fill();
+  end;
+  if (FPen.Style <> psClear) then
+  begin
+    FContextElement.Stroke();
+  end;
+end;
+
+procedure TCanvas.RoundRect(X1, Y1, X2, Y2, ARadiusX, ARadiusY: double);
+var
+  VRx, VRy: double;
+begin
+  FContextElement.BeginPath;
+  PrepareStyle;
+  VRx := Abs(ARadiusX);
+  VRy := Abs(ARadiusY);
+  if (VRx <= 0) or (VRy <= 0) then
+  begin
+    FContextElement.Rect(X1, Y1, X2 - X1, Y2 - Y1);
+  end
+  else
+  begin
+    /// Elliptical corners: the control point of each quadratic curve is the
+    /// rectangle corner, the end point is the start of the next straight side.
+    FContextElement.MoveTo(X1 + VRx, Y1);
+    FContextElement.LineTo(X2 - VRx, Y1);
+    FContextElement.QuadraticCurveTo(X2, Y1, X2, Y1 + VRy);
+    FContextElement.LineTo(X2, Y2 - VRy);
+    FContextElement.QuadraticCurveTo(X2, Y2, X2 - VRx, Y2);
+    FContextElement.LineTo(X1 + VRx, Y2);
+    FContextElement.QuadraticCurveTo(X1, Y2, X1, Y2 - VRy);
+    FContextElement.LineTo(X1, Y1 + VRy);
+    FContextElement.QuadraticCurveTo(X1, Y1, X1 + VRx, Y1);
+    FContextElement.ClosePath;
+  end;
+  if (FBrush.Style <> bsClear) then
+  begin
+    FContextElement.Fill();
+  end;
+  if (FPen.Style <> psClear) then
+  begin
+    FContextElement.Stroke();
+  end;
+end;
+
+procedure TCanvas.Polygon(const APoints: array of TPoint);
+var
+  VIndex: NativeInt;
+begin
+  if (Length(APoints) < 2) then
+    Exit;
+  FContextElement.BeginPath;
+  PrepareStyle;
+  FContextElement.MoveTo(APoints[0].X, APoints[0].Y);
+  for VIndex := 1 to High(APoints) do
+  begin
+    FContextElement.LineTo(APoints[VIndex].X, APoints[VIndex].Y);
+  end;
+  FContextElement.ClosePath;
+  if (FBrush.Style <> bsClear) then
+  begin
+    FContextElement.Fill();
+  end;
+  if (FPen.Style <> psClear) then
+  begin
+    FContextElement.Stroke();
+  end;
+end;
+
+procedure TCanvas.Polyline(const APoints: array of TPoint);
+var
+  VIndex: NativeInt;
+begin
+  if (Length(APoints) < 2) then
+    Exit;
+  FContextElement.BeginPath;
+  PrepareStyle;
+  FContextElement.MoveTo(APoints[0].X, APoints[0].Y);
+  for VIndex := 1 to High(APoints) do
+  begin
+    FContextElement.LineTo(APoints[VIndex].X, APoints[VIndex].Y);
+  end;
+  if (FPen.Style <> psClear) then
+  begin
     FContextElement.Stroke();
   end;
 end;

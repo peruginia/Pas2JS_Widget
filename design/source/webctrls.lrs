@@ -981,3 +981,32 @@ LazarusResources.Add('twmainmenu','XPM',[
   +'     ",'#13#10'" bcccccccccb            ",'#13#10'" abbbbbbbbba            '
   +'",'#13#10'"                        "'#13#10'};'#13#10
 ]);
+LazarusResources.Add('twshape','XPM',[
+  '/* XPM */'#10'static char *graphic[] = {'#10'"24 24 3 1",'#10'"  c None",'#10
+  +'"a c #2A7EFE",'#10'"b c #FF6600",'#10'"                        ",'#10'"    '
+  +'  aaaa              ",'#10'"    aaaaaaaa            ",'#10'"   aaaaaaaaaa  '
+  +'         ",'#10'"  aaaaaaaaaaaa          ",'#10'"  aaaaaaaaaaaa          ",'
+  +#10'"   aaaaaaaaaa           ",'#10'"    aaaaaaaa            ",'#10'"      a'
+  +'aaa              ",'#10'"                        ",'#10'"             b    '
+  +'      ",'#10'"            bbb         ",'#10'"           bbbbb        ",'#10
+  +'"          bbbbbbb       ",'#10'"         bbbbbbbbb      ",'#10'"        bb'
+  +'bbbbbbbbb     ",'#10'"       bbbbbbbbbbbbb    ",'#10'"      bbbbbbbbbbbbbbb'
+  +'   ",'#10'"                        ",'#10'"                        ",'#10'"'
+  +'                        ",'#10'"                        ",'#10'"           '
+  +'             ",'#10'"                        "'#10'};'#10
+]);
+LazarusResources.Add('twpaintbox','XPM',[
+  '/* XPM */'#10'static char *graphic[] = {'#10'"24 24 4 1",'#10'"  c None",'#10
+  +'"a c #2A7EFE",'#10'"b c #FF6600",'#10'"c c #D6D6CE",'#10'"                 '
+  +'       ",'#10'"                        ",'#10'"  cccccccccccccccccccc  ",'
+  +#10'"  c                  c  ",'#10'"  c   a              c  ",'#10'"  c    '
+  +'  a           c  ",'#10'"  c         a        c  ",'#10'"  c            a  '
+  +'   c  ",'#10'"  c               a  c  ",'#10'"  c                  c  ",'#10
+  +'"  c                  c  ",'#10'"  c        bbbb      c  ",'#10'"  c       '
+  +'bbbbbb     c  ",'#10'"  c      bbbbbbbb    c  ",'#10'"  c       bbbbbb     '
+  +'c  ",'#10'"  c        bbbb      c  ",'#10'"  c                  c  ",'#10'"'
+  +'  c                  c  ",'#10'"  c                  c  ",'#10'"  c        '
+  +'          c  ",'#10'"  cccccccccccccccccccc  ",'#10'"                      '
+  +'  ",'#10'"                        ",'#10'"                        "'#10'};'
+  +#10
+]);

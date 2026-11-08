@@ -20084,6 +20084,86 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
         this.FContextElement.fillText(AText,X,Y);
       };
     };
+    this.Ellipse = function (X1, Y1, X2, Y2) {
+      var VCx = 0.0;
+      var VCy = 0.0;
+      var VRx = 0.0;
+      var VRy = 0.0;
+      this.FContextElement.beginPath();
+      this.PrepareStyle();
+      VCx = (X1 + X2) / 2;
+      VCy = (Y1 + Y2) / 2;
+      VRx = Math.abs(X2 - X1) / 2;
+      VRy = Math.abs(Y2 - Y1) / 2;
+      if ((VRx <= 0) || (VRy <= 0)) return;
+      this.FContextElement.ellipse(VCx,VCy,VRx,VRy,0,0,6.2831853071795862);
+      if (this.FBrush.FStyle !== $mod.TBrushStyle.bsClear) {
+        this.FContextElement.fill();
+      };
+      if (this.FPen.FStyle !== $mod.TPenStyle.psClear) {
+        this.FContextElement.stroke();
+      };
+    };
+    this.RoundRect = function (X1, Y1, X2, Y2, ARadiusX, ARadiusY) {
+      var VRx = 0.0;
+      var VRy = 0.0;
+      this.FContextElement.beginPath();
+      this.PrepareStyle();
+      VRx = Math.abs(ARadiusX);
+      VRy = Math.abs(ARadiusY);
+      if ((VRx <= 0) || (VRy <= 0)) {
+        this.FContextElement.rect(X1,Y1,X2 - X1,Y2 - Y1);
+      } else {
+        this.FContextElement.moveTo(X1 + VRx,Y1);
+        this.FContextElement.lineTo(X2 - VRx,Y1);
+        this.FContextElement.quadraticCurveTo(X2,Y1,X2,Y1 + VRy);
+        this.FContextElement.lineTo(X2,Y2 - VRy);
+        this.FContextElement.quadraticCurveTo(X2,Y2,X2 - VRx,Y2);
+        this.FContextElement.lineTo(X1 + VRx,Y2);
+        this.FContextElement.quadraticCurveTo(X1,Y2,X1,Y2 - VRy);
+        this.FContextElement.lineTo(X1,Y1 + VRy);
+        this.FContextElement.quadraticCurveTo(X1,Y1,X1 + VRx,Y1);
+        this.FContextElement.closePath();
+      };
+      if (this.FBrush.FStyle !== $mod.TBrushStyle.bsClear) {
+        this.FContextElement.fill();
+      };
+      if (this.FPen.FStyle !== $mod.TPenStyle.psClear) {
+        this.FContextElement.stroke();
+      };
+    };
+    this.Polygon = function (APoints) {
+      var VIndex = 0;
+      if (rtl.length(APoints) < 2) return;
+      this.FContextElement.beginPath();
+      this.PrepareStyle();
+      this.FContextElement.moveTo(APoints[0].x,APoints[0].y);
+      for (var $l = 1, $end = rtl.length(APoints) - 1; $l <= $end; $l++) {
+        VIndex = $l;
+        this.FContextElement.lineTo(APoints[VIndex].x,APoints[VIndex].y);
+      };
+      this.FContextElement.closePath();
+      if (this.FBrush.FStyle !== $mod.TBrushStyle.bsClear) {
+        this.FContextElement.fill();
+      };
+      if (this.FPen.FStyle !== $mod.TPenStyle.psClear) {
+        this.FContextElement.stroke();
+      };
+    };
+    this.Polyline = function (APoints) {
+      var VIndex = 0;
+      if (rtl.length(APoints) < 2) return;
+      this.FContextElement.beginPath();
+      this.PrepareStyle();
+      this.FContextElement.moveTo(APoints[0].x,APoints[0].y);
+      for (var $l = 1, $end = rtl.length(APoints) - 1; $l <= $end; $l++) {
+        VIndex = $l;
+        this.FContextElement.lineTo(APoints[VIndex].x,APoints[VIndex].y);
+      };
+      if (this.FPen.FStyle !== $mod.TPenStyle.psClear) {
+        this.FContextElement.stroke();
+      };
+    };
     this.TextExtent = function (AText) {
       var Result = pas.Types.TSize.$new();
       Result.$assign($mod.JSMeasureText(AText,this.FFont.FName,this.FFont.FSize,0));
@@ -20359,6 +20439,7 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
     return Result;
   };
   $mod.$implcode = function () {
+    $impl.TwoPi = 2 * 3.14159265358979323846;
     $impl.Colors$a$clone = function (a) {
       var b = [];
       b.length = 47;
@@ -22368,7 +22449,10 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
         this.FPen.SetColor(AControl.FFont.FColor);
         this.FControl = AControl;
         this.FControl.FHandleElement.insertBefore(this.FCanvasElement,AControl.FHandleElement.firstChild);
-        this.FControl.Invalidate();
+        this.FCanvasElement.style.setProperty("position","absolute");
+        this.FCanvasElement.style.setProperty("left","0px");
+        this.FCanvasElement.style.setProperty("top","0px");
+        this.FCanvasElement.style.setProperty("display","block");
       };
       return this;
     };
@@ -23953,6 +24037,12 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       };
       $mod.TControl.FontChanged.call(this,Sender);
     };
+    this.Changed = function () {
+      $mod.TControl.Changed.call(this);
+      if (!this.IsUpdating() && rtl.eqSet(rtl.intersectSet(rtl.createSet(pas.Classes.TComponentStateItem.csLoading,pas.Classes.TComponentStateItem.csDestroying),this.FComponentState),{})) {
+        this.Invalidate();
+      };
+    };
     this.Paint = function () {
       if (this.FOnPaint != null) {
         this.FOnPaint(this);
@@ -24639,7 +24729,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
   });
   rtl.createClass(this,"TCustomFrame",pas.Controls.TCustomControl,function () {
     this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         var $with = this.FHandleElement;
         $with.style.setProperty("outline","none");
@@ -24824,7 +24914,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       return Result;
     };
     this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         this.FHandleElement.name = this.FName;
         var $with = this.FHandleElement;
@@ -27315,7 +27405,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       return Result;
     };
     this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         var $with = this.FHandleElement;
         $with.style.setProperty("outline","none");
@@ -27522,7 +27612,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
     this.Changed = function () {
       var VTopColor = 0;
       var VBottomColor = 0;
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         if (this.FHandleClass === "") {
           $impl._RegisterWCLExtRules();
@@ -27801,7 +27891,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       pas.Controls.TCustomControl.$final.call(this);
     };
     this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         this.FHandleElement.setAttribute("name",this.FName);
         this.FLegendElement.innerHTML = this.GetText();
@@ -27892,7 +27982,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       return Result;
     };
     this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         this.FHandleElement.setAttribute("name",this.FName);
         var $with = this.FHandleElement;
@@ -27961,7 +28051,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       return Result;
     };
     this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         this.FHandleElement.setAttribute("name",this.FName);
         this.FHandleElement.value = pas.Graphics.JSColor(this.FColor$1);
@@ -27998,7 +28088,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
   });
   rtl.createClass(this,"TCustomScrollBox",pas.Controls.TCustomControl,function () {
     this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         this.FHandleElement.setAttribute("name",this.FName);
         this.FHandleElement.style.setProperty("overflow","auto");
@@ -28063,7 +28153,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       };
     };
     this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         this.FHandleElement.setAttribute("name",this.FName);
         var $with = this.FHandleElement;
@@ -28274,7 +28364,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       document.removeEventListener('touchcancel', this.FTouchEnd, { passive: false, capture: true });
     };
     this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && rtl.eqSet(rtl.intersectSet(rtl.createSet(pas.Classes.TComponentStateItem.csLoading,pas.Classes.TComponentStateItem.csDestroying),this.FComponentState),{})) {
         if (this.Horizontal()) {
           if (this.FCursor !== -14) this.SetCursor(-14);
@@ -28421,6 +28511,183 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       this.FHandleElement.removeEventListener('touchstart', this.FTouchStart, { passive: false });
       this.FTarget = null;
       pas.Controls.TCustomControl.Destroy.call(this);
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+  });
+  this.TShapeType = {"0": "stRectangle", stRectangle: 0, "1": "stSquare", stSquare: 1, "2": "stRoundRect", stRoundRect: 2, "3": "stRoundSquare", stRoundSquare: 3, "4": "stCircle", stCircle: 4, "5": "stEllipse", stEllipse: 5, "6": "stSquaredTriangle", stSquaredTriangle: 6, "7": "stTriangle", stTriangle: 7};
+  this.$rtti.$Enum("TShapeType",{minvalue: 0, maxvalue: 7, ordtype: 1, enumtype: this.TShapeType});
+  rtl.createClass(this,"TCustomShape",pas.Controls.TCustomControl,function () {
+    this.$init = function () {
+      pas.Controls.TCustomControl.$init.call(this);
+      this.FBrush = null;
+      this.FPen = null;
+      this.FShape = 0;
+      this.FOnChange = null;
+    };
+    this.$final = function () {
+      this.FBrush = undefined;
+      this.FPen = undefined;
+      this.FOnChange = undefined;
+      pas.Controls.TCustomControl.$final.call(this);
+    };
+    this.SetBrush = function (AValue) {
+      this.FBrush.Assign(AValue);
+    };
+    this.SetPen = function (AValue) {
+      this.FPen.Assign(AValue);
+    };
+    this.SetShape = function (AValue) {
+      if (this.FShape !== AValue) {
+        this.FShape = AValue;
+        this.StyleChanged(this);
+      };
+    };
+    this.StyleChanged = function (Sender) {
+      this.Invalidate();
+      if (this.FOnChange != null) {
+        this.FOnChange(this);
+      };
+    };
+    var VPoints$a$clone = function (a) {
+      var b = [];
+      b.length = 3;
+      for (var c = 0; c < 3; c++) b[c] = pas.Types.TPoint.$clone(a[c]);
+      return b;
+    };
+    this.Paint = function () {
+      var $Self = this;
+      var VWidth = 0.0;
+      var VHeight = 0.0;
+      var VSide = 0.0;
+      var VX = 0.0;
+      var VY = 0.0;
+      var VRadius = 0.0;
+      var VPoints = rtl.arraySetLength(null,pas.Types.TPoint,3);
+      function Smallest(A, B) {
+        var Result = 0.0;
+        if (A < B) {
+          Result = A}
+         else Result = B;
+        return Result;
+      };
+      VWidth = this.FWidth;
+      VHeight = this.FHeight;
+      if (this.GetCanvas().FWidth !== VWidth) {
+        this.GetCanvas().SetWidth(pas.System.Trunc(VWidth));
+      };
+      if (this.GetCanvas().FHeight !== VHeight) {
+        this.GetCanvas().SetHeight(pas.System.Trunc(VHeight));
+      };
+      this.GetCanvas().Clear();
+      this.GetCanvas().FBrush.Assign(this.FBrush);
+      this.GetCanvas().FPen.Assign(this.FPen);
+      var $tmp = this.FShape;
+      if ($tmp === $mod.TShapeType.stRectangle) {
+        this.GetCanvas().Rectangle$1(0,0,VWidth,VHeight)}
+       else if ($tmp === $mod.TShapeType.stSquare) {
+        VSide = Smallest(VWidth,VHeight);
+        VX = (VWidth - VSide) / 2;
+        VY = (VHeight - VSide) / 2;
+        this.GetCanvas().Rectangle$1(VX,VY,VSide,VSide);
+      } else if ($tmp === $mod.TShapeType.stRoundRect) {
+        VRadius = Smallest(VWidth,VHeight) / 4;
+        this.GetCanvas().RoundRect(0,0,VWidth,VHeight,VRadius,VRadius);
+      } else if ($tmp === $mod.TShapeType.stRoundSquare) {
+        VSide = Smallest(VWidth,VHeight);
+        VX = (VWidth - VSide) / 2;
+        VY = (VHeight - VSide) / 2;
+        VRadius = VSide / 4;
+        this.GetCanvas().RoundRect(VX,VY,VX + VSide,VY + VSide,VRadius,VRadius);
+      } else if ($tmp === $mod.TShapeType.stCircle) {
+        VSide = Smallest(VWidth,VHeight);
+        VX = (VWidth - VSide) / 2;
+        VY = (VHeight - VSide) / 2;
+        this.GetCanvas().Ellipse(VX,VY,VX + VSide,VY + VSide);
+      } else if ($tmp === $mod.TShapeType.stEllipse) {
+        this.GetCanvas().Ellipse(0,0,VWidth,VHeight)}
+       else if ($tmp === $mod.TShapeType.stTriangle) {
+        VPoints[0].$assign(pas.Types.Point(pas.System.Trunc(VWidth / 2),0));
+        VPoints[1].$assign(pas.Types.Point(pas.System.Trunc(VWidth),pas.System.Trunc(VHeight)));
+        VPoints[2].$assign(pas.Types.Point(0,pas.System.Trunc(VHeight)));
+        this.GetCanvas().Polygon(VPoints);
+      } else if ($tmp === $mod.TShapeType.stSquaredTriangle) {
+        VPoints[0].$assign(pas.Types.Point(0,0));
+        VPoints[1].$assign(pas.Types.Point(0,pas.System.Trunc(VHeight)));
+        VPoints[2].$assign(pas.Types.Point(pas.System.Trunc(VWidth),pas.System.Trunc(VHeight)));
+        this.GetCanvas().Polygon(VPoints);
+      };
+      pas.Controls.TCustomControl.Paint.call(this);
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("div");
+      return Result;
+    };
+    this.GetControlClassDefaultSize = function () {
+      var Result = pas.Types.TSize.$new();
+      Result.cx = 65;
+      Result.cy = 65;
+      return Result;
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.FBrush = pas.Graphics.TBrush.$create("Create$1");
+      this.FBrush.FOnChange = rtl.createCallback(this,"StyleChanged");
+      this.FPen = pas.Graphics.TPen.$create("Create$1");
+      this.FPen.FOnChange = rtl.createCallback(this,"StyleChanged");
+      this.FShape = $mod.TShapeType.stRectangle;
+      this.FOnChange = null;
+      this.BeginUpdate();
+      try {
+        this.FBrush.SetColor(-2147483633);
+        this.FPen.SetColor(0);
+        this.SetBounds(0,0,65,65);
+      } finally {
+        this.EndUpdate();
+      };
+      return this;
+    };
+    this.Destroy = function () {
+      rtl.free(this,"FBrush");
+      this.FBrush = null;
+      rtl.free(this,"FPen");
+      this.FPen = null;
+      pas.Controls.TCustomControl.Destroy.call(this);
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+  });
+  rtl.createClass(this,"TCustomPaintBox",pas.Controls.TCustomControl,function () {
+    this.ResizeCanvas = function () {
+      if (this.GetCanvas().FWidth !== this.FWidth) {
+        this.GetCanvas().SetWidth(this.FWidth);
+      };
+      if (this.GetCanvas().FHeight !== this.FHeight) {
+        this.GetCanvas().SetHeight(this.FHeight);
+      };
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("div");
+      return Result;
+    };
+    this.GetControlClassDefaultSize = function () {
+      var Result = pas.Types.TSize.$new();
+      Result.cx = 105;
+      Result.cy = 105;
+      return Result;
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.ResizeCanvas();
+      return this;
+    };
+    this.Invalidate = function () {
+      this.ResizeCanvas();
+      pas.Controls.TCustomControl.Invalidate.call(this);
     };
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;
@@ -47215,7 +47482,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       var VFilterInput = null;
       var VIsCard = false;
       var VScrollPos = 0.0;
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (this.FEnabled === false) return;
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         VIsCard = (this.FResponsiveMode && (this.FResponsiveBreakpoint === 0)) || this.FIsCardVisible;
@@ -47377,7 +47644,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       var VPageWidth = 0;
       var VPage = null;
       var VPages = null;
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         var $with = this.FHandleElement;
         $with.innerHTML = "";
@@ -47866,7 +48133,7 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
       document.removeEventListener('keydown', this.FDocKeyDown, true);
     };
     this.Changed = function () {
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && rtl.eqSet(rtl.intersectSet(rtl.createSet(pas.Classes.TComponentStateItem.csLoading,pas.Classes.TComponentStateItem.csDestroying),this.FComponentState),{})) this.FHandleElement.style.setProperty("overflow","visible");
     };
     this.CreateHandleElement = function () {
@@ -49134,6 +49401,74 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnMouseLeave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseLeave","FOnMouseLeave");
     $r.addProperty("OnMouseMove",0,pas.Controls.$rtti["TMouseMoveEvent"],"FOnMouseMove","FOnMouseMove");
     $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
+    $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
+  });
+  rtl.createClass(this,"TWShape",pas.ExtCtrls.TCustomShape,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
+    $r.addProperty("Anchors",14,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors",{stored: "IsAnchorsStored", Default: rtl.createSet(pas.Controls.TAnchorKind.akLeft,pas.Controls.TAnchorKind.akTop)});
+    $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
+    $r.addProperty("Brush",2,pas.Graphics.$rtti["TBrush"],"FBrush","SetBrush");
+    $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
+    $r.addProperty("Constraints",2,pas.Controls.$rtti["TSizeConstraints"],"FConstraints","SetConstraints");
+    $r.addProperty("Cursor",2,pas.Controls.$rtti["TCursor"],"FCursor","SetCursor");
+    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
+    $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
+    $r.addProperty("HandleId",2,rtl.string,"FHandleId","SetHandleId");
+    $r.addProperty("Height",2,rtl.nativeint,"FHeight","SetHeight");
+    $r.addProperty("Hint",2,rtl.string,"FHint","SetHint");
+    $r.addProperty("Left",2,rtl.nativeint,"FLeft","SetLeft");
+    $r.addProperty("ParentColor",2,rtl.boolean,"FParentColor","SetParentColor");
+    $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
+    $r.addProperty("Pen",2,pas.Graphics.$rtti["TPen"],"FPen","SetPen");
+    $r.addProperty("PopupMenu",2,pas.Controls.$rtti["TCustomPopupMenu"],"FPopupMenu","SetPopupMenu");
+    $r.addProperty("Shape",2,pas.ExtCtrls.$rtti["TShapeType"],"FShape","SetShape",{Default: pas.ExtCtrls.TShapeType.stRectangle});
+    $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
+    $r.addProperty("Top",2,rtl.nativeint,"FTop","SetTop");
+    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
+    $r.addProperty("Width",2,rtl.nativeint,"FWidth","SetWidth");
+    $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
+    $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
+    $r.addProperty("OnDblClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnDblClick","FOnDblClick");
+    $r.addProperty("OnMouseDown",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseDown","FOnMouseDown");
+    $r.addProperty("OnMouseEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseEnter","FOnMouseEnter");
+    $r.addProperty("OnMouseLeave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseLeave","FOnMouseLeave");
+    $r.addProperty("OnMouseMove",0,pas.Controls.$rtti["TMouseMoveEvent"],"FOnMouseMove","FOnMouseMove");
+    $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
+    $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
+  });
+  rtl.createClass(this,"TWPaintBox",pas.ExtCtrls.TCustomPaintBox,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
+    $r.addProperty("Anchors",14,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors",{stored: "IsAnchorsStored", Default: rtl.createSet(pas.Controls.TAnchorKind.akLeft,pas.Controls.TAnchorKind.akTop)});
+    $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
+    $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
+    $r.addProperty("Constraints",2,pas.Controls.$rtti["TSizeConstraints"],"FConstraints","SetConstraints");
+    $r.addProperty("Cursor",2,pas.Controls.$rtti["TCursor"],"FCursor","SetCursor");
+    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
+    $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
+    $r.addProperty("HandleId",2,rtl.string,"FHandleId","SetHandleId");
+    $r.addProperty("Height",2,rtl.nativeint,"FHeight","SetHeight");
+    $r.addProperty("Hint",2,rtl.string,"FHint","SetHint");
+    $r.addProperty("Left",2,rtl.nativeint,"FLeft","SetLeft");
+    $r.addProperty("ParentColor",2,rtl.boolean,"FParentColor","SetParentColor");
+    $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
+    $r.addProperty("PopupMenu",2,pas.Controls.$rtti["TCustomPopupMenu"],"FPopupMenu","SetPopupMenu");
+    $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
+    $r.addProperty("Top",2,rtl.nativeint,"FTop","SetTop");
+    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
+    $r.addProperty("Width",2,rtl.nativeint,"FWidth","SetWidth");
+    $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
+    $r.addProperty("OnDblClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnDblClick","FOnDblClick");
+    $r.addProperty("OnMouseDown",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseDown","FOnMouseDown");
+    $r.addProperty("OnMouseEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseEnter","FOnMouseEnter");
+    $r.addProperty("OnMouseLeave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseLeave","FOnMouseLeave");
+    $r.addProperty("OnMouseMove",0,pas.Controls.$rtti["TMouseMoveEvent"],"FOnMouseMove","FOnMouseMove");
+    $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
+    $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
+    $r.addProperty("OnPaint",0,pas.Classes.$rtti["TNotifyEvent"],"FOnPaint","FOnPaint");
     $r.addProperty("OnResize",0,pas.Classes.$rtti["TNotifyEvent"],"FOnResize","FOnResize");
   });
   rtl.createClass(this,"TWFloatEdit",pas.NumCtrls.TCustomNumericEdit,function () {
@@ -50807,7 +51142,7 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       var container = null;
       var usecolumns = false;
       var column = null;
-      pas.Controls.TControl.Changed.call(this);
+      pas.Controls.TCustomControl.Changed.call(this);
       container = this.FHandleElement;
       pas.StdCtrls.ApplyScrollStyleToStyle(container.style,this.fScrollBars);
       if (this.fGridBorderStyle === pas.Controls.TFormBorderStyle.bsSingle) {
@@ -51732,7 +52067,7 @@ rtl.module("uLogin",["System","JS","Classes","SysUtils","Graphics","Controls","F
   });
   this.FormLogin = null;
 },["Unit1"]);
-rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Forms","Dialogs","WebCtrls","ComCtrls","WebDB","Grids","StdCtrls","Menus"],function () {
+rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Forms","Dialogs","WebCtrls","ComCtrls","WebDB","Grids","StdCtrls","Menus","ExtCtrls"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
@@ -52101,6 +52436,106 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FLayoutInfo.SetAutoSize(false);
       this.DemoSplitterMoved(null);
     };
+    this.BuildCanvasTab = function () {
+      var $Self = this;
+      var VSheet = null;
+      var VPaint = null;
+      var VShape = null;
+      var VLabel = null;
+      var VLeft = 0;
+      function AddShape(AShape, ACaption, AFill) {
+        VShape = pas.WebCtrls.TWShape.$create("Create$1",[$Self]);
+        VShape.SetParent(VSheet);
+        VShape.SetBounds(VLeft,280,64,64);
+        VShape.SetShape(AShape);
+        VShape.FBrush.SetColor(AFill);
+        VShape.FPen.SetColor(8388608);
+        VShape.FPen.SetWidth(2);
+        VLabel = pas.WebCtrls.TWLabel.$create("Create$1",[$Self]);
+        VLabel.SetParent(VSheet);
+        VLabel.SetBounds(VLeft,350,76,20);
+        VLabel.SetText(ACaption);
+        VLabel.FFont.SetSize(11);
+        VLeft = VLeft + 84;
+      };
+      VSheet = this.WPageControl1.AddTabSheet();
+      VSheet.SetText("Canvas");
+      VSheet.SetBounds(0,0,this.WPageControl1.FWidth,this.WPageControl1.FHeight);
+      VPaint = pas.WebCtrls.TWPaintBox.$create("Create$1",[$Self]);
+      VPaint.SetParent(VSheet);
+      VPaint.SetBounds(16,16,380,240);
+      VPaint.SetColor(16777215);
+      VPaint.FOnPaint = rtl.createCallback($Self,"DemoPaintBoxPaint");
+      VLeft = 16;
+      AddShape(pas.ExtCtrls.TShapeType.stRectangle,"Rectangle",15780518);
+      AddShape(pas.ExtCtrls.TShapeType.stSquare,"Square",12639424);
+      AddShape(pas.ExtCtrls.TShapeType.stRoundRect,"RoundRect",15793151);
+      AddShape(pas.ExtCtrls.TShapeType.stRoundSquare,"RoundSquare",10789024);
+      AddShape(pas.ExtCtrls.TShapeType.stCircle,"Circle",65535);
+      AddShape(pas.ExtCtrls.TShapeType.stEllipse,"Ellipse",16776960);
+      AddShape(pas.ExtCtrls.TShapeType.stTriangle,"Triangle",16711935);
+      AddShape(pas.ExtCtrls.TShapeType.stSquaredTriangle,"SquaredTri",65280);
+    };
+    this.DemoPaintBoxPaint = function (Sender) {
+      var $Self = this;
+      var C = null;
+      var VIndex = 0;
+      var VValues = rtl.arraySetLength(null,0.0,5);
+      var VBarWidth = 0.0;
+      var VX = 0.0;
+      var VY = 0.0;
+      var VHeight = 0.0;
+      var VMax = 0.0;
+      function BarTop(AValue) {
+        var Result = 0.0;
+        Result = 200 - ((AValue / VMax) * 160);
+        return Result;
+      };
+      C = Sender.GetCanvas();
+      C.Clear();
+      VValues[0] = 48;
+      VValues[1] = 72;
+      VValues[2] = 36;
+      VValues[3] = 88;
+      VValues[4] = 60;
+      VMax = 100;
+      VBarWidth = 46;
+      C.FBrush.SetStyle(pas.Graphics.TBrushStyle.bsClear);
+      C.FFont.SetColor(8388608);
+      C.FFont.SetSize(16);
+      C.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
+      C.TextOut(16,8,"TPaintBox - Canvas 2D");
+      C.FFont.SetSize(11);
+      C.FFont.SetStyle({});
+      C.FFont.SetColor(8421504);
+      C.FPen.SetColor(12632256);
+      C.FPen.SetWidth(1);
+      for (VIndex = 0; VIndex <= 4; VIndex++) {
+        VY = 200 - (VIndex * 40);
+        C.MoveTo(40,VY);
+        C.LineTo(360,VY);
+        C.TextOut(8,VY - 8,pas.SysUtils.IntToStr(VIndex * 25));
+      };
+      for (VIndex = 0; VIndex <= 4; VIndex++) {
+        VHeight = (VValues[VIndex] / VMax) * 160;
+        VX = 56 + (VIndex * 62);
+        VY = BarTop(VValues[VIndex]);
+        C.FBrush.SetStyle(pas.Graphics.TBrushStyle.bsSolid);
+        C.FBrush.SetColor(15780518);
+        C.FPen.SetColor(8388608);
+        C.FillRect$1(VX,VY,VBarWidth,VHeight);
+        C.FBrush.SetStyle(pas.Graphics.TBrushStyle.bsClear);
+        C.FFont.SetColor(0);
+        C.TextOut(VX + 10,VY - 18,pas.SysUtils.IntToStr(pas.System.Trunc(VValues[VIndex])));
+        C.TextOut(VX + 10,204,"Q" + pas.SysUtils.IntToStr(VIndex + 1));
+      };
+      C.FPen.SetColor(255);
+      C.FPen.SetWidth(2);
+      C.MoveTo(56 + (VBarWidth / 2),BarTop(VValues[0]));
+      for (VIndex = 1; VIndex <= 4; VIndex++) {
+        C.LineTo(56 + (VIndex * 62) + (VBarWidth / 2),BarTop(VValues[VIndex]));
+      };
+    };
     this.DemoSplitterMoved = function (Sender) {
       if (this.FLayoutInfo != null) this.FLayoutInfo.SetText("Left panel: " + pas.SysUtils.IntToStr(this.FLayoutLeft.FWidth) + " px" + "\n" + "Top panel: " + pas.SysUtils.IntToStr(this.FLayoutTop.FHeight) + " px" + "\n" + "Drag the grey bars.");
     };
@@ -52337,6 +52772,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.WTimer1.SetOnTimer(rtl.createCallback(this,"WTimerTick"));
       this.BuildGridModesTab();
       this.BuildSplitterTab();
+      this.BuildCanvasTab();
       this.SetupMenu();
     };
     rtl.addIntf(this,pas.System.IUnknown);

@@ -417,6 +417,54 @@ type
     property OnMoved: TNotifyEvent read FOnMoved write FOnMoved;
   end;
 
+  { TShape }
+
+  TShapeType = (stRectangle, stSquare, stRoundRect, stRoundSquare,
+    stCircle, stEllipse, stSquaredTriangle, stTriangle);
+
+  /// Draws a geometric figure with Pen and Brush on its own canvas.
+  TCustomShape = class(TCustomControl)
+  private
+    FBrush: TBrush;
+    FPen: TPen;
+    FShape: TShapeType;
+    FOnChange: TNotifyEvent;
+    procedure SetBrush(AValue: TBrush);
+    procedure SetPen(AValue: TPen);
+    procedure SetShape(AValue: TShapeType);
+    procedure StyleChanged(Sender: TObject);
+  protected
+    procedure Paint; override;
+  protected
+    function CreateHandleElement: TJSHTMLElement; override;
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    property Brush: TBrush read FBrush write SetBrush;
+    property Pen: TPen read FPen write SetPen;
+    property Shape: TShapeType read FShape write SetShape default stRectangle;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
+  { TPaintBox }
+
+  /// A control whose only purpose is the OnPaint event: the user draws on
+  /// Canvas, which is backed by an HTML canvas element.
+  TCustomPaintBox = class(TCustomControl)
+  private
+    procedure ResizeCanvas;
+  protected
+    function CreateHandleElement: TJSHTMLElement; override;
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    procedure Invalidate; override;
+  public
+    property Canvas;
+    property OnPaint;
+  end;
+
 implementation
 
 uses
@@ -2000,6 +2048,191 @@ begin
   end;
   FTarget := nil;
   inherited Destroy;
+end;
+
+{ TCustomShape }
+
+function TCustomShape.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('div'));
+end;
+
+class function TCustomShape.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 65;
+  Result.Cy := 65;
+end;
+
+constructor TCustomShape.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FBrush := TBrush.Create;
+  FBrush.OnChange := @StyleChanged;
+  FPen := TPen.Create;
+  FPen.OnChange := @StyleChanged;
+  FShape := stRectangle;
+  FOnChange := nil;
+  BeginUpdate;
+  try
+    FBrush.Color := clBtnFace;
+    FPen.Color := clBlack;
+    SetBounds(0, 0, 65, 65);
+  finally
+    EndUpdate;
+  end;
+end;
+
+destructor TCustomShape.Destroy;
+begin
+  FBrush.Free;
+  FBrush := nil;
+  FPen.Free;
+  FPen := nil;
+  inherited Destroy;
+end;
+
+procedure TCustomShape.SetBrush(AValue: TBrush);
+begin
+  FBrush.Assign(AValue);
+end;
+
+procedure TCustomShape.SetPen(AValue: TPen);
+begin
+  FPen.Assign(AValue);
+end;
+
+procedure TCustomShape.SetShape(AValue: TShapeType);
+begin
+  if (FShape <> AValue) then
+  begin
+    FShape := AValue;
+    StyleChanged(Self);
+  end;
+end;
+
+procedure TCustomShape.StyleChanged(Sender: TObject);
+begin
+  Invalidate;
+  if Assigned(FOnChange) then
+  begin
+    FOnChange(Self);
+  end;
+end;
+
+procedure TCustomShape.Paint;
+var
+  VWidth, VHeight, VSide, VX, VY, VRadius: Double;
+  VPoints: array[0..2] of TPoint;
+
+  function Smallest(A, B: Double): Double;
+  begin
+    if (A < B) then
+      Result := A
+    else
+      Result := B;
+  end;
+
+begin
+  VWidth := Width;
+  VHeight := Height;
+  if (Canvas.Width <> VWidth) then
+  begin
+    Canvas.Width := Trunc(VWidth);
+  end;
+  if (Canvas.Height <> VHeight) then
+  begin
+    Canvas.Height := Trunc(VHeight);
+  end;
+  /// Repaint from scratch: the shape may have changed since the last paint.
+  Canvas.Clear;
+  Canvas.Brush.Assign(FBrush);
+  Canvas.Pen.Assign(FPen);
+  case FShape of
+    stRectangle:
+      Canvas.Rectangle(0, 0, VWidth, VHeight);
+    stSquare:
+      begin
+        VSide := Smallest(VWidth, VHeight);
+        VX := (VWidth - VSide) / 2;
+        VY := (VHeight - VSide) / 2;
+        Canvas.Rectangle(VX, VY, VSide, VSide);
+      end;
+    stRoundRect:
+      begin
+        VRadius := Smallest(VWidth, VHeight) / 4;
+        Canvas.RoundRect(0, 0, VWidth, VHeight, VRadius, VRadius);
+      end;
+    stRoundSquare:
+      begin
+        VSide := Smallest(VWidth, VHeight);
+        VX := (VWidth - VSide) / 2;
+        VY := (VHeight - VSide) / 2;
+        VRadius := VSide / 4;
+        Canvas.RoundRect(VX, VY, VX + VSide, VY + VSide, VRadius, VRadius);
+      end;
+    stCircle:
+      begin
+        VSide := Smallest(VWidth, VHeight);
+        VX := (VWidth - VSide) / 2;
+        VY := (VHeight - VSide) / 2;
+        Canvas.Ellipse(VX, VY, VX + VSide, VY + VSide);
+      end;
+    stEllipse:
+      Canvas.Ellipse(0, 0, VWidth, VHeight);
+    stTriangle:
+      begin
+        VPoints[0] := Point(Trunc(VWidth / 2), 0);
+        VPoints[1] := Point(Trunc(VWidth), Trunc(VHeight));
+        VPoints[2] := Point(0, Trunc(VHeight));
+        Canvas.Polygon(VPoints);
+      end;
+    stSquaredTriangle:
+      begin
+        VPoints[0] := Point(0, 0);
+        VPoints[1] := Point(0, Trunc(VHeight));
+        VPoints[2] := Point(Trunc(VWidth), Trunc(VHeight));
+        Canvas.Polygon(VPoints);
+      end;
+  end;
+  inherited Paint;
+end;
+
+{ TCustomPaintBox }
+
+function TCustomPaintBox.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('div'));
+end;
+
+class function TCustomPaintBox.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 105;
+  Result.Cy := 105;
+end;
+
+constructor TCustomPaintBox.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  /// Create the canvas element now, so OnPaint always finds it ready.
+  ResizeCanvas;
+end;
+
+procedure TCustomPaintBox.ResizeCanvas;
+begin
+  if (Canvas.Width <> Width) then
+  begin
+    Canvas.Width := Width;
+  end;
+  if (Canvas.Height <> Height) then
+  begin
+    Canvas.Height := Height;
+  end;
+end;
+
+procedure TCustomPaintBox.Invalidate;
+begin
+  ResizeCanvas;
+  inherited Invalidate;
 end;
 
 end.
