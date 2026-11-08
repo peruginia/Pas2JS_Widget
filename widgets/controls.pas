@@ -709,7 +709,13 @@ var
   VKey: string;
 begin
   VLocation := AEvent.Location;
-  VKey := LowerCase(AEvent.Key);
+  /// key can be undefined on synthetic events (e.g. the keydown the browser
+  /// fires when a value is picked from the autofill list).
+  VKey := '';
+  asm
+    if (AEvent.key != null) VKey = AEvent.key;
+  end;
+  VKey := LowerCase(VKey);
   Result := -1;
   case VKey of
     'backspace': Result := 8;
@@ -832,7 +838,12 @@ function ExtractKeyChar(const AEvent: TJSKeyBoardEvent): char;
 var
   VKey: string;
 begin
-  VKey := LowerCase(AEvent.Key);
+  /// key can be undefined on synthetic events: never call LowerCase on it.
+  VKey := '';
+  asm
+    if (AEvent.key != null) VKey = AEvent.key;
+  end;
+  VKey := LowerCase(VKey);
   Result := #0;
   if (Length(VKey) = 1) then
   begin
