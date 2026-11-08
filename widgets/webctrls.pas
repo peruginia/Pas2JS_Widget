@@ -156,6 +156,7 @@ type
     property Anchors;
     property Alignment;
     property AutoSize;
+    property Autocomplete;
     property BorderSpacing;
     property BorderStyle;
     property CharCase;

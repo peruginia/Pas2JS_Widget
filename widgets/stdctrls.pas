@@ -151,6 +151,7 @@ type
   TCustomEdit = class(TWinControl)
   private
     FAlignment: TAlignment;
+    FAutocomplete: string;
     FCharCase: TEditCharCase;
     FMaxLength: NativeInt;
     FModified: boolean;
@@ -167,6 +168,7 @@ type
     function GetSelStart: NativeInt;
     function GetSelText: string;
     procedure SetAlignment(AValue: TAlignment);
+    procedure SetAutocomplete(const AValue: string);
     procedure SetCharCase(AValue: TEditCharCase);
     procedure SetMaxLength(AValue: NativeInt);
     procedure SetModified(AValue: boolean);
@@ -201,6 +203,9 @@ type
     procedure SelectAll;
   public
     property Alignment: TAlignment read FAlignment write SetAlignment;
+    /// HTML autocomplete hint, e.g. 'username' or 'current-password'.
+    /// Empty removes the attribute and leaves the browser default.
+    property Autocomplete: string read FAutocomplete write SetAutocomplete;
     property CharCase: TEditCharCase read FCharCase write SetCharCase;
     property MaxLength: NativeInt read FMaxLength write SetMaxLength;
     property Modified: boolean read FModified write SetModified;
@@ -1102,6 +1107,15 @@ begin
   end;
 end;
 
+procedure TCustomEdit.SetAutocomplete(const AValue: string);
+begin
+  if (FAutocomplete <> AValue) then
+  begin
+    FAutocomplete := AValue;
+    Changed;
+  end;
+end;
+
 function TCustomEdit.GetSelLength: NativeInt;
 begin
   if (Assigned(HandleElement)) then
@@ -1346,7 +1360,12 @@ begin
          _Type := InputType;
          /// Text
          Value := RealGetText;
-         Autocomplete := 'new-password';
+         /// Autocomplete: empty means "no hint", i.e. the browser default.
+         if (FAutocomplete <> '') then begin
+            Autocomplete := FAutocomplete;
+         end else begin
+            RemoveAttribute('autocomplete');
+         end;
       end;
       HandleElement.setAttribute('name', Name );
    end;
@@ -1406,6 +1425,7 @@ end;
 constructor TCustomEdit.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FAutocomplete := '';
   FMaxLength := 0;
   FModified := False;
   FPasswordChar := #0;

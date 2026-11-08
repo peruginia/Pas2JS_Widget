@@ -22,7 +22,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | Component | HTML element | Description |
 |---|---|---|
 | **TWButton** | `<button>` | Push button with hover/active/disabled CSS, `ModalResult` |
-| **TWEdit** | `<input type="text">` | Single-line text input with `TextHint`, `SelStart`/`SelLength` |
+| **TWEdit** | `<input type="text">` | Single-line text input with `TextHint`, `Autocomplete`, `SelStart`/`SelLength` |
 | **TWMemo** | `<textarea>` | Multi-line text input |
 | **TWComboBox** | `<select>` | Dropdown selector with `Items`, `ItemIndex`, `DropDownCount`, `ItemHeight` |
 | **TWListBox** | `<select multiple>` | Multi-select list, `ItemHeight` |
@@ -332,6 +332,13 @@ It resizes the nearest sibling with the same alignment, clamping to `MinSize` an
 The **Layout** tab in the demo shows a vertical and a horizontal splitter.
 
 **ComboBox** — `DropDownCount` is published and `ItemHeight` applies `min-height` to the options. The native `<select>` dropdown height is browser-controlled, so `DropDownCount` exists for LCL compatibility.
+
+**TWEdit.Autocomplete** — writes the HTML `autocomplete` attribute (`'username'`, `'current-password'`, `'off'`, …). Empty is the default and removes the attribute, leaving the browser behaviour untouched:
+
+```pascal
+edtUser.Autocomplete := 'username';
+edtPassword.Autocomplete := 'current-password';
+```
 
 **Graphics** — `TCanvas` supports `psSolid`, `psDash`, `psDot`, `psDashDot`, `psDashDotDot` and `psClear`; `TPicture` provides `Clear`, `IsEmpty`, `LoadFromDataURL`, `SaveToDataURL` and `LoadFromBase64`.
 

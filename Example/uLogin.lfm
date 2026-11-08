@@ -42,6 +42,7 @@ object FormLogin: TFormLogin
       Height = 26
       Top = 105
       Width = 350
+      Autocomplete = 'username'
       TabOrder = 0
       TextHint = 'demo'
     end
@@ -57,6 +58,7 @@ object FormLogin: TFormLogin
       Height = 26
       Top = 182
       Width = 350
+      Autocomplete = 'current-password'
       PasswordChar = '*'
       TabOrder = 1
       TextHint = 'demo'

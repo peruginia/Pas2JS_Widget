@@ -351,6 +351,7 @@ type
 
   TWEdit = class(TCustomEdit)
   private
+    FAutocomplete: string;
     FHandleClass: string;
     FHandleId: string;
   published
@@ -358,6 +359,7 @@ type
     property Alignment;
     property Anchors;
     property AutoSize;
+    property Autocomplete: string read FAutocomplete write FAutocomplete;
     property BorderSpacing;
     property BorderStyle;
     property CharCase;
