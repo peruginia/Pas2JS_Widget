@@ -351,7 +351,12 @@ end;
 
 `TMainMenu` creates a bar parented to its owner (a form) with `Align := alTop`, so the rest of the layout reflows by itself. Clicking a top item opens its dropdown; choosing an entry runs `OnClick` and closes it. Submenus open on click at any depth, with an arrow marker. Clicking outside, pressing `Esc`, or clicking the same item again closes the open level.
 
-Items expose `Caption`, `ShortCut` (display text), `Enabled`, `Checked`, `RadioItem`, `Visible` and `OnClick`; a caption of `-` renders a separator, and `Checked`/`RadioItem` show a check mark.
+Items expose `Caption`, `ShortCut`, `Enabled`, `Checked`, `RadioItem`, `GroupIndex`, `AutoCheck`, `Default`, `ImageUrl`, `Visible` and `OnClick`; a caption of `-` renders a separator.
+
+* **ShortCuts are live**: pressing the combination anywhere on the page runs the item, whatever menu level it is on. Plain keys (no `Ctrl`/`Alt`) are ignored while the focus is in an `input`, `textarea` or `select`.
+* **Radio groups**: items with `RadioItem := True` and the same non-zero `GroupIndex` are mutually exclusive — checking one clears the others in the same list.
+* **`AutoCheck`** toggles `Checked` on click, and **`Default`** renders the caption in bold.
+* **Icons** are set with `ImageUrl` (a URL, resolved by the browser). `ImageIndex` is accepted for `.lfm` compatibility but is not resolved, because the runtime has no image list.
 
 Items can be built in code (above) or designed in the IDE: drop `TWMainMenu` on a form and use the menu designer. The items are streamed from the `.lfm` and attached to the tree automatically; `ShortCut` uses the LCL numeric encoding (`TShortCut`), so `Ctrl+S` designed in the IDE arrives as `16467` and is rendered back as `Ctrl+S`.
 

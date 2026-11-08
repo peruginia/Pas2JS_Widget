@@ -94,6 +94,12 @@ type
     procedure BuildGridModesTab;
     procedure BuildSplitterTab;
     procedure DemoSplitterMoved(Sender: TObject);
+    procedure MenuDemoClick(Sender: TObject);
+    procedure MenuGotoGrid(Sender: TObject);
+    procedure MenuGotoLayout(Sender: TObject);
+    procedure SetupMenu;
+    procedure AssignMenuHandler(AItems: TMenuItems; const ACaption: string; AHandler: TNotifyEvent);
+    function FindMenuItem(AItems: TMenuItems; const ACaption: string): TMenuItem;
     procedure DemoAddRow(AData: TJSArray; const AName: string; AAge: NativeInt;
       const ACity: string; AActive: Boolean);
     procedure DemoAddSeparator(ASender: TObject; var AData: string);
@@ -165,6 +171,7 @@ begin
   WTimer1.OnTimer := @WTimerTick;
   BuildGridModesTab;
   BuildSplitterTab;
+  SetupMenu;
 end;
 
 procedure TWForm1.LoadFromArray(Sender: TObject);
@@ -663,6 +670,95 @@ begin
   FLayoutInfo.AutoSize := False;
 
   DemoSplitterMoved(nil);
+end;
+
+{ --- Menu: handlers on the IDE-designed items + a code-built radio group --- }
+
+procedure TWForm1.MenuDemoClick(Sender: TObject);
+begin
+  if (Sender is TMenuItem) then
+    ShowMessage('Menu item: ' + TMenuItem(Sender).Caption);
+end;
+
+procedure TWForm1.MenuGotoGrid(Sender: TObject);
+begin
+  WPageControl1.TabIndex := 4;
+end;
+
+procedure TWForm1.MenuGotoLayout(Sender: TObject);
+begin
+  WPageControl1.TabIndex := 5;
+end;
+
+procedure TWForm1.AssignMenuHandler(AItems: TMenuItems; const ACaption: string;
+  AHandler: TNotifyEvent);
+var
+  VIndex: NativeInt;
+  VItem: TMenuItem;
+begin
+  if (not Assigned(AItems)) then
+    Exit;
+  for VIndex := 0 to (AItems.Count - 1) do
+  begin
+    VItem := AItems[VIndex];
+    if (not Assigned(VItem)) then
+      Continue;
+    if (VItem.Caption = ACaption) then
+      VItem.OnClick := AHandler
+    else
+      AssignMenuHandler(VItem.Items, ACaption, AHandler);
+  end;
+end;
+
+function TWForm1.FindMenuItem(AItems: TMenuItems; const ACaption: string): TMenuItem;
+var
+  VIndex: NativeInt;
+  VItem: TMenuItem;
+begin
+  Result := nil;
+  if (not Assigned(AItems)) then
+    Exit;
+  for VIndex := 0 to (AItems.Count - 1) do
+  begin
+    VItem := AItems[VIndex];
+    if (not Assigned(VItem)) then
+      Continue;
+    if (VItem.Caption = ACaption) then
+    begin
+      Result := VItem;
+      Exit;
+    end;
+    Result := FindMenuItem(VItem.Items, ACaption);
+    if Assigned(Result) then
+      Exit;
+  end;
+end;
+
+procedure TWForm1.SetupMenu;
+var
+  VView, VItem: TMenuItem;
+begin
+  if (not Assigned(WMainMenu1)) then
+    Exit;
+  /// The File menu comes from the .lfm: attach the handlers by caption.
+  AssignMenuHandler(WMainMenu1.Items, 'New', @MenuDemoClick);
+  AssignMenuHandler(WMainMenu1.Items, 'Save', @MenuDemoClick);
+  AssignMenuHandler(WMainMenu1.Items, 'Ciao', @MenuDemoClick);
+
+  /// Icons are set in code: ImageUrl is not available in the IDE menu editor.
+  VItem := FindMenuItem(WMainMenu1.Items, 'New');
+  if Assigned(VItem) then
+    VItem.ImageUrl := 'menu_new.png';
+
+  /// A code-built menu showing radio items with the same GroupIndex.
+  VView := WMainMenu1.Items.Add('View');
+  VItem := VView.Items.Add('Grid Modes', @MenuGotoGrid);
+  VItem.RadioItem := True;
+  VItem.GroupIndex := 1;
+  VItem.Checked := True;
+  VItem := VView.Items.Add('Layout', @MenuGotoLayout);
+  VItem.RadioItem := True;
+  VItem.GroupIndex := 1;
 end;
 
 end.

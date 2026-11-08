@@ -47465,10 +47465,16 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
   rtl.createClass(this,"TMenuItem",pas.Classes.TComponent,function () {
     this.$init = function () {
       pas.Classes.TComponent.$init.call(this);
+      this.FAutoCheck = false;
       this.FCaption = "";
       this.FChecked = false;
+      this.FDefault = false;
       this.FEnabled = false;
+      this.FGroupIndex = 0;
+      this.FImageIndex = 0;
+      this.FImageUrl = "";
       this.FItems = null;
+      this.FOwnerItems = null;
       this.FRadioItem = false;
       this.FShortCut = 0;
       this.FVisible = false;
@@ -47477,6 +47483,7 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     };
     this.$final = function () {
       this.FItems = undefined;
+      this.FOwnerItems = undefined;
       this.FOnClick = undefined;
       this.FRoot = undefined;
       pas.Classes.TComponent.$final.call(this);
@@ -47490,6 +47497,7 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     this.SetChecked = function (AValue) {
       if (this.FChecked !== AValue) {
         this.FChecked = AValue;
+        if (this.FChecked) this.UncheckRadioSiblings();
         this.MenuChanged();
       };
     };
@@ -47517,6 +47525,28 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
         this.MenuChanged();
       };
     };
+    this.SetGroupIndex = function (AValue) {
+      if (this.FGroupIndex !== AValue) {
+        this.FGroupIndex = AValue;
+        this.MenuChanged();
+      };
+    };
+    this.SetImageUrl = function (AValue) {
+      if (this.FImageUrl !== AValue) {
+        this.FImageUrl = AValue;
+        this.MenuChanged();
+      };
+    };
+    this.UncheckRadioSiblings = function () {
+      var VIndex = 0;
+      var VItem = null;
+      if (!this.FRadioItem || !(this.FOwnerItems != null) || (this.FGroupIndex === 0)) return;
+      for (var $l = 0, $end = this.FOwnerItems.GetCount() - 1; $l <= $end; $l++) {
+        VIndex = $l;
+        VItem = this.FOwnerItems.GetItem(VIndex);
+        if ((VItem !== this) && VItem.FRadioItem && (VItem.FGroupIndex === this.FGroupIndex) && VItem.FChecked) VItem.SetChecked(false);
+      };
+    };
     this.MenuChanged = function () {
       if (this.FRoot != null) this.FRoot.Update();
     };
@@ -47540,8 +47570,13 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     };
     this.Create$1 = function (AOwner) {
       pas.Classes.TComponent.Create$1.call(this,AOwner);
+      this.FAutoCheck = false;
       this.FChecked = false;
+      this.FDefault = false;
       this.FEnabled = true;
+      this.FGroupIndex = 0;
+      this.FImageIndex = -1;
+      this.FImageUrl = "";
       this.FRadioItem = false;
       this.FVisible = true;
       this.FCaption = "";
@@ -47560,6 +47595,9 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     };
     this.Click = function () {
       if (!this.FEnabled) return;
+      if (this.FAutoCheck) {
+        this.SetChecked(!this.FChecked)}
+       else if (this.FRadioItem) this.SetChecked(true);
       if (this.FOnClick != null) this.FOnClick(this);
     };
     this.IsSeparator = function () {
@@ -47570,9 +47608,14 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;
     $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+    $r.addProperty("AutoCheck",0,rtl.boolean,"FAutoCheck","FAutoCheck",{Default: false});
     $r.addProperty("Caption",2,rtl.string,"FCaption","SetCaption");
     $r.addProperty("Checked",2,rtl.boolean,"FChecked","SetChecked",{Default: false});
+    $r.addProperty("Default",0,rtl.boolean,"FDefault","FDefault",{Default: false});
     $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled",{Default: true});
+    $r.addProperty("GroupIndex",2,rtl.nativeint,"FGroupIndex","SetGroupIndex",{Default: 0});
+    $r.addProperty("ImageIndex",0,rtl.nativeint,"FImageIndex","FImageIndex",{Default: -1});
+    $r.addProperty("ImageUrl",2,rtl.string,"FImageUrl","SetImageUrl");
     $r.addProperty("RadioItem",2,rtl.boolean,"FRadioItem","SetRadioItem",{Default: false});
     $r.addProperty("ShortCut",2,rtl.word,"FShortCut","SetShortCut",{Default: 0});
     $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible",{Default: true});
@@ -47642,7 +47685,10 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
       return Result;
     };
     this.AddItem = function (AItem) {
-      if ((AItem != null) && (this.FItems.IndexOf(AItem) < 0)) this.FItems.Add(AItem);
+      if ((AItem != null) && (this.FItems.IndexOf(AItem) < 0)) {
+        this.FItems.Add(AItem);
+        AItem.FOwnerItems = this;
+      };
     };
     this.RemoveItem = function (AItem) {
       var VIndex = 0;
@@ -47658,12 +47704,14 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
       this.FDocClick = null;
       this.FDocKeyDown = null;
       this.FMenu = null;
+      this.FShortCutKeys = null;
       this.FOpenPath = "";
     };
     this.$final = function () {
       this.FDocClick = undefined;
       this.FDocKeyDown = undefined;
       this.FMenu = undefined;
+      this.FShortCutKeys = undefined;
       pas.Controls.TCustomControl.$final.call(this);
     };
     this.SetMenu = function (AValue) {
@@ -47727,6 +47775,8 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
       var VItem = null;
       var VClass = "";
       var VCheck = "";
+      var VIcon = "";
+      var VStyle = "";
       var VShortCut = "";
       var VPath = "";
       if (!(AItems != null)) return;
@@ -47744,8 +47794,12 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
         if (!VItem.FEnabled) VClass = VClass + " wcl-disabled";
         if (VItem.FItems.GetCount() > 0) VClass = VClass + " wcl-has-sub";
         VCheck = "";
-        if (VItem.FChecked || VItem.FRadioItem) VCheck = "&#10003; ";
-        AHtml.set(AHtml.get() + '<div class="' + VClass + '" data-path="' + VPath + '">' + "<span>" + VCheck + $impl.EscapeMenuText(VItem.FCaption) + "</span>");
+        if (VItem.FChecked) VCheck = "&#10003; ";
+        VIcon = "";
+        if (VItem.FImageUrl !== "") VIcon = '<img class="wcl-menubar-icon" src="' + $impl.EscapeMenuText(VItem.FImageUrl) + '">';
+        VStyle = "";
+        if (VItem.FDefault) VStyle = ' style="font-weight:bold"';
+        AHtml.set(AHtml.get() + '<div class="' + VClass + '" data-path="' + VPath + '">' + VIcon + "<span" + VStyle + ">" + VCheck + $impl.EscapeMenuText(VItem.FCaption) + "</span>");
         VShortCut = $mod.ShortCutToText(VItem.FShortCut);
         if (VShortCut !== "") AHtml.set(AHtml.get() + '<span class="wcl-menubar-shortcut">' + $impl.EscapeMenuText(VShortCut) + "</span>");
         if ((VItem.FItems.GetCount() > 0) && this.IsPathOpen(VPath)) {
@@ -47830,6 +47884,32 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
       };
       return Result;
     };
+    this.HandleShortCutKey = function (AEvent) {
+      var Result = false;
+      var VShortCut = 0;
+      var VItem = null;
+      var VTarget = null;
+      var VTag = "";
+      Result = false;
+      if (!(this.FMenu != null)) return Result;
+      VShortCut = $impl.KeyEventToShortCut(AEvent);
+      if (VShortCut === 0) return Result;
+      if ((VShortCut & (16384 | 32768)) === 0) {
+        VTarget = pas.Web.TJSEventHelper.GetTargetElement.call(AEvent);
+        if ((VTarget != null) && rtl.isExt(VTarget,HTMLElement)) {
+          VTag = VTarget.tagName;
+          if ((VTag === "INPUT") || (VTag === "TEXTAREA") || (VTag === "SELECT")) return Result;
+        };
+      };
+      VItem = $impl.FindShortCutItem(this.FMenu.FItems,VShortCut);
+      if (!(VItem != null)) return Result;
+      AEvent.preventDefault();
+      AEvent.stopPropagation();
+      this.CloseDropdown();
+      VItem.Click();
+      Result = true;
+      return Result;
+    };
     this.GetControlClassDefaultSize = function () {
       var Result = pas.Types.TSize.$new();
       Result.cx = 300;
@@ -47840,8 +47920,10 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
       pas.Controls.TControl.Create$1.call(this,AOwner);
       this.FDocClick = rtl.createCallback(this,"HandleDocClick");
       this.FDocKeyDown = rtl.createCallback(this,"HandleDocKeyDown");
+      this.FShortCutKeys = rtl.createCallback(this,"HandleShortCutKey");
       this.FMenu = null;
       this.FOpenPath = "";
+      document.addEventListener('keydown', this.FShortCutKeys, true);
       $impl._RegisterMenuRules();
       this.BeginUpdate();
       try {
@@ -47854,6 +47936,7 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     };
     this.Destroy = function () {
       this.StopDocTracking();
+      document.removeEventListener('keydown', this.FShortCutKeys, true);
       pas.Controls.TCustomControl.Destroy.call(this);
     };
     this.CloseDropdown = function () {
@@ -48046,7 +48129,7 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     return Result;
   };
   $mod.$implcode = function () {
-    $impl.MenuRules = ".wcl-menubar-items{display:flex;align-items:stretch;height:100%;" + "font:13px system-ui,-apple-system,Segoe UI,sans-serif}" + ".wcl-menubar-item{position:relative;display:flex;align-items:center;" + "padding:0 12px;cursor:pointer;color:#222;user-select:none;white-space:nowrap}" + ".wcl-menubar-item:hover{background:#e8e8e8}" + ".wcl-menubar-item.wcl-open{background:#dcdcdc}" + ".wcl-menubar-drop{position:absolute;top:100%;left:0;min-width:190px;" + "background:#fff;color:#222;border:1px solid #c9c3ba;box-shadow:0 4px 12px rgba(0,0,0,.18);" + "padding:4px 0;z-index:1000}" + ".wcl-menubar-entry{position:relative;display:flex;align-items:center;gap:16px;" + "justify-content:space-between;padding:6px 14px;cursor:pointer;white-space:nowrap}" + ".wcl-menubar-entry:hover{background:#2a7efe;color:#fff}" + ".wcl-menubar-entry.wcl-disabled{color:#aaa;pointer-events:none}" + '.wcl-menubar-entry.wcl-has-sub::after{content:"\\25B8";font-size:10px;color:#888;margin-left:8px}' + ".wcl-menubar-entry:hover.wcl-has-sub::after{color:#fff}" + ".wcl-menubar-entry .wcl-menubar-drop{left:100%;top:-5px}" + ".wcl-menubar-sep{height:1px;background:#ddd;margin:4px 0}" + ".wcl-menubar-shortcut{color:#888;font-size:12px}" + ".wcl-menubar-entry:hover .wcl-menubar-shortcut{color:#eee}";
+    $impl.MenuRules = ".wcl-menubar-items{display:flex;align-items:stretch;height:100%;" + "font:13px system-ui,-apple-system,Segoe UI,sans-serif}" + ".wcl-menubar-item{position:relative;display:flex;align-items:center;" + "padding:0 12px;cursor:pointer;color:#222;user-select:none;white-space:nowrap}" + ".wcl-menubar-item:hover{background:#e8e8e8}" + ".wcl-menubar-item.wcl-open{background:#dcdcdc}" + ".wcl-menubar-drop{position:absolute;top:100%;left:0;min-width:190px;" + "background:#fff;color:#222;border:1px solid #c9c3ba;box-shadow:0 4px 12px rgba(0,0,0,.18);" + "padding:4px 0;z-index:1000}" + ".wcl-menubar-entry{position:relative;display:flex;align-items:center;gap:16px;" + "justify-content:space-between;padding:6px 14px;cursor:pointer;white-space:nowrap}" + ".wcl-menubar-entry:hover{background:#2a7efe;color:#fff}" + ".wcl-menubar-entry.wcl-disabled{color:#aaa;pointer-events:none}" + ".wcl-menubar-icon{width:16px;height:16px;object-fit:contain;margin-right:6px;flex:0 0 auto}" + '.wcl-menubar-entry.wcl-has-sub::after{content:"\\25B8";font-size:10px;color:#888;margin-left:8px}' + ".wcl-menubar-entry:hover.wcl-has-sub::after{color:#fff}" + ".wcl-menubar-entry .wcl-menubar-drop{left:100%;top:-5px}" + ".wcl-menubar-sep{height:1px;background:#ddd;margin:4px 0}" + ".wcl-menubar-shortcut{color:#888;font-size:12px}" + ".wcl-menubar-entry:hover .wcl-menubar-shortcut{color:#eee}";
     $impl._MenuRulesRegistered = false;
     $impl._RegisterMenuRules = function () {
       if (!$impl._MenuRulesRegistered) {
@@ -48085,6 +48168,76 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
       if (pas.System.Copy(AName,1,1) === "F") {
         VNumber = pas.SysUtils.StrToIntDef(pas.System.Copy(AName,2,2147483647),0);
         if ((VNumber >= 1) && (VNumber <= 12)) return 111 + VNumber;
+      };
+      return Result;
+    };
+    $impl.KeyEventToShortCut = function (AEvent) {
+      var Result = 0;
+      var VCode = "";
+      var VNumber = 0;
+      Result = 0;
+      VCode = AEvent.code;
+      if (VCode === "") return Result;
+      if ((pas.System.Copy(VCode,1,3) === "Key") && (VCode.length === 4)) {
+        Result = VCode.charCodeAt(4 - 1)}
+       else if ((pas.System.Copy(VCode,1,5) === "Digit") && (VCode.length === 6)) {
+        Result = VCode.charCodeAt(6 - 1)}
+       else if (VCode === "Escape") {
+        Result = 27}
+       else if ((VCode === "Enter") || (VCode === "NumpadEnter")) {
+        Result = 13}
+       else if (VCode === "Tab") {
+        Result = 9}
+       else if (VCode === "Space") {
+        Result = 32}
+       else if (VCode === "Backspace") {
+        Result = 8}
+       else if (VCode === "Delete") {
+        Result = 46}
+       else if (VCode === "Insert") {
+        Result = 45}
+       else if (VCode === "Home") {
+        Result = 36}
+       else if (VCode === "End") {
+        Result = 35}
+       else if (VCode === "PageUp") {
+        Result = 33}
+       else if (VCode === "PageDown") {
+        Result = 34}
+       else if (VCode === "ArrowLeft") {
+        Result = 37}
+       else if (VCode === "ArrowUp") {
+        Result = 38}
+       else if (VCode === "ArrowRight") {
+        Result = 39}
+       else if (VCode === "ArrowDown") {
+        Result = 40}
+       else if (pas.System.Copy(VCode,1,1) === "F") {
+        VNumber = pas.SysUtils.StrToIntDef(pas.System.Copy(VCode,2,2147483647),0);
+        if ((VNumber >= 1) && (VNumber <= 12)) Result = 111 + VNumber;
+      };
+      if (Result === 0) return Result;
+      if (AEvent.ctrlKey) Result = Result | 16384;
+      if (AEvent.shiftKey) Result = Result | 8192;
+      if (AEvent.altKey) Result = Result | 32768;
+      return Result;
+    };
+    $impl.FindShortCutItem = function (AItems, AShortCut) {
+      var Result = null;
+      var VIndex = 0;
+      var VItem = null;
+      Result = null;
+      if (!(AItems != null) || (AShortCut === 0)) return Result;
+      for (var $l = 0, $end = AItems.GetCount() - 1; $l <= $end; $l++) {
+        VIndex = $l;
+        VItem = AItems.GetItem(VIndex);
+        if (!(VItem != null) || !VItem.FVisible || !VItem.FEnabled) continue;
+        if (!VItem.IsSeparator() && (VItem.FShortCut === AShortCut)) {
+          Result = VItem;
+          return Result;
+        };
+        Result = $impl.FindShortCutItem(VItem.FItems,AShortCut);
+        if (Result != null) return Result;
       };
       return Result;
     };
@@ -51682,6 +51835,65 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
     this.DemoSplitterMoved = function (Sender) {
       if (this.FLayoutInfo != null) this.FLayoutInfo.SetText("Left panel: " + pas.SysUtils.IntToStr(this.FLayoutLeft.FWidth) + " px" + "\n" + "Top panel: " + pas.SysUtils.IntToStr(this.FLayoutTop.FHeight) + " px" + "\n" + "Drag the grey bars.");
     };
+    this.MenuDemoClick = function (Sender) {
+      if (pas.Menus.TMenuItem.isPrototypeOf(Sender)) pas.Dialogs.ShowMessage$1("Menu item: " + Sender.FCaption);
+    };
+    this.MenuGotoGrid = function (Sender) {
+      this.WPageControl1.SetPageIndex(4);
+    };
+    this.MenuGotoLayout = function (Sender) {
+      this.WPageControl1.SetPageIndex(5);
+    };
+    this.SetupMenu = function () {
+      var VView = null;
+      var VItem = null;
+      if (!(this.WMainMenu1 != null)) return;
+      this.AssignMenuHandler(this.WMainMenu1.FItems,"New",rtl.createCallback(this,"MenuDemoClick"));
+      this.AssignMenuHandler(this.WMainMenu1.FItems,"Save",rtl.createCallback(this,"MenuDemoClick"));
+      this.AssignMenuHandler(this.WMainMenu1.FItems,"Ciao",rtl.createCallback(this,"MenuDemoClick"));
+      VItem = this.FindMenuItem(this.WMainMenu1.FItems,"New");
+      if (VItem != null) VItem.SetImageUrl("menu_new.png");
+      VView = this.WMainMenu1.FItems.Add("View",null);
+      VItem = VView.FItems.Add("Grid Modes",rtl.createCallback(this,"MenuGotoGrid"));
+      VItem.SetRadioItem(true);
+      VItem.SetGroupIndex(1);
+      VItem.SetChecked(true);
+      VItem = VView.FItems.Add("Layout",rtl.createCallback(this,"MenuGotoLayout"));
+      VItem.SetRadioItem(true);
+      VItem.SetGroupIndex(1);
+    };
+    this.AssignMenuHandler = function (AItems, ACaption, AHandler) {
+      var VIndex = 0;
+      var VItem = null;
+      if (!(AItems != null)) return;
+      for (var $l = 0, $end = AItems.GetCount() - 1; $l <= $end; $l++) {
+        VIndex = $l;
+        VItem = AItems.GetItem(VIndex);
+        if (!(VItem != null)) continue;
+        if (VItem.FCaption === ACaption) {
+          VItem.FOnClick = AHandler}
+         else this.AssignMenuHandler(VItem.FItems,ACaption,AHandler);
+      };
+    };
+    this.FindMenuItem = function (AItems, ACaption) {
+      var Result = null;
+      var VIndex = 0;
+      var VItem = null;
+      Result = null;
+      if (!(AItems != null)) return Result;
+      for (var $l = 0, $end = AItems.GetCount() - 1; $l <= $end; $l++) {
+        VIndex = $l;
+        VItem = AItems.GetItem(VIndex);
+        if (!(VItem != null)) continue;
+        if (VItem.FCaption === ACaption) {
+          Result = VItem;
+          return Result;
+        };
+        Result = this.FindMenuItem(VItem.FItems,ACaption);
+        if (Result != null) return Result;
+      };
+      return Result;
+    };
     this.DemoAddRow = function (AData, AName, AAge, ACity, AActive) {
       var VRow = null;
       VRow = new Object();
@@ -51856,6 +52068,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.WTimer1.SetOnTimer(rtl.createCallback(this,"WTimerTick"));
       this.BuildGridModesTab();
       this.BuildSplitterTab();
+      this.SetupMenu();
     };
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;

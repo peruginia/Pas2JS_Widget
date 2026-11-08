@@ -36,10 +36,16 @@ type
 
   TMenuItem = class(TComponent)
   private
+    FAutoCheck: Boolean;
     FCaption: string;
     FChecked: Boolean;
+    FDefault: Boolean;
     FEnabled: Boolean;
+    FGroupIndex: NativeInt;
+    FImageIndex: NativeInt;
+    FImageUrl: string;
     FItems: TMenuItems;
+    FOwnerItems: TMenuItems;
     FRadioItem: Boolean;
     FShortCut: TShortCut;
     FVisible: Boolean;
@@ -51,6 +57,9 @@ type
     procedure SetRadioItem(AValue: Boolean);
     procedure SetShortCut(AValue: TShortCut);
     procedure SetVisible(AValue: Boolean);
+    procedure SetGroupIndex(AValue: NativeInt);
+    procedure SetImageUrl(const AValue: string);
+    procedure UncheckRadioSiblings;
     procedure MenuChanged;
   protected
     /// The reader creates the nested items with this item as owner, so they
@@ -66,10 +75,18 @@ type
     function IsSeparator: Boolean;
     property Items: TMenuItems read FItems;
     property Root: TMainMenu read FRoot;
+    property OwnerItems: TMenuItems read FOwnerItems write FOwnerItems;
   published
+    property AutoCheck: Boolean read FAutoCheck write FAutoCheck default False;
     property Caption: string read FCaption write SetCaption;
     property Checked: Boolean read FChecked write SetChecked default False;
+    property Default: Boolean read FDefault write FDefault default False;
     property Enabled: Boolean read FEnabled write SetEnabled default True;
+    property GroupIndex: NativeInt read FGroupIndex write SetGroupIndex default 0;
+    /// ImageIndex is accepted for .lfm compatibility but not resolved:
+    /// use ImageUrl to show an icon in the browser.
+    property ImageIndex: NativeInt read FImageIndex write FImageIndex default -1;
+    property ImageUrl: string read FImageUrl write SetImageUrl;
     property RadioItem: Boolean read FRadioItem write SetRadioItem default False;
     property ShortCut: TShortCut read FShortCut write SetShortCut default 0;
     property Visible: Boolean read FVisible write SetVisible default True;
@@ -107,6 +124,7 @@ type
     FDocClick: TMouseMenuHandler;
     FDocKeyDown: TKeyMenuHandler;
     FMenu: TMainMenu;
+    FShortCutKeys: TKeyMenuHandler;
     /// Path of the open submenu chain, e.g. '0' or '0-5-1'.
     FOpenPath: string;
     procedure SetMenu(AValue: TMainMenu);
@@ -125,6 +143,7 @@ type
     function HandleClick(AEvent: TJSMouseEvent): boolean; override;
     function HandleDocClick(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleDocKeyDown(AEvent: TJSKeyBoardEvent): boolean; virtual;
+    function HandleShortCutKey(AEvent: TJSKeyBoardEvent): boolean; virtual;
   protected
     class function GetControlClassDefaultSize: TSize; override;
   public
@@ -186,6 +205,7 @@ const
     'justify-content:space-between;padding:6px 14px;cursor:pointer;white-space:nowrap}' +
     '.wcl-menubar-entry:hover{background:#2a7efe;color:#fff}' +
     '.wcl-menubar-entry.wcl-disabled{color:#aaa;pointer-events:none}' +
+    '.wcl-menubar-icon{width:16px;height:16px;object-fit:contain;margin-right:6px;flex:0 0 auto}' +
     '.wcl-menubar-entry.wcl-has-sub::after{content:"\25B8";font-size:10px;color:#888;margin-left:8px}' +
     '.wcl-menubar-entry:hover.wcl-has-sub::after{color:#fff}' +
     '.wcl-menubar-entry .wcl-menubar-drop{left:100%;top:-5px}' +
@@ -312,13 +332,88 @@ begin
   Result := Result + VName;
 end;
 
+{ Keyboard shortcuts }
+
+function KeyEventToShortCut(AEvent: TJSKeyBoardEvent): TShortCut;
+var
+  VCode: string;
+  VNumber: NativeInt;
+begin
+  Result := 0;
+  VCode := AEvent.code;
+  if (VCode = '') then
+    Exit;
+  if (Copy(VCode, 1, 3) = 'Key') and (Length(VCode) = 4) then
+    Result := Ord(VCode[4])
+  else if (Copy(VCode, 1, 5) = 'Digit') and (Length(VCode) = 6) then
+    Result := Ord(VCode[6])
+  else if (VCode = 'Escape') then Result := 27
+  else if (VCode = 'Enter') or (VCode = 'NumpadEnter') then Result := 13
+  else if (VCode = 'Tab') then Result := 9
+  else if (VCode = 'Space') then Result := 32
+  else if (VCode = 'Backspace') then Result := 8
+  else if (VCode = 'Delete') then Result := 46
+  else if (VCode = 'Insert') then Result := 45
+  else if (VCode = 'Home') then Result := 36
+  else if (VCode = 'End') then Result := 35
+  else if (VCode = 'PageUp') then Result := 33
+  else if (VCode = 'PageDown') then Result := 34
+  else if (VCode = 'ArrowLeft') then Result := 37
+  else if (VCode = 'ArrowUp') then Result := 38
+  else if (VCode = 'ArrowRight') then Result := 39
+  else if (VCode = 'ArrowDown') then Result := 40
+  else if (Copy(VCode, 1, 1) = 'F') then
+  begin
+    VNumber := StrToIntDef(Copy(VCode, 2, MaxInt), 0);
+    if (VNumber >= 1) and (VNumber <= 12) then
+      Result := 111 + VNumber;
+  end;
+  if (Result = 0) then
+    Exit;
+  if AEvent.ctrlKey then
+    Result := Result or scCtrl;
+  if AEvent.shiftKey then
+    Result := Result or scShift;
+  if AEvent.altKey then
+    Result := Result or scAlt;
+end;
+
+function FindShortCutItem(AItems: TMenuItems; AShortCut: TShortCut): TMenuItem;
+var
+  VIndex: NativeInt;
+  VItem: TMenuItem;
+begin
+  Result := nil;
+  if (not Assigned(AItems)) or (AShortCut = 0) then
+    Exit;
+  for VIndex := 0 to (AItems.Count - 1) do
+  begin
+    VItem := AItems[VIndex];
+    if (not Assigned(VItem)) or (not VItem.Visible) or (not VItem.Enabled) then
+      Continue;
+    if (not VItem.IsSeparator) and (VItem.ShortCut = AShortCut) then
+    begin
+      Result := VItem;
+      Exit;
+    end;
+    Result := FindShortCutItem(VItem.Items, AShortCut);
+    if Assigned(Result) then
+      Exit;
+  end;
+end;
+
 { TMenuItem }
 
 constructor TMenuItem.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FAutoCheck := False;
   FChecked := False;
+  FDefault := False;
   FEnabled := True;
+  FGroupIndex := 0;
+  FImageIndex := -1;
+  FImageUrl := '';
   FRadioItem := False;
   FVisible := True;
   FCaption := '';
@@ -370,6 +465,10 @@ procedure TMenuItem.Click;
 begin
   if (not FEnabled) then
     Exit;
+  if FAutoCheck then
+    Checked := not Checked
+  else if FRadioItem then
+    Checked := True;
   if Assigned(FOnClick) then
     FOnClick(Self);
 end;
@@ -394,6 +493,43 @@ begin
   if (FChecked <> AValue) then
   begin
     FChecked := AValue;
+    if FChecked then
+      UncheckRadioSiblings;
+    MenuChanged;
+  end;
+end;
+
+procedure TMenuItem.UncheckRadioSiblings;
+var
+  VIndex: NativeInt;
+  VItem: TMenuItem;
+begin
+  /// LCL semantics: radio items with the same GroupIndex in the same list
+  /// are mutually exclusive.
+  if (not FRadioItem) or (not Assigned(FOwnerItems)) or (FGroupIndex = 0) then
+    Exit;
+  for VIndex := 0 to (FOwnerItems.Count - 1) do
+  begin
+    VItem := FOwnerItems[VIndex];
+    if (VItem <> Self) and VItem.RadioItem and (VItem.GroupIndex = FGroupIndex) and VItem.Checked then
+      VItem.Checked := False;
+  end;
+end;
+
+procedure TMenuItem.SetGroupIndex(AValue: NativeInt);
+begin
+  if (FGroupIndex <> AValue) then
+  begin
+    FGroupIndex := AValue;
+    MenuChanged;
+  end;
+end;
+
+procedure TMenuItem.SetImageUrl(const AValue: string);
+begin
+  if (FImageUrl <> AValue) then
+  begin
+    FImageUrl := AValue;
     MenuChanged;
   end;
 end;
@@ -473,7 +609,10 @@ end;
 procedure TMenuItems.AddItem(AItem: TMenuItem);
 begin
   if Assigned(AItem) and (FItems.IndexOf(AItem) < 0) then
+  begin
     FItems.Add(AItem);
+    AItem.FOwnerItems := Self;
+  end;
 end;
 
 procedure TMenuItems.RemoveItem(AItem: TMenuItem);
@@ -520,8 +659,13 @@ begin
   inherited Create(AOwner);
   FDocClick := @HandleDocClick;
   FDocKeyDown := @HandleDocKeyDown;
+  FShortCutKeys := @HandleShortCutKey;
   FMenu := nil;
   FOpenPath := '';
+  /// Global shortcut handler: active for the whole life of the menu.
+  asm
+    document.addEventListener('keydown', this.FShortCutKeys, true);
+  end;
   _RegisterMenuRules;
   BeginUpdate;
   try
@@ -535,6 +679,9 @@ end;
 destructor TMenuBar.Destroy;
 begin
   StopDocTracking;
+  asm
+    document.removeEventListener('keydown', this.FShortCutKeys, true);
+  end;
   inherited Destroy;
 end;
 
@@ -666,6 +813,8 @@ var
   VItem: TMenuItem;
   VClass: string;
   VCheck: string;
+  VIcon: string;
+  VStyle: string;
   VShortCut: string;
   VPath: string;
 begin
@@ -690,10 +839,16 @@ begin
     if (VItem.Items.Count > 0) then
       VClass := VClass + ' wcl-has-sub';
     VCheck := '';
-    if VItem.Checked or VItem.RadioItem then
+    if VItem.Checked then
       VCheck := '&#10003; ';
+    VIcon := '';
+    if (VItem.ImageUrl <> '') then
+      VIcon := '<img class="wcl-menubar-icon" src="' + EscapeMenuText(VItem.ImageUrl) + '">';
+    VStyle := '';
+    if VItem.Default then
+      VStyle := ' style="font-weight:bold"';
     AHtml := AHtml + '<div class="' + VClass + '" data-path="' + VPath + '">' +
-      '<span>' + VCheck + EscapeMenuText(VItem.Caption) + '</span>';
+      VIcon + '<span' + VStyle + '>' + VCheck + EscapeMenuText(VItem.Caption) + '</span>';
     VShortCut := ShortCutToText(VItem.ShortCut);
     if (VShortCut <> '') then
       AHtml := AHtml + '<span class="wcl-menubar-shortcut">' +
@@ -808,6 +963,40 @@ begin
     CloseDropdown;
     Result := True;
   end;
+end;
+
+function TMenuBar.HandleShortCutKey(AEvent: TJSKeyBoardEvent): boolean;
+var
+  VShortCut: TShortCut;
+  VItem: TMenuItem;
+  VTarget: TJSElement;
+  VTag: string;
+begin
+  Result := False;
+  if (not Assigned(FMenu)) then
+    Exit;
+  VShortCut := KeyEventToShortCut(AEvent);
+  if (VShortCut = 0) then
+    Exit;
+  /// A plain key must not steal input while the user is typing in a field.
+  if ((VShortCut and (scCtrl or scAlt)) = 0) then
+  begin
+    VTarget := AEvent.targetElement;
+    if Assigned(VTarget) and (VTarget is TJSHTMLElement) then
+    begin
+      VTag := TJSHTMLElement(VTarget).tagName;
+      if (VTag = 'INPUT') or (VTag = 'TEXTAREA') or (VTag = 'SELECT') then
+        Exit;
+    end;
+  end;
+  VItem := FindShortCutItem(FMenu.Items, VShortCut);
+  if (not Assigned(VItem)) then
+    Exit;
+  AEvent.PreventDefault;
+  AEvent.StopPropagation;
+  CloseDropdown;
+  VItem.Click;
+  Result := True;
 end;
 
 class function TMenuBar.GetControlClassDefaultSize: TSize;
