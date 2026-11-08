@@ -337,34 +337,48 @@ end;
 function KeyEventToShortCut(AEvent: TJSKeyBoardEvent): TShortCut;
 var
   VCode: string;
+  VName: string;
   VNumber: NativeInt;
 begin
   Result := 0;
-  VCode := AEvent.code;
+  if (not Assigned(AEvent)) then
+    Exit;
+  /// code/key can be undefined (synthetic events, browser autofill):
+  /// read them defensively, otherwise Copy() throws on undefined.
+  VCode := '';
+  asm
+    if (AEvent.code != null) VCode = AEvent.code;
+    if (VCode === '') {
+      if (AEvent.key != null) VCode = AEvent.key;
+    }
+  end;
   if (VCode = '') then
     Exit;
-  if (Copy(VCode, 1, 3) = 'Key') and (Length(VCode) = 4) then
-    Result := Ord(VCode[4])
-  else if (Copy(VCode, 1, 5) = 'Digit') and (Length(VCode) = 6) then
-    Result := Ord(VCode[6])
-  else if (VCode = 'Escape') then Result := 27
-  else if (VCode = 'Enter') or (VCode = 'NumpadEnter') then Result := 13
-  else if (VCode = 'Tab') then Result := 9
-  else if (VCode = 'Space') then Result := 32
-  else if (VCode = 'Backspace') then Result := 8
-  else if (VCode = 'Delete') then Result := 46
-  else if (VCode = 'Insert') then Result := 45
-  else if (VCode = 'Home') then Result := 36
-  else if (VCode = 'End') then Result := 35
-  else if (VCode = 'PageUp') then Result := 33
-  else if (VCode = 'PageDown') then Result := 34
-  else if (VCode = 'ArrowLeft') then Result := 37
-  else if (VCode = 'ArrowUp') then Result := 38
-  else if (VCode = 'ArrowRight') then Result := 39
-  else if (VCode = 'ArrowDown') then Result := 40
-  else if (Copy(VCode, 1, 1) = 'F') then
+  VName := UpperCase(VCode);
+  if (Length(VCode) = 1) then
+    Result := Ord(VName[1])
+  else if (Copy(VName, 1, 3) = 'KEY') and (Length(VCode) = 4) then
+    Result := Ord(VName[4])
+  else if (Copy(VName, 1, 5) = 'DIGIT') and (Length(VCode) = 6) then
+    Result := Ord(VName[6])
+  else if (VName = 'ESCAPE') or (VName = 'ESC') then Result := 27
+  else if (VName = 'ENTER') or (VName = 'NUMENTER') then Result := 13
+  else if (VName = 'TAB') then Result := 9
+  else if (VName = 'SPACE') then Result := 32
+  else if (VName = 'BACKSPACE') then Result := 8
+  else if (VName = 'DELETE') or (VName = 'DEL') then Result := 46
+  else if (VName = 'INSERT') or (VName = 'INS') then Result := 45
+  else if (VName = 'HOME') then Result := 36
+  else if (VName = 'END') then Result := 35
+  else if (VName = 'PAGEUP') then Result := 33
+  else if (VName = 'PAGEDOWN') then Result := 34
+  else if (VName = 'ARROWLEFT') or (VName = 'LEFT') then Result := 37
+  else if (VName = 'ARROWUP') or (VName = 'UP') then Result := 38
+  else if (VName = 'ARROWRIGHT') or (VName = 'RIGHT') then Result := 39
+  else if (VName = 'ARROWDOWN') or (VName = 'DOWN') then Result := 40
+  else if (VName[1] = 'F') then
   begin
-    VNumber := StrToIntDef(Copy(VCode, 2, MaxInt), 0);
+    VNumber := StrToIntDef(Copy(VName, 2, MaxInt), 0);
     if (VNumber >= 1) and (VNumber <= 12) then
       Result := 111 + VNumber;
   end;

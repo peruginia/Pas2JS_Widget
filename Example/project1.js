@@ -48174,46 +48174,55 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     $impl.KeyEventToShortCut = function (AEvent) {
       var Result = 0;
       var VCode = "";
+      var VName = "";
       var VNumber = 0;
       Result = 0;
-      VCode = AEvent.code;
+      if (!(AEvent != null)) return Result;
+      VCode = "";
+      if (AEvent.code != null) VCode = AEvent.code;
+      if (VCode === '') {
+        if (AEvent.key != null) VCode = AEvent.key;
+      };
       if (VCode === "") return Result;
-      if ((pas.System.Copy(VCode,1,3) === "Key") && (VCode.length === 4)) {
-        Result = VCode.charCodeAt(4 - 1)}
-       else if ((pas.System.Copy(VCode,1,5) === "Digit") && (VCode.length === 6)) {
-        Result = VCode.charCodeAt(6 - 1)}
-       else if (VCode === "Escape") {
+      VName = pas.SysUtils.UpperCase(VCode);
+      if (VCode.length === 1) {
+        Result = VName.charCodeAt(1 - 1)}
+       else if ((pas.System.Copy(VName,1,3) === "KEY") && (VCode.length === 4)) {
+        Result = VName.charCodeAt(4 - 1)}
+       else if ((pas.System.Copy(VName,1,5) === "DIGIT") && (VCode.length === 6)) {
+        Result = VName.charCodeAt(6 - 1)}
+       else if ((VName === "ESCAPE") || (VName === "ESC")) {
         Result = 27}
-       else if ((VCode === "Enter") || (VCode === "NumpadEnter")) {
+       else if ((VName === "ENTER") || (VName === "NUMENTER")) {
         Result = 13}
-       else if (VCode === "Tab") {
+       else if (VName === "TAB") {
         Result = 9}
-       else if (VCode === "Space") {
+       else if (VName === "SPACE") {
         Result = 32}
-       else if (VCode === "Backspace") {
+       else if (VName === "BACKSPACE") {
         Result = 8}
-       else if (VCode === "Delete") {
+       else if ((VName === "DELETE") || (VName === "DEL")) {
         Result = 46}
-       else if (VCode === "Insert") {
+       else if ((VName === "INSERT") || (VName === "INS")) {
         Result = 45}
-       else if (VCode === "Home") {
+       else if (VName === "HOME") {
         Result = 36}
-       else if (VCode === "End") {
+       else if (VName === "END") {
         Result = 35}
-       else if (VCode === "PageUp") {
+       else if (VName === "PAGEUP") {
         Result = 33}
-       else if (VCode === "PageDown") {
+       else if (VName === "PAGEDOWN") {
         Result = 34}
-       else if (VCode === "ArrowLeft") {
+       else if ((VName === "ARROWLEFT") || (VName === "LEFT")) {
         Result = 37}
-       else if (VCode === "ArrowUp") {
+       else if ((VName === "ARROWUP") || (VName === "UP")) {
         Result = 38}
-       else if (VCode === "ArrowRight") {
+       else if ((VName === "ARROWRIGHT") || (VName === "RIGHT")) {
         Result = 39}
-       else if (VCode === "ArrowDown") {
+       else if ((VName === "ARROWDOWN") || (VName === "DOWN")) {
         Result = 40}
-       else if (pas.System.Copy(VCode,1,1) === "F") {
-        VNumber = pas.SysUtils.StrToIntDef(pas.System.Copy(VCode,2,2147483647),0);
+       else if (VName.charAt(0) === "F") {
+        VNumber = pas.SysUtils.StrToIntDef(pas.System.Copy(VName,2,2147483647),0);
         if ((VNumber >= 1) && (VNumber <= 12)) Result = 111 + VNumber;
       };
       if (Result === 0) return Result;
