@@ -5,7 +5,7 @@ unit Unit1;
 interface
 
 uses
-  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls, Menus, ExtCtrls;
+  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls, Menus, ExtCtrls, Web;
 
 type
 
@@ -88,6 +88,7 @@ type
     FDemoLastCity: string;
     FDemoSeparators: Boolean;
     FDemoTable: TWWebDBTable;
+    FGridInfo: TWLabel;
     FGridPopup: TWPopupMenu;
     FLayoutInfo: TWLabel;
     FLayoutLeft: TWPanel;
@@ -97,6 +98,16 @@ type
     procedure BuildSplitterTab;
     procedure BuildCanvasTab;
     procedure DemoPaintBoxPaint(Sender: TObject);
+    procedure SetupStringGrid;
+    procedure GridDrawCell(Sender: TObject; ACol, ARow: LongInt;
+      AState: TGridDrawState; ACell: TJSHTMLTableDataCellElement);
+    procedure GridEditingDone(Sender: TObject);
+    procedure GridGetEditText(Sender: TObject; ACol, ARow: LongInt;
+      var Value: string);
+    procedure GridSelectCell(Sender: TObject; ACol, ARow: LongInt;
+      var CanSelect: Boolean);
+    procedure GridSetEditText(Sender: TObject; ACol, ARow: LongInt;
+      const Value: string);
     procedure DemoSplitterMoved(Sender: TObject);
     procedure MenuDemoClick(Sender: TObject);
     procedure MenuGotoGrid(Sender: TObject);
@@ -176,6 +187,7 @@ begin
   BuildGridModesTab;
   BuildSplitterTab;
   BuildCanvasTab;
+  SetupStringGrid;
   SetupMenu;
 end;
 
@@ -810,6 +822,93 @@ begin
   AddShape(stEllipse, 'Ellipse', clAqua);
   AddShape(stTriangle, 'Triangle', clFuchsia);
   AddShape(stSquaredTriangle, 'SquaredTri', clLime);
+end;
+
+{ --- TStringGrid demo: inline editing, events and keyboard navigation --- }
+
+procedure TWForm1.SetupStringGrid;
+begin
+  WStringGrid1.Options := [goEditing, goTabs];
+  WStringGrid1.ColCount := 4;
+  WStringGrid1.RowCount := 6;
+  WStringGrid1.ColWidths[0] := 110;
+  WStringGrid1.ColWidths[1] := 70;
+  WStringGrid1.ColWidths[2] := 110;
+  WStringGrid1.ColWidths[3] := 130;
+
+  /// Events first, so every Cells assignment below renders through OnDrawCell.
+  WStringGrid1.OnDrawCell := @GridDrawCell;
+  WStringGrid1.OnEditingDone := @GridEditingDone;
+  WStringGrid1.OnGetEditText := @GridGetEditText;
+  WStringGrid1.OnSelectCell := @GridSelectCell;
+  WStringGrid1.OnSetEditText := @GridSetEditText;
+
+  WStringGrid1.Cells[0, 0] := 'Name';
+  WStringGrid1.Cells[1, 0] := 'Age';
+  WStringGrid1.Cells[2, 0] := 'City';
+  WStringGrid1.Cells[3, 0] := 'Note';
+  WStringGrid1.Cells[0, 1] := 'Mario Rossi';
+  WStringGrid1.Cells[1, 1] := '30';
+  WStringGrid1.Cells[2, 1] := 'Rome';
+  WStringGrid1.Cells[3, 1] := 'read-only';
+  WStringGrid1.Cells[0, 2] := 'Luigi Bianchi';
+  WStringGrid1.Cells[1, 2] := '25';
+  WStringGrid1.Cells[2, 2] := 'Milan';
+  WStringGrid1.Cells[0, 3] := 'Anna Verdi';
+  WStringGrid1.Cells[1, 3] := '41';
+  WStringGrid1.Cells[2, 3] := 'Turin';
+  WStringGrid1.Cells[0, 4] := 'Sara Neri';
+  WStringGrid1.Cells[1, 4] := '19';
+  WStringGrid1.Cells[2, 4] := 'Naples';
+  WStringGrid1.Cells[0, 5] := 'Paolo Blu';
+  WStringGrid1.Cells[1, 5] := '33';
+  WStringGrid1.Cells[2, 5] := 'Rome';
+
+  WStringGrid1.Col := 1;
+  WStringGrid1.Row := 1;
+
+  FGridInfo := TWLabel.Create(Self);
+  FGridInfo.Parent := WStringGrid1.Parent;
+  FGridInfo.SetBounds(20, 178, 640, 40);
+  FGridInfo.Caption :=
+    'Double click, F2 or Enter to edit. Tab moves to the next cell, Esc cancels.' + #10 +
+    'Column "City" is painted by OnDrawCell; cell [3,1] is blocked by OnSelectCell.';
+end;
+
+procedure TWForm1.GridDrawCell(Sender: TObject; ACol, ARow: LongInt;
+  AState: TGridDrawState; ACell: TJSHTMLTableDataCellElement);
+begin
+  if (ACol = 2) and (ARow > 0) then
+    ACell.style.SetProperty('background-color', '#FFF8C0');
+  if (ACol = 3) and (ARow = 1) then
+    ACell.style.SetProperty('color', '#999999');
+end;
+
+procedure TWForm1.GridGetEditText(Sender: TObject; ACol, ARow: LongInt;
+  var Value: string);
+begin
+  FGridInfo.Caption := 'Editing cell [' + IntToStr(ACol) + ',' + IntToStr(ARow) + ']';
+end;
+
+procedure TWForm1.GridSetEditText(Sender: TObject; ACol, ARow: LongInt;
+  const Value: string);
+begin
+  FGridInfo.Caption := 'Cell [' + IntToStr(ACol) + ',' + IntToStr(ARow) +
+    '] = "' + Value + '"';
+end;
+
+procedure TWForm1.GridEditingDone(Sender: TObject);
+begin
+  if Assigned(FGridInfo) then
+    FGridInfo.Caption := FGridInfo.Caption + '   (edit done)';
+end;
+
+procedure TWForm1.GridSelectCell(Sender: TObject; ACol, ARow: LongInt;
+  var CanSelect: Boolean);
+begin
+  /// Cell [3,1] is read-only: OnSelectCell refuses the selection.
+  if (ACol = 3) and (ARow = 1) then
+    CanSelect := False;
 end;
 
 { --- Menu: handlers on the IDE-designed items + a code-built radio group --- }

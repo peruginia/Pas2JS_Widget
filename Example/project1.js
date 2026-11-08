@@ -45975,6 +45975,8 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       this.FFilterTimer = 0;
       this.FGroupField = "";
       this.FGroupCollapsed = null;
+      this.FScopeId = "";
+      this.FStyleElement = null;
       this.FActiveCell = null;
       this.Body = null;
     };
@@ -45996,6 +45998,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       this.FOnCellDblClick = undefined;
       this.FLastClickCell = undefined;
       this.FGroupCollapsed = undefined;
+      this.FStyleElement = undefined;
       this.FActiveCell = undefined;
       this.Body = undefined;
       pas.Controls.TCustomControl.$final.call(this);
@@ -46741,9 +46744,13 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
          else if ($tmp === pas.Classes.TAlignment.taRightJustify) Result = "right";
         return Result;
       };
+      function Scoped(ARule) {
+        var Result = "";
+        Result = '[data-dg="' + $Self.FScopeId + '"] ' + ARule;
+        return Result;
+      };
       var VColumn = null;
       var VColumnIndex = 0;
-      var VStyle = null;
       var VCss = "";
       var VHeight = 0;
       var VHeadHeight = 0;
@@ -46756,7 +46763,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       if (this.FFilterBox) VHeadHeight = VHeight * 2;
       VCss = "";
       if (!(this.FResponsiveMode && (this.FResponsiveBreakpoint === 0))) {
-        VCss = "thead, tbody{display: block;position: absolute;}" + "thead{overflow: hidden;width: calc(100% - " + pas.SysUtils.IntToStr(pas.Controls.ScrollbarWidth()) + "px);" + "height: auto;}" + "tbody{overflow: scroll;top: " + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeadHeight,0)) + "px;" + "width: 100%;height: calc(100% - " + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeadHeight,0)) + "px);}";
+        VCss = Scoped("thead") + "," + Scoped("tbody") + "{display: block;position: absolute;}" + Scoped("thead{overflow: hidden;width: calc(100% - " + pas.SysUtils.IntToStr(pas.Controls.ScrollbarWidth()) + "px);" + "height: auto;}") + Scoped("tbody{overflow: scroll;top: " + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeadHeight,0)) + "px;" + "width: 100%;height: calc(100% - " + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeadHeight,0)) + "px);}");
       };
       VVisibleIndex = 0;
       for (var $l = 0, $end = this.FColumns.GetCount() - 1; $l <= $end; $l++) {
@@ -46765,20 +46772,21 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
         if ((VColumn != null) && this.IsColumnVisibleAtWidth(VColumn,VViewportWidth)) {
           VWidth = pas.Controls.IfThen$2(VColumn.FWidth <= 0,this.FDefColWidth,VColumn.FWidth);
           VVisibleIndex += 1;
-          if (!(this.FResponsiveMode && (this.FResponsiveBreakpoint === 0))) VCss = VCss + "thead th:nth-child(" + pas.SysUtils.IntToStr(VVisibleIndex) + "){" + "height:" + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeight,0)) + "px;min-width:" + pas.SysUtils.IntToStr(VWidth) + "px;max-width:" + pas.SysUtils.IntToStr(VWidth) + "px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background:#dddada;font:" + pas.Graphics.JSFont(VColumn.FTitleFont) + ";font-family:" + pas.Graphics.JSFontFamily(VColumn.FTitleFont) + ";text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}";
-          if (!(this.FResponsiveMode && (this.FResponsiveBreakpoint === 0))) VCss = VCss + "tbody td:nth-child(" + pas.SysUtils.IntToStr(VVisibleIndex) + "){" + "height:" + pas.SysUtils.IntToStr(VHeight) + "px;min-width:" + pas.SysUtils.IntToStr(VWidth) + "px;max-width:" + pas.SysUtils.IntToStr(VWidth) + "px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background-color:" + pas.Graphics.JSColor(VColumn.FColor) + ";font:" + pas.Graphics.JSFont(VColumn.FFont) + ";text-align:" + JSAlign(VColumn.FAlignment) + ";text-overflow:clip;white-space:nowrap;}";
+          if (!(this.FResponsiveMode && (this.FResponsiveBreakpoint === 0))) VCss = VCss + Scoped("thead th:nth-child(" + pas.SysUtils.IntToStr(VVisibleIndex) + "){" + "height:" + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeight,0)) + "px;min-width:" + pas.SysUtils.IntToStr(VWidth) + "px;max-width:" + pas.SysUtils.IntToStr(VWidth) + "px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background:#dddada;font:" + pas.Graphics.JSFont(VColumn.FTitleFont) + ";font-family:" + pas.Graphics.JSFontFamily(VColumn.FTitleFont) + ";text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}");
+          if (!(this.FResponsiveMode && (this.FResponsiveBreakpoint === 0))) VCss = VCss + Scoped("tbody td:nth-child(" + pas.SysUtils.IntToStr(VVisibleIndex) + "){" + "height:" + pas.SysUtils.IntToStr(VHeight) + "px;min-width:" + pas.SysUtils.IntToStr(VWidth) + "px;max-width:" + pas.SysUtils.IntToStr(VWidth) + "px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background-color:" + pas.Graphics.JSColor(VColumn.FColor) + ";font:" + pas.Graphics.JSFont(VColumn.FFont) + ";text-align:" + JSAlign(VColumn.FAlignment) + ";text-overflow:clip;white-space:nowrap;}");
         };
       };
       if (this.FResponsiveMode) {
         if ((this.FResponsiveBreakpoint > 0) && !this.FIsCardVisible) {
           VCss = VCss + "@media (max-width: " + pas.SysUtils.IntToStr(this.FResponsiveBreakpoint) + "px){";
         };
-        VCss = VCss + ".dg-card-container{width:100%;height:100%;overflow-y:auto;}" + ".dg-card{margin:0 0 2px 0;border:1px solid #ccc;border-radius:4px;overflow:hidden;}" + ".dg-card.dg-active{border-color:dodgerblue;box-shadow:0 0 0 1px dodgerblue;}" + ".dg-card div[dg-cell]{display:block;padding:1px 6px;border-bottom:1px solid #eee;text-align:left;}" + ".dg-card div[dg-cell]:last-child{border-bottom:none;}" + ".dg-label{display:inline;font-weight:bold;color:#555;margin-right:4px;cursor:pointer;}" + '.dg-label::after{content:":";}' + ".dg-value{display:inline;word-break:break-word;}";
+        VCss = VCss + Scoped(".dg-card-container{width:100%;height:100%;overflow-y:auto;}") + Scoped(".dg-card{margin:0 0 2px 0;border:1px solid #ccc;border-radius:4px;overflow:hidden;}") + Scoped(".dg-card.dg-active{border-color:dodgerblue;box-shadow:0 0 0 1px dodgerblue;}") + Scoped(".dg-card div[dg-cell]{display:block;padding:1px 6px;border-bottom:1px solid #eee;text-align:left;}") + Scoped(".dg-card div[dg-cell]:last-child{border-bottom:none;}") + Scoped(".dg-label{display:inline;font-weight:bold;color:#555;margin-right:4px;cursor:pointer;}") + Scoped('.dg-label::after{content:":";}') + Scoped(".dg-value{display:inline;word-break:break-word;}");
         if ((this.FResponsiveBreakpoint > 0) && !this.FIsCardVisible) VCss = VCss + "}";
       };
-      VCss = VCss + "thead .dg-filter-input{width:98%;box-sizing:border-box;padding:2px 4px;border:1px solid #ccc;border-radius:3px;margin:2px 0;}" + ".dg-filter-card input{width:100%;box-sizing:border-box;padding:4px 8px;border:1px solid #ccc;border-radius:4px;}";
-      VStyle = this.FHandleElement.appendChild(document.createElement("style"));
-      VStyle.innerHTML = VCss;
+      VCss = VCss + Scoped("thead .dg-filter-input{width:98%;box-sizing:border-box;padding:2px 4px;border:1px solid #ccc;border-radius:3px;margin:2px 0;}") + Scoped(".dg-filter-card input{width:100%;box-sizing:border-box;padding:4px 8px;border:1px solid #ccc;border-radius:4px;}");
+      if ((this.FStyleElement != null) && (this.FStyleElement.parentElement === this.FHandleElement)) this.FHandleElement.removeChild(this.FStyleElement);
+      this.FStyleElement = this.FHandleElement.appendChild(document.createElement("style"));
+      this.FStyleElement.innerHTML = VCss;
     };
     this.RenderTableHead = function () {
       var VColumn = null;
@@ -47364,6 +47372,9 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
     };
     this.Create$1 = function (AOwner) {
       pas.Controls.TControl.Create$1.call(this,AOwner);
+      $impl._DataGridSeq += 1;
+      this.FScopeId = "dg" + pas.SysUtils.IntToStr($impl._DataGridSeq);
+      this.FHandleElement.setAttribute("data-dg",this.FScopeId);
       this.FColumns = $mod.TDataColumns.$create("Create$2",[this]);
       this.FActiveCell = null;
       this.fSelRow = -1;
@@ -47747,6 +47758,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
   });
   $mod.$implcode = function () {
     $impl.DblClickThreshold = 0.000005;
+    $impl._DataGridSeq = 0;
     $impl.FindClosestParent = function (AElement, ATagName) {
       var Result = null;
       var Current = null;
@@ -50297,11 +50309,14 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
   this.$rtti.$Class("TGridColumn");
   rtl.createClass(this,"EGridException",pas.SysUtils.Exception,function () {
   });
-  this.TGridOption = {"0": "goRowSelect", goRowSelect: 0};
-  this.$rtti.$Enum("TGridOption",{minvalue: 0, maxvalue: 0, ordtype: 1, enumtype: this.TGridOption});
+  this.TGridOption = {"0": "goFixedVertLine", goFixedVertLine: 0, "1": "goFixedHorzLine", goFixedHorzLine: 1, "2": "goVertLine", goVertLine: 2, "3": "goHorzLine", goHorzLine: 3, "4": "goRangeSelect", goRangeSelect: 4, "5": "goDrawFocusSelected", goDrawFocusSelected: 5, "6": "goRowSizing", goRowSizing: 6, "7": "goColSizing", goColSizing: 7, "8": "goRowMoving", goRowMoving: 8, "9": "goColMoving", goColMoving: 9, "10": "goEditing", goEditing: 10, "11": "goTabs", goTabs: 11, "12": "goRowSelect", goRowSelect: 12, "13": "goAlwaysShowEditor", goAlwaysShowEditor: 13, "14": "goThumbTracking", goThumbTracking: 14, "15": "goColSpanning", goColSpanning: 15, "16": "goRelaxedRowSelect", goRelaxedRowSelect: 16, "17": "goDblClickAutoSize", goDblClickAutoSize: 17, "18": "goSmoothScroll", goSmoothScroll: 18};
+  this.$rtti.$Enum("TGridOption",{minvalue: 0, maxvalue: 18, ordtype: 1, enumtype: this.TGridOption});
   this.$rtti.$Set("TGridOptions",{comptype: this.$rtti["TGridOption"]});
   this.TGridState = {"0": "gsNormal", gsNormal: 0, "1": "gsSelecting", gsSelecting: 1, "2": "gsRowSizing", gsRowSizing: 2, "3": "gsColSizing", gsColSizing: 3, "4": "gsRowMoving", gsRowMoving: 4, "5": "gsColMoving", gsColMoving: 5, "6": "gsHeaderClicking", gsHeaderClicking: 6, "7": "gsButtonColumnClicking", gsButtonColumnClicking: 7};
   this.$rtti.$Enum("TGridState",{minvalue: 0, maxvalue: 7, ordtype: 1, enumtype: this.TGridState});
+  this.TGridDrawState$a = {"0": "gdSelected", gdSelected: 0, "1": "gdFixed", gdFixed: 1, "2": "gdFocused", gdFocused: 2};
+  this.$rtti.$Enum("TGridDrawState$a",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TGridDrawState$a});
+  this.$rtti.$Set("TGridDrawState",{comptype: this.$rtti["TGridDrawState$a"]});
   this.TGridZone = {"0": "gzNormal", gzNormal: 0, "1": "gzFixedCols", gzFixedCols: 1, "2": "gzFixedRows", gzFixedRows: 2, "3": "gzFixedCells", gzFixedCells: 3, "4": "gzInvalid", gzInvalid: 4};
   this.$rtti.$Enum("TGridZone",{minvalue: 0, maxvalue: 4, ordtype: 1, enumtype: this.TGridZone});
   this.$rtti.$Set("TGridZoneSet",{comptype: this.$rtti["TGridZone"]});
@@ -50347,6 +50362,10 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
   });
   this.DefaultGridOptions = {};
   this.$rtti.$MethodVar("TOnSelectEvent",{procsig: rtl.newTIProcSig([["aSender",pas.System.$rtti["TObject"]],["aCol",rtl.longint],["aRow",rtl.longint]]), methodkind: 0});
+  this.$rtti.$MethodVar("TOnSelectCellEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["ACol",rtl.longint],["ARow",rtl.longint],["CanSelect",rtl.boolean,1]]), methodkind: 0});
+  this.$rtti.$MethodVar("TOnGetEditTextEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["ACol",rtl.longint],["ARow",rtl.longint],["Value",rtl.string,1]]), methodkind: 0});
+  this.$rtti.$MethodVar("TOnSetEditTextEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["ACol",rtl.longint],["ARow",rtl.longint],["Value",rtl.string,2]]), methodkind: 0});
+  this.$rtti.$MethodVar("TOnDrawCellEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["ACol",rtl.longint],["ARow",rtl.longint],["AState",this.$rtti["TGridDrawState"]],["ACell",pas.Web.$rtti["TJSHTMLTableDataCellElement"]]]), methodkind: 0});
   rtl.createClass(this,"TGridColumnTitle",pas.Classes.TPersistent,function () {
     this.$init = function () {
       pas.Classes.TPersistent.$init.call(this);
@@ -50650,6 +50669,9 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       this.fContentTable = null;
       this.fDefColWidth = 0;
       this.fDefRowHeight = 0;
+      this.fEditing = false;
+      this.fEditor = null;
+      this.fEditorCell = null;
       this.fEditorMode = false;
       this.fGCache = $mod.TGridDataCache.$new();
       this.fFixedColor = 0;
@@ -50661,12 +50683,19 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       this.fFixedTopLeftTable = null;
       this.fFlat = false;
       this.fGridBorderStyle = pas.Controls.TFormBorderStyle.bsNone;
+      this.fMouseCell = pas.Types.TPoint.$new();
+      this.fMouseCellValid = false;
       this.fGridLineColor = 0;
       this.fGridLineStyle = 0;
       this.fGridLineWidth = 0;
       this.fOnAfterSelection = null;
       this.fOnBeforeSelection = null;
+      this.fOnDrawCell = null;
+      this.fOnEditingDone = null;
+      this.fOnGetEditText = null;
+      this.fOnSelectCell = null;
       this.fOnSelection = null;
+      this.fOnSetEditText = null;
       this.fOnTopLeftChanged = null;
       this.fOptions = {};
       this.fRange = pas.Types.TRect.$new();
@@ -50684,13 +50713,21 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       this.fCols = undefined;
       this.fColumns = undefined;
       this.fContentTable = undefined;
+      this.fEditor = undefined;
+      this.fEditorCell = undefined;
       this.fGCache = undefined;
       this.fFixedColsTable = undefined;
       this.fFixedRowsTable = undefined;
       this.fFixedTopLeftTable = undefined;
+      this.fMouseCell = undefined;
       this.fOnAfterSelection = undefined;
       this.fOnBeforeSelection = undefined;
+      this.fOnDrawCell = undefined;
+      this.fOnEditingDone = undefined;
+      this.fOnGetEditText = undefined;
+      this.fOnSelectCell = undefined;
       this.fOnSelection = undefined;
+      this.fOnSetEditText = undefined;
       this.fOnTopLeftChanged = undefined;
       this.fOptions = undefined;
       this.fRange = undefined;
@@ -50825,6 +50862,19 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       } else Result = this.fDefRowHeight;
       return Result;
     };
+    this.GetDrawState = function (aCol, aRow) {
+      var Result = {};
+      Result = {};
+      if ((aCol < this.fFixedCols) || (aRow < this.fFixedRows)) Result = rtl.includeSet(Result,$mod.TGridDrawState$a.gdFixed);
+      if (this.GetIsCellSelected(aCol,aRow)) Result = rtl.includeSet(Result,$mod.TGridDrawState$a.gdSelected);
+      if ((aCol === this.fCol) && (aRow === this.fRow)) Result = rtl.includeSet(Result,$mod.TGridDrawState$a.gdFocused);
+      return Result;
+    };
+    this.GetEditing = function () {
+      var Result = false;
+      Result = this.fEditing;
+      return Result;
+    };
     this.GetFixedColor = function () {
       var Result = 0;
       Result = this.fFixedColor;
@@ -50864,7 +50914,28 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
     };
     this.ScrollToCell = function (aCol, aRow, aForceFullyVisible) {
       var Result = false;
+      var VRow = null;
+      var VCell = null;
+      var VContainer = null;
+      var VTop = 0;
+      var VLeft = 0;
       Result = false;
+      if (!(this.fContentTable != null)) return Result;
+      if ((aRow < 0) || (aRow >= this.fContentTable.rows.length)) return Result;
+      VRow = this.fContentTable.rows.item(aRow);
+      if ((aCol < 0) || (aCol >= VRow.cells.length)) return Result;
+      VContainer = this.FHandleElement;
+      if ((VContainer.clientWidth <= 0) || (VContainer.clientHeight <= 0)) return Result;
+      VCell = VRow.cells.item(aCol);
+      VTop = pas.System.Trunc(VCell.offsetTop);
+      VLeft = pas.System.Trunc(VCell.offsetLeft);
+      if (VTop < (VContainer.scrollTop + this.fGCache.FixedHeight)) {
+        VContainer.scrollTop = VTop - this.fGCache.FixedHeight}
+       else if ((VTop + pas.System.Trunc(VCell.offsetHeight)) > (VContainer.scrollTop + VContainer.clientHeight)) VContainer.scrollTop = (VTop + pas.System.Trunc(VCell.offsetHeight)) - VContainer.clientHeight;
+      if (VLeft < (VContainer.scrollLeft + this.fGCache.FixedWidth)) {
+        VContainer.scrollLeft = VLeft - this.fGCache.FixedWidth}
+       else if ((VLeft + pas.System.Trunc(VCell.offsetWidth)) > (VContainer.scrollLeft + VContainer.clientWidth)) VContainer.scrollLeft = (VLeft + pas.System.Trunc(VCell.offsetWidth)) - VContainer.clientWidth;
+      Result = true;
       return Result;
     };
     this.SetBorderColor = function (aValue) {
@@ -50909,8 +50980,11 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       this.Changed();
     };
     this.SetEditorMode = function (aValue) {
-      if (this.fEditorMode === aValue) return;
-      this.fEditorMode = aValue;
+      if (aValue) {
+        if (!this.fEditing) this.StartEdit("");
+      } else if (this.fEditing) {
+        this.EndEdit(true)}
+       else this.fEditorMode = false;
     };
     this.SetFixedColor = function (aValue) {
       if (this.fFixedColor === aValue) return;
@@ -51033,6 +51107,20 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       this.fGCache.ClickCell.$assign(this.MouseToCell$1(this.fGCache.ClickMouse));
       if (this.fGCache.HotGridZone === $mod.TGridZone.gzInvalid) this.fGCache.HotGridZone = this.CellToGridZone(this.fGCache.ClickCell.x,this.fGCache.ClickCell.y);
     };
+    this.CellFromEvent = function (AEvent) {
+      var Result = pas.Types.TPoint.$new();
+      var VElement = null;
+      var VRow = null;
+      Result.$assign(pas.Types.Point(-1,-1));
+      VElement = pas.Web.TJSEventHelper.GetTargetElement.call(AEvent);
+      while ((VElement != null) && (VElement.tagName !== "TD")) VElement = VElement.parentElement;
+      if (!(VElement != null)) return Result;
+      if (!(VElement.parentElement != null)) return Result;
+      if (VElement.parentElement.tagName !== "TR") return Result;
+      VRow = VElement.parentElement;
+      Result.$assign(pas.Types.Point(VElement.cellIndex,VRow.rowIndex));
+      return Result;
+    };
     this.CellClick = function (aCol, aRow, aButton) {
     };
     this.Changed = function () {
@@ -51062,9 +51150,12 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
         var alignment = 0;
         var layout = 0;
         content = aCell.getElementsByTagName("div").item(0);
-        if ((aColumn != null) && (aRow === 0)) {
-          content.textContent = aColumn.fTitle.GetCaption()}
-         else content.textContent = $Self.GetCells(aCol,aRow);
+        if (!$Self.fEditing || (aCol !== $Self.fCol) || (aRow !== $Self.fRow)) {
+          if ((aColumn != null) && (aRow === 0)) {
+            content.textContent = aColumn.fTitle.GetCaption()}
+           else content.textContent = $Self.GetCells(aCol,aRow);
+        };
+        content.style.setProperty("position","relative");
         alignment = pas.Classes.TAlignment.taLeftJustify;
         layout = pas.Graphics.TTextLayout.tlCenter;
         if (aColumn != null) {
@@ -51139,6 +51230,7 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       var i = 0;
       var j = 0;
       var cell = null;
+      var contentcell = null;
       var container = null;
       var usecolumns = false;
       var column = null;
@@ -51212,7 +51304,8 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
         } else rowtopleft = null;
         for (var $l1 = 0, $end1 = row.cells.length - 1; $l1 <= $end1; $l1++) {
           j = $l1;
-          cell = row.cells.item(j);
+          contentcell = row.cells.item(j);
+          cell = contentcell;
           column = null;
           if (usecolumns && this.IsColumnIndexVariable(j)) column = this.ColumnFromGridColumn(j);
           UpdateCell(cell,j,i,column,j === (this.GetColCount() - 1),i === (this.GetRowCount() - 1));
@@ -51227,6 +51320,15 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
           if ((j < this.fFixedCols) && (i < this.fFixedRows)) {
             cell = rowtopleft.cells.item(j);
             UpdateFixedCell(cell,j,i,column,(j === (this.fFixedCols - 1)) && (this.GetColCount() === 1),(i === (this.fFixedRows - 1)) && (this.GetRowCount() === 1));
+          };
+          if ((this.fOnDrawCell != null) && !(this.fEditing && (j === this.fCol) && (i === this.fRow))) {
+            if ((i < this.fFixedRows) && (j < this.fFixedCols) && (rowtopleft != null)) {
+              this.DoDrawCell(j,i,rowtopleft.cells.item(j))}
+             else if ((i < this.fFixedRows) && (rowtop != null)) {
+              this.DoDrawCell(j,i,rowtop.cells.item(j))}
+             else if ((j < this.fFixedCols) && (rowleft != null)) {
+              this.DoDrawCell(j,i,rowleft.cells.item(j))}
+             else this.DoDrawCell(j,i,contentcell);
           };
         };
       };
@@ -51275,6 +51377,9 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       Result = document.createElement("div");
       return Result;
     };
+    this.DoDrawCell = function (aCol, aRow, aCell) {
+      if (this.fOnDrawCell != null) this.fOnDrawCell(this,aCol,aRow,rtl.refSet(this.GetDrawState(aCol,aRow)),aCell);
+    };
     this.DoScroll = function () {
       var container = null;
       pas.Controls.TControl.DoScroll.call(this);
@@ -51285,6 +51390,26 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
         this.fFixedTopLeftTable.style.setProperty("top",pas.SysUtils.IntToStr(container.scrollTop) + "px");
         this.fFixedTopLeftTable.style.setProperty("left",pas.SysUtils.IntToStr(container.scrollLeft) + "px");
       };
+    };
+    this.EndEdit = function (aAccept) {
+      var VCol = 0;
+      var VRow = 0;
+      var VValue = "";
+      if (!this.fEditing) return;
+      VCol = this.fCol;
+      VRow = this.fRow;
+      VValue = "";
+      if (this.fEditor != null) VValue = this.fEditor.value;
+      this.fEditing = false;
+      this.fEditorMode = false;
+      if ((this.fEditor != null) && (this.fEditorCell != null) && this.fEditorCell.contains(this.fEditor)) this.fEditorCell.removeChild(this.fEditor);
+      this.fEditorCell = null;
+      if (aAccept) {
+        this.SetCellText(VCol,VRow,VValue);
+        if (this.fOnSetEditText != null) this.fOnSetEditText(this,VCol,VRow,VValue);
+      };
+      this.InvalidateCell$1(VCol,VRow);
+      if (this.fOnEditingDone != null) this.fOnEditingDone(this);
     };
     this.FirstGridColumn = function () {
       var Result = 0;
@@ -51317,6 +51442,84 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       if (Result > (this.GetColCount() - 1)) Result = -1;
       return Result;
     };
+    this.HandleDblClick = function (AEvent) {
+      var Result = false;
+      var VCell = pas.Types.TPoint.$new();
+      Result = pas.Controls.TControl.HandleDblClick.call(this,AEvent);
+      if ((pas.Classes.TComponentStateItem.csDesigning in this.FComponentState) || !($mod.TGridOption.goEditing in this.fOptions)) return Result;
+      VCell.$assign(this.CellFromEvent(AEvent));
+      if (this.IsCellEditable(VCell.x,VCell.y)) {
+        this.MoveExtend(false,VCell.x,VCell.y,false);
+        this.StartEdit("");
+      };
+      return Result;
+    };
+    this.HandleEditorBlur = function (AEvent) {
+      var Result = false;
+      Result = true;
+      if (this.fEditing) this.EndEdit(true);
+      return Result;
+    };
+    this.HandleEditorKeyDown = function (AEvent) {
+      var Result = false;
+      var VKey = "";
+      Result = true;
+      AEvent.stopPropagation();
+      VKey = "";
+      if (AEvent.key != null) VKey = AEvent.key;
+      if (VKey === "Enter") {
+        AEvent.preventDefault();
+        this.EndEdit(true);
+        if (this.MoveNextSelectable(true,0,1)) this.Changed();
+        this.FHandleElement.focus();
+      } else if (VKey === "Escape") {
+        AEvent.preventDefault();
+        this.EndEdit(false);
+        this.FHandleElement.focus();
+      } else if (VKey === "Tab") {
+        if ($mod.TGridOption.goTabs in this.fOptions) {
+          AEvent.preventDefault();
+          this.EndEdit(true);
+          if (pas.Controls.TShiftStateEnum.ssShift in pas.Controls.ExtractShiftState(AEvent)) {
+            if (this.MoveNextSelectable(true,-1,0)) this.Changed();
+          } else {
+            if (this.MoveNextSelectable(true,1,0)) this.Changed();
+          };
+          this.FHandleElement.focus();
+        } else {
+          this.EndEdit(true);
+          Result = false;
+        };
+      };
+      return Result;
+    };
+    this.HandleEditorKeyPress = function (AEvent) {
+      var Result = false;
+      AEvent.stopPropagation();
+      Result = true;
+      return Result;
+    };
+    this.HandleEditorKeyUp = function (AEvent) {
+      var Result = false;
+      AEvent.stopPropagation();
+      Result = true;
+      return Result;
+    };
+    this.HandleMouseDown = function (AEvent) {
+      var Result = false;
+      var VTarget = null;
+      if (this.fEditing && (this.fEditor != null)) {
+        VTarget = pas.Web.TJSEventHelper.GetTargetElement.call(AEvent);
+        if (VTarget === this.fEditor) {
+          AEvent.stopPropagation();
+          return true;
+        };
+      };
+      this.fMouseCell.$assign(this.CellFromEvent(AEvent));
+      this.fMouseCellValid = (this.fMouseCell.x >= 0) && (this.fMouseCell.y >= 0);
+      Result = pas.Controls.TControl.HandleMouseDown.call(this,AEvent);
+      return Result;
+    };
     this.InternalSetColCount = function (aCount) {
       var old = 0;
       old = this.fCols.FLength;
@@ -51331,6 +51534,12 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       };
     };
     this.InvalidateCell = function (aCol, aRow, aRedraw) {
+      if (aRedraw) this.Changed();
+    };
+    this.IsCellEditable = function (aCol, aRow) {
+      var Result = false;
+      Result = ($mod.TGridOption.goEditing in this.fOptions) && (aCol >= this.fFixedCols) && (aCol < this.GetColCount()) && (aRow >= this.fFixedRows) && (aRow < this.GetRowCount());
+      return Result;
     };
     this.IsColumnIndexValid = function (aIndex) {
       var Result = false;
@@ -51352,6 +51561,74 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       Result = (aIndex >= this.fFixedRows) && (aIndex < this.GetRowCount());
       return Result;
     };
+    this.KeyDown = function (Key, Shift) {
+      var VPage = 0;
+      pas.Controls.TWinControl.KeyDown.call(this,Key,rtl.refSet(Shift));
+      if (this.fEditing) return;
+      var $tmp = Key.get();
+      if ($tmp === 37) {
+        if (this.MoveNextSelectable(true,-1,0)) this.Changed();
+        Key.set(0);
+      } else if ($tmp === 39) {
+        if (this.MoveNextSelectable(true,1,0)) this.Changed();
+        Key.set(0);
+      } else if ($tmp === 38) {
+        if (this.MoveNextSelectable(true,0,-1)) this.Changed();
+        Key.set(0);
+      } else if ($tmp === 40) {
+        if (this.MoveNextSelectable(true,0,1)) this.Changed();
+        Key.set(0);
+      } else if ($tmp === 36) {
+        if (this.MoveNextSelectable(false,this.fFixedCols,this.fRow)) this.Changed();
+        Key.set(0);
+      } else if ($tmp === 35) {
+        if (this.MoveNextSelectable(false,this.GetColCount() - 1,this.fRow)) this.Changed();
+        Key.set(0);
+      } else if (($tmp === 33) || ($tmp === 34)) {
+        VPage = rtl.trunc((this.FHeight - this.fGCache.FixedHeight) / this.GetDefRowHeight());
+        if (VPage < 1) VPage = 1;
+        if (Key.get() === 33) {
+          if (this.MoveNextSelectable(false,this.fCol,this.fRow - VPage)) this.Changed();
+        } else {
+          if (this.MoveNextSelectable(false,this.fCol,this.fRow + VPage)) this.Changed();
+        };
+        Key.set(0);
+      } else if ($tmp === 13) {
+        if (($mod.TGridOption.goEditing in this.fOptions) && this.IsCellEditable(this.fCol,this.fRow)) {
+          this.StartEdit("")}
+         else if (this.MoveNextSelectable(true,0,1)) this.Changed();
+        Key.set(0);
+      } else if ($tmp === 113) {
+        if ($mod.TGridOption.goEditing in this.fOptions) {
+          this.StartEdit("");
+          Key.set(0);
+        };
+      } else if ($tmp === 46) {
+        if (this.IsCellEditable(this.fCol,this.fRow)) {
+          this.SetCellText(this.fCol,this.fRow,"");
+          this.InvalidateCell$1(this.fCol,this.fRow);
+          Key.set(0);
+        };
+      } else if ($tmp === 9) {
+        if ($mod.TGridOption.goTabs in this.fOptions) {
+          if (pas.Controls.TShiftStateEnum.ssShift in Shift) {
+            if (this.MoveNextSelectable(true,-1,0)) this.Changed();
+          } else {
+            if (this.MoveNextSelectable(true,1,0)) this.Changed();
+          };
+          Key.set(0);
+        };
+      };
+    };
+    this.KeyPress = function (Key) {
+      if (this.fEditing) return;
+      if (($mod.TGridOption.goEditing in this.fOptions) && this.IsCellEditable(this.fCol,this.fRow) && (Key.get() >= " ")) {
+        this.StartEdit(Key.get());
+        Key.set("\x00");
+        return;
+      };
+      pas.Controls.TWinControl.KeyPress.call(this,Key);
+    };
     this.MouseDown = function (aButton, aShift, aX, aY) {
       pas.Controls.TControl.MouseDown.call(this,aButton,rtl.refSet(aShift),aX,aY);
       if (pas.Classes.TComponentStateItem.csDesigning in this.FComponentState) return;
@@ -51360,6 +51637,10 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
         if (!this.Focused()) return;
       };
       this.CacheMouseDown(aX,aY);
+      if (this.fMouseCellValid) {
+        this.fGCache.ClickCell.$assign(this.fMouseCell);
+        this.fGCache.HotGridZone = this.CellToGridZone(this.fMouseCell.x,this.fMouseCell.y);
+      };
       var $tmp = this.fGCache.HotGridZone;
       if ($tmp === $mod.TGridZone.gzNormal) {
         if (!this.FixedGrid()) {
@@ -51388,7 +51669,9 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
         return Result;
       };
       pas.Controls.TControl.MouseUp.call(this,aButton,rtl.refSet(aShift),aX,aY);
-      cur.$assign(this.MouseToCell$1(pas.Types.Point(aX,aY)));
+      if (this.fMouseCellValid) {
+        cur.$assign(this.fMouseCell)}
+       else cur.$assign(this.MouseToCell$1(pas.Types.Point(aX,aY)));
       gz = this.CellToGridZone(cur.x,cur.y);
       var $tmp = this.fGridState;
       if ($tmp === $mod.TGridState.gsNormal) {
@@ -51409,6 +51692,7 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       var oldrange = pas.Types.TRect.$new();
       var prevrow = 0;
       var prevcol = 0;
+      if (this.fEditing) this.EndEdit(true);
       Result = this.TryMoveSelection(aRelative,{get: function () {
           return aCol;
         }, set: function (v) {
@@ -51539,10 +51823,76 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
     };
     this.SelectCell = function (aCol, aRow) {
       var Result = false;
+      var VCanSelect = false;
       Result = (this.GetColWidths(aCol) > 0) && (this.GetRowHeights(aRow) > 0);
+      if (!Result || !(this.fOnSelectCell != null)) return Result;
+      VCanSelect = true;
+      this.fOnSelectCell(this,aCol,aRow,{get: function () {
+          return VCanSelect;
+        }, set: function (v) {
+          VCanSelect = v;
+        }});
+      Result = VCanSelect;
       return Result;
     };
+    this.SetCellText = function (aCol, aRow, aValue) {
+    };
     this.SizeChanged = function (aOldColCount, aOldRowCount) {
+    };
+    this.StartEdit = function (AInitialText) {
+      var VRow = null;
+      var VCell = null;
+      var VContent = null;
+      var VValue = "";
+      if (this.fEditing) return;
+      if (!this.IsCellEditable(this.fCol,this.fRow)) return;
+      if (!(this.fContentTable != null)) return;
+      if ((this.fRow < 0) || (this.fRow >= this.fContentTable.rows.length)) return;
+      VRow = this.fContentTable.rows.item(this.fRow);
+      if ((this.fCol < 0) || (this.fCol >= VRow.cells.length)) return;
+      VCell = VRow.cells.item(this.fCol);
+      VContent = VCell.getElementsByTagName("div").item(0);
+      if (!(VContent != null)) return;
+      if (!(this.fEditor != null)) {
+        this.fEditor = document.createElement("input");
+        this.fEditor.type = "text";
+        this.fEditor.style.setProperty("position","absolute");
+        this.fEditor.style.setProperty("left","0px");
+        this.fEditor.style.setProperty("top","0px");
+        this.fEditor.style.setProperty("width","100%");
+        this.fEditor.style.setProperty("height","100%");
+        this.fEditor.style.setProperty("box-sizing","border-box");
+        this.fEditor.style.setProperty("margin","0px");
+        this.fEditor.style.setProperty("padding","0px 2px");
+        this.fEditor.style.setProperty("border","none");
+        this.fEditor.style.setProperty("outline","none");
+        this.fEditor.style.setProperty("background-color","#ffffff");
+        this.fEditor.style.setProperty("font","inherit");
+        this.fEditor.style.setProperty("z-index","10");
+        this.fEditor.addEventListener("keydown",rtl.createCallback(this,"HandleEditorKeyDown"));
+        this.fEditor.addEventListener("keypress",rtl.createCallback(this,"HandleEditorKeyPress"));
+        this.fEditor.addEventListener("keyup",rtl.createCallback(this,"HandleEditorKeyUp"));
+        this.fEditor.addEventListener("blur",rtl.createSafeCallback(this,"HandleEditorBlur"));
+      };
+      VValue = this.GetCells(this.fCol,this.fRow);
+      if (this.fOnGetEditText != null) this.fOnGetEditText(this,this.fCol,this.fRow,{get: function () {
+          return VValue;
+        }, set: function (v) {
+          VValue = v;
+        }});
+      VContent.style.setProperty("position","relative");
+      VContent.appendChild(this.fEditor);
+      this.fEditorCell = VContent;
+      this.fEditing = true;
+      this.fEditorMode = true;
+      if (AInitialText !== "") {
+        this.fEditor.value = AInitialText;
+        this.fEditor.setSelectionRange(AInitialText.length,AInitialText.length);
+      } else {
+        this.fEditor.value = VValue;
+        this.fEditor.select();
+      };
+      this.fEditor.focus();
     };
     this.TryMoveSelection = function (aRelative, aCol, aRow) {
       var Result = false;
@@ -51587,6 +51937,10 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       this.fDefColWidth = -1;
       this.fDefRowHeight = -1;
       this.fAllowOutboundEvents = true;
+      this.fEditing = false;
+      this.fEditorMode = false;
+      this.fEditor = null;
+      this.fEditorCell = null;
       this.fScrollBars = pas.StdCtrls.TScrollStyle.ssAutoBoth;
       this.fGridLineColor = 12632256;
       this.fGridLineWidth = 1;
@@ -51891,6 +52245,9 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
       if (c != null) Result = c.Text;
       return Result;
     };
+    this.SetCellText = function (aCol, aRow, aValue) {
+      this.SetCells(aCol,aRow,aValue);
+    };
     this.SetCells = function (aCol, aRow, aValue) {
       var $Self = this;
       function UpdateCell() {
@@ -51916,15 +52273,24 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;
     $r.addProperty("Anchors",14,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors",{stored: "IsAnchorsStored", Default: rtl.createSet(pas.Controls.TAnchorKind.akLeft,pas.Controls.TAnchorKind.akTop)});
+    $r.addProperty("Col",2,rtl.longint,"fCol","SetCol");
     $r.addProperty("ColCount",3,rtl.longint,"GetColCount","SetColCount",{Default: 5});
     $r.addProperty("Columns",15,$mod.$rtti["TGridColumns"],"GetColumns","SetColumns",{stored: "IsColumnsStored"});
     $r.addProperty("DefaultColWidth",15,rtl.longint,"GetDefColWidth","SetDefColWidth",{stored: "DefaultColWidthIsStored"});
     $r.addProperty("DefaultRowHeight",15,rtl.longint,"GetDefRowHeight","SetDefRowHeight",{stored: "DefaultRowHeightIsStored"});
+    $r.addProperty("EditorMode",2,rtl.boolean,"fEditorMode","SetEditorMode");
     $r.addProperty("FixedCols",2,rtl.longint,"fFixedCols","SetFixedCols",{Default: 1});
     $r.addProperty("FixedRows",2,rtl.longint,"fFixedRows","SetFixedRows",{Default: 1});
     $r.addProperty("Options",2,$mod.$rtti["TGridOptions"],"fOptions","SetOptions",{Default: $mod.DefaultGridOptions});
+    $r.addProperty("Row",2,rtl.longint,"fRow","SetRow");
     $r.addProperty("RowCount",3,rtl.longint,"GetRowCount","SetRowCount",{Default: 5});
+    $r.addProperty("ScrollBars",2,pas.StdCtrls.$rtti["TScrollStyle"],"fScrollBars","SetScrollBars",{Default: pas.StdCtrls.TScrollStyle.ssAutoBoth});
+    $r.addProperty("OnDrawCell",0,$mod.$rtti["TOnDrawCellEvent"],"fOnDrawCell","fOnDrawCell");
+    $r.addProperty("OnEditingDone",0,pas.Classes.$rtti["TNotifyEvent"],"fOnEditingDone","fOnEditingDone");
+    $r.addProperty("OnGetEditText",0,$mod.$rtti["TOnGetEditTextEvent"],"fOnGetEditText","fOnGetEditText");
+    $r.addProperty("OnSelectCell",0,$mod.$rtti["TOnSelectCellEvent"],"fOnSelectCell","fOnSelectCell");
     $r.addProperty("OnSelection",0,$mod.$rtti["TOnSelectEvent"],"fOnSelection","fOnSelection");
+    $r.addProperty("OnSetEditText",0,$mod.$rtti["TOnSetEditTextEvent"],"fOnSetEditText","fOnSetEditText");
   });
 },["TypInfo","WCLStrConsts"]);
 rtl.module("uLogin",["System","JS","Classes","SysUtils","Graphics","Controls","Forms","Dialogs","WebCtrls"],function () {
@@ -52067,7 +52433,7 @@ rtl.module("uLogin",["System","JS","Classes","SysUtils","Graphics","Controls","F
   });
   this.FormLogin = null;
 },["Unit1"]);
-rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Forms","Dialogs","WebCtrls","ComCtrls","WebDB","Grids","StdCtrls","Menus","ExtCtrls"],function () {
+rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Forms","Dialogs","WebCtrls","ComCtrls","WebDB","Grids","StdCtrls","Menus","ExtCtrls","Web"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
@@ -52140,6 +52506,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoLastCity = "";
       this.FDemoSeparators = false;
       this.FDemoTable = null;
+      this.FGridInfo = null;
       this.FGridPopup = null;
       this.FLayoutInfo = null;
       this.FLayoutLeft = null;
@@ -52207,6 +52574,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoGrid = undefined;
       this.FDemoInfo = undefined;
       this.FDemoTable = undefined;
+      this.FGridInfo = undefined;
       this.FGridPopup = undefined;
       this.FLayoutInfo = undefined;
       this.FLayoutLeft = undefined;
@@ -52536,6 +52904,62 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
         C.LineTo(56 + (VIndex * 62) + (VBarWidth / 2),BarTop(VValues[VIndex]));
       };
     };
+    this.SetupStringGrid = function () {
+      this.WStringGrid1.SetOptions(rtl.createSet(pas.Grids.TGridOption.goEditing,pas.Grids.TGridOption.goTabs));
+      this.WStringGrid1.SetColCount(4);
+      this.WStringGrid1.SetRowCount(6);
+      this.WStringGrid1.SetColWidths(0,110);
+      this.WStringGrid1.SetColWidths(1,70);
+      this.WStringGrid1.SetColWidths(2,110);
+      this.WStringGrid1.SetColWidths(3,130);
+      this.WStringGrid1.fOnDrawCell = rtl.createCallback(this,"GridDrawCell");
+      this.WStringGrid1.fOnEditingDone = rtl.createCallback(this,"GridEditingDone");
+      this.WStringGrid1.fOnGetEditText = rtl.createCallback(this,"GridGetEditText");
+      this.WStringGrid1.fOnSelectCell = rtl.createCallback(this,"GridSelectCell");
+      this.WStringGrid1.fOnSetEditText = rtl.createCallback(this,"GridSetEditText");
+      this.WStringGrid1.SetCells(0,0,"Name");
+      this.WStringGrid1.SetCells(1,0,"Age");
+      this.WStringGrid1.SetCells(2,0,"City");
+      this.WStringGrid1.SetCells(3,0,"Note");
+      this.WStringGrid1.SetCells(0,1,"Mario Rossi");
+      this.WStringGrid1.SetCells(1,1,"30");
+      this.WStringGrid1.SetCells(2,1,"Rome");
+      this.WStringGrid1.SetCells(3,1,"read-only");
+      this.WStringGrid1.SetCells(0,2,"Luigi Bianchi");
+      this.WStringGrid1.SetCells(1,2,"25");
+      this.WStringGrid1.SetCells(2,2,"Milan");
+      this.WStringGrid1.SetCells(0,3,"Anna Verdi");
+      this.WStringGrid1.SetCells(1,3,"41");
+      this.WStringGrid1.SetCells(2,3,"Turin");
+      this.WStringGrid1.SetCells(0,4,"Sara Neri");
+      this.WStringGrid1.SetCells(1,4,"19");
+      this.WStringGrid1.SetCells(2,4,"Naples");
+      this.WStringGrid1.SetCells(0,5,"Paolo Blu");
+      this.WStringGrid1.SetCells(1,5,"33");
+      this.WStringGrid1.SetCells(2,5,"Rome");
+      this.WStringGrid1.SetCol(1);
+      this.WStringGrid1.SetRow(1);
+      this.FGridInfo = pas.WebCtrls.TWLabel.$create("Create$1",[this]);
+      this.FGridInfo.SetParent(this.WStringGrid1.FParent);
+      this.FGridInfo.SetBounds(20,178,640,40);
+      this.FGridInfo.SetText("Double click, F2 or Enter to edit. Tab moves to the next cell, Esc cancels." + "\n" + 'Column "City" is painted by OnDrawCell; cell [3,1] is blocked by OnSelectCell.');
+    };
+    this.GridDrawCell = function (Sender, ACol, ARow, AState, ACell) {
+      if ((ACol === 2) && (ARow > 0)) ACell.style.setProperty("background-color","#FFF8C0");
+      if ((ACol === 3) && (ARow === 1)) ACell.style.setProperty("color","#999999");
+    };
+    this.GridEditingDone = function (Sender) {
+      if (this.FGridInfo != null) this.FGridInfo.SetText(this.FGridInfo.GetText() + "   (edit done)");
+    };
+    this.GridGetEditText = function (Sender, ACol, ARow, Value) {
+      this.FGridInfo.SetText("Editing cell [" + pas.SysUtils.IntToStr(ACol) + "," + pas.SysUtils.IntToStr(ARow) + "]");
+    };
+    this.GridSelectCell = function (Sender, ACol, ARow, CanSelect) {
+      if ((ACol === 3) && (ARow === 1)) CanSelect.set(false);
+    };
+    this.GridSetEditText = function (Sender, ACol, ARow, Value) {
+      this.FGridInfo.SetText("Cell [" + pas.SysUtils.IntToStr(ACol) + "," + pas.SysUtils.IntToStr(ARow) + '] = "' + Value + '"');
+    };
     this.DemoSplitterMoved = function (Sender) {
       if (this.FLayoutInfo != null) this.FLayoutInfo.SetText("Left panel: " + pas.SysUtils.IntToStr(this.FLayoutLeft.FWidth) + " px" + "\n" + "Top panel: " + pas.SysUtils.IntToStr(this.FLayoutTop.FHeight) + " px" + "\n" + "Drag the grey bars.");
     };
@@ -52773,6 +53197,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.BuildGridModesTab();
       this.BuildSplitterTab();
       this.BuildCanvasTab();
+      this.SetupStringGrid();
       this.SetupMenu();
     };
     rtl.addIntf(this,pas.System.IUnknown);

@@ -40,7 +40,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWTimeEditBox** | `<input type="time">` | Native time picker |
 | **TWFileButton** | `<input type="file">` | File selection |
 | **TWDataGrid** | `<table>` / cards | Sorting, `FilterBox`, `DataJSon`/`Data`/`DataTable`, column formatting, responsive cards, `ExportToCSV`, `InfiniteScroll`, keyboard navigation (arrows, PageUp/Down, Home/End) |
-| **TWStringGrid** | `<table>` | Custom string grid |
+| **TWStringGrid** | `<table>` | Editable string grid: `Cells`, `Options` (`goEditing`, `goTabs`), inline editor, `OnSelectCell`/`OnGetEditText`/`OnSetEditText`/`OnDrawCell` |
 | **TWPagination** | page nav | Page navigation with `CurrentPage` |
 | **TWTrackBar** | `<input type="range">` | Slider with `Min`/`Max`/`Position`/`Frequency`/`Orientation` |
 | **TWProgressBar** | `<progress>` | Progress bar with `Min`/`Max`/`Value` |
@@ -200,6 +200,62 @@ Three things to keep in mind:
 
 Selection and scroll position are preserved across data loads.
 
+### StringGrid editing
+
+`TWStringGrid` supports inline cell editing. Add `goEditing` to `Options` and the selected cell can be edited with `F2`, `Enter`, a double click, or simply by typing; `goTabs` makes `Tab`/`Shift+Tab` move between cells.
+
+```pascal
+StringGrid1.Options := [goEditing, goTabs];
+StringGrid1.ColCount := 4;
+StringGrid1.RowCount := 6;
+StringGrid1.Cells[0, 0] := 'Name';
+StringGrid1.Cells[1, 0] := 'Age';
+
+StringGrid1.OnGetEditText := @GridGetEditText;   // initial editor value
+StringGrid1.OnSetEditText := @GridSetEditText;   // commit a new value
+StringGrid1.OnSelectCell := @GridSelectCell;     // CanSelect := False blocks a cell
+StringGrid1.OnEditingDone := @GridEditingDone;
+StringGrid1.OnDrawCell := @GridDrawCell;         // per-cell DOM customisation
+
+procedure TForm1.GridGetEditText(Sender: TObject; ACol, ARow: LongInt;
+  var Value: string);
+begin
+  // adjust Value before the editor is shown
+end;
+
+procedure TForm1.GridSetEditText(Sender: TObject; ACol, ARow: LongInt;
+  const Value: string);
+begin
+  // the cell already contains Value; store it in your model here
+end;
+
+procedure TForm1.GridSelectCell(Sender: TObject; ACol, ARow: LongInt;
+  var CanSelect: Boolean);
+begin
+  if (ACol = 3) and (ARow = 1) then
+    CanSelect := False;
+end;
+
+procedure TForm1.GridDrawCell(Sender: TObject; ACol, ARow: LongInt;
+  AState: TGridDrawState; ACell: TJSHTMLTableDataCellElement);
+begin
+  if (ACol = 2) and (ARow > 0) then
+    ACell.style.SetProperty('background-color', '#FFF8C0');
+end;
+```
+
+| Key | Action |
+|---|---|
+| Arrows | Move the selection |
+| Home / End | First/last column of the row |
+| PageUp / PageDown | Jump one visible page of rows |
+| Enter / F2 | Start editing, or move down when not editable |
+| Any printable key | Start editing with that character |
+| Enter / Tab | Commit and move (Tab only with `goTabs`) |
+| Esc | Cancel the edit |
+
+The editor is an `<input>` placed inside the cell, so it scrolls with the grid and follows the cell size. `EditorMode` reflects the editing state and can also start or stop it from code. `OnDrawCell` receives the DOM cell element, like `OnDrawColumnCell` on `TWDataGrid`; the handler can change styles or content, while the cell text is provided by `Cells`.
+
 ---
 
 ### Infrastructure
@@ -223,7 +279,7 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
-The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`.
+The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`.
 
 The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
 

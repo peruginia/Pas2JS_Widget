@@ -190,6 +190,10 @@ type
     FFilterTimer: NativeInt;
     FGroupField: String;
     FGroupCollapsed: TJSObject;
+    /// Unique attribute used to scope the generated CSS to this grid.
+    FScopeId: string;
+    /// The single <style> element holding the scoped rules.
+    FStyleElement: TJSHTMLElement;
      function GetColCount: NativeInt;
     function GetRowCount: NativeInt;
     procedure SetColumnClickSorts(AValue: boolean);
@@ -330,6 +334,10 @@ uses
 
 const
   DblClickThreshold = 0.000005;
+
+var
+  /// Counter used to give every grid a unique CSS scope attribute.
+  _DataGridSeq: Integer = 0;
 
 function FindClosestParent(AElement: TJSElement; const ATagName: string): TJSElement;
 var
@@ -1203,6 +1211,10 @@ end;
 constructor TCustomDataGrid.Create(AOwner: TComponent);
 begin
    inherited Create(AOwner);
+   /// Scope the generated stylesheet to this grid (it is a global <style>).
+   Inc(_DataGridSeq);
+   FScopeId := 'dg' + IntToStr(_DataGridSeq);
+   HandleElement.setAttribute('data-dg', FScopeId);
    FColumns := TDataColumns.Create(Self);
     FActiveCell := nil;
     fSelRow := -1;
@@ -2109,10 +2121,15 @@ procedure TCustomDataGrid.RenderTableStyle;
       taRightJustify: Result := 'right';
     end;
   end;
+
+  /// The <style> element is global, so every rule is scoped to this grid.
+  function Scoped(const ARule: string): string;
+  begin
+    Result := '[data-dg="' + FScopeId + '"] ' + ARule;
+  end;
 var
   VColumn: TDataColumn;
   VColumnIndex: NativeInt;
-  VStyle: TJSHTMLElement;
   VCss: string;
   VHeight: NativeInt;
   VHeadHeight: NativeInt;
@@ -2128,11 +2145,11 @@ begin
   VCss := '';
   if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then begin
     VCss :=
-      'thead, tbody{display: block;position: absolute;}' +
-      'thead{overflow: hidden;width: calc(100% - ' + IntToStr(ScrollbarWidth) + 'px);' +
-      'height: auto;}' +
-      'tbody{overflow: scroll;top: ' + IntToStr(IfThen(FShowHeader, VHeadHeight, 0)) + 'px;' +
-      'width: 100%;height: calc(100% - ' + IntToStr(IfThen(FShowHeader, VHeadHeight, 0)) + 'px);}';
+      Scoped('thead') + ',' + Scoped('tbody') + '{display: block;position: absolute;}' +
+      Scoped('thead{overflow: hidden;width: calc(100% - ' + IntToStr(ScrollbarWidth) + 'px);' +
+      'height: auto;}') +
+      Scoped('tbody{overflow: scroll;top: ' + IntToStr(IfThen(FShowHeader, VHeadHeight, 0)) + 'px;' +
+      'width: 100%;height: calc(100% - ' + IntToStr(IfThen(FShowHeader, VHeadHeight, 0)) + 'px);}');
   end;
   VVisibleIndex := 0;
   for VColumnIndex := 0 to (FColumns.Count - 1) do begin
@@ -2142,13 +2159,13 @@ begin
       Inc(VVisibleIndex);
       if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then
         VCss := VCss +
-          'thead th:nth-child(' + IntToStr(VVisibleIndex) + '){' +
-          'height:'+IntToStr(IfThen(FShowHeader, VHeight, 0))+'px;min-width:'+IntToStr(VWidth)+'px;max-width:'+IntToStr(VWidth)+'px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background:#dddada;font:'+JSFont(VColumn.TitleFont)+';font-family:'+JSFontFamily(VColumn.TitleFont)+';text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}';
+          Scoped('thead th:nth-child(' + IntToStr(VVisibleIndex) + '){' +
+          'height:'+IntToStr(IfThen(FShowHeader, VHeight, 0))+'px;min-width:'+IntToStr(VWidth)+'px;max-width:'+IntToStr(VWidth)+'px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background:#dddada;font:'+JSFont(VColumn.TitleFont)+';font-family:'+JSFontFamily(VColumn.TitleFont)+';text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}');
       // Skip tbody td:nth-child when responsive without breakpoint (card layout)
       if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then
         VCss := VCss +
-          'tbody td:nth-child(' + IntToStr(VVisibleIndex) + '){' +
-          'height:'+IntToStr(VHeight)+'px;min-width:'+IntToStr(VWidth)+'px;max-width:'+IntToStr(VWidth)+'px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background-color:'+JSColor(VColumn.Color)+';font:'+JSFont(VColumn.Font)+';text-align:'+JSAlign(VColumn.Alignment)+';text-overflow:clip;white-space:nowrap;}';
+          Scoped('tbody td:nth-child(' + IntToStr(VVisibleIndex) + '){' +
+          'height:'+IntToStr(VHeight)+'px;min-width:'+IntToStr(VWidth)+'px;max-width:'+IntToStr(VWidth)+'px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background-color:'+JSColor(VColumn.Color)+';font:'+JSFont(VColumn.Font)+';text-align:'+JSAlign(VColumn.Alignment)+';text-overflow:clip;white-space:nowrap;}');
     end;
   end;
   if FResponsiveMode then begin
@@ -2158,22 +2175,26 @@ begin
     end;
     // Card CSS (used directly when FIsCardVisible or Breakpoint=0, inside @media otherwise)
     VCss := VCss +
-      '.dg-card-container{width:100%;height:100%;overflow-y:auto;}' +
-      '.dg-card{margin:0 0 2px 0;border:1px solid #ccc;border-radius:4px;overflow:hidden;}' +
-      '.dg-card.dg-active{border-color:dodgerblue;box-shadow:0 0 0 1px dodgerblue;}' +
-      '.dg-card div[dg-cell]{display:block;padding:1px 6px;border-bottom:1px solid #eee;text-align:left;}' +
-      '.dg-card div[dg-cell]:last-child{border-bottom:none;}' +
-      '.dg-label{display:inline;font-weight:bold;color:#555;margin-right:4px;cursor:pointer;}' +
-      '.dg-label::after{content:":";}' +
-      '.dg-value{display:inline;word-break:break-word;}';
+      Scoped('.dg-card-container{width:100%;height:100%;overflow-y:auto;}') +
+      Scoped('.dg-card{margin:0 0 2px 0;border:1px solid #ccc;border-radius:4px;overflow:hidden;}') +
+      Scoped('.dg-card.dg-active{border-color:dodgerblue;box-shadow:0 0 0 1px dodgerblue;}') +
+      Scoped('.dg-card div[dg-cell]{display:block;padding:1px 6px;border-bottom:1px solid #eee;text-align:left;}') +
+      Scoped('.dg-card div[dg-cell]:last-child{border-bottom:none;}') +
+      Scoped('.dg-label{display:inline;font-weight:bold;color:#555;margin-right:4px;cursor:pointer;}') +
+      Scoped('.dg-label::after{content:":";}') +
+      Scoped('.dg-value{display:inline;word-break:break-word;}');
     if (FResponsiveBreakpoint > 0) and not FIsCardVisible then
       VCss := VCss + '}';
   end;
   VCss := VCss +
-    'thead .dg-filter-input{width:98%;box-sizing:border-box;padding:2px 4px;border:1px solid #ccc;border-radius:3px;margin:2px 0;}' +
-    '.dg-filter-card input{width:100%;box-sizing:border-box;padding:4px 8px;border:1px solid #ccc;border-radius:4px;}';
-  VStyle := TJSHTMLElement(HandleElement.AppendChild(Document.CreateElement('style')));
-  VStyle.InnerHTML := VCss;
+    Scoped('thead .dg-filter-input{width:98%;box-sizing:border-box;padding:2px 4px;border:1px solid #ccc;border-radius:3px;margin:2px 0;}') +
+    Scoped('.dg-filter-card input{width:100%;box-sizing:border-box;padding:4px 8px;border:1px solid #ccc;border-radius:4px;}');
+  /// A full render may have cleared the grid content: drop the stale element
+  /// and append a fresh one so the scoped rules are always in the document.
+  if Assigned(FStyleElement) and (FStyleElement.parentElement = HandleElement) then
+    HandleElement.removeChild(FStyleElement);
+  FStyleElement := TJSHTMLElement(HandleElement.AppendChild(Document.CreateElement('style')));
+  FStyleElement.InnerHTML := VCss;
 end;
 
 procedure TCustomDataGrid.RenderTableHead;

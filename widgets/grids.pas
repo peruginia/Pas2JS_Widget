@@ -36,12 +36,16 @@ type
   EGridException = class(Exception);
 
   TGridOption = (
-    goRowSelect { select a complete row instead of only a single cell }
-  );
+    goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect,
+    goDrawFocusSelected, goRowSizing, goColSizing, goRowMoving, goColMoving,
+    goEditing, goTabs, goRowSelect, goAlwaysShowEditor, goThumbTracking,
+    goColSpanning, goRelaxedRowSelect, goDblClickAutoSize, goSmoothScroll);
   TGridOptions = set of TGridOption;
 
   TGridState = (gsNormal, gsSelecting, gsRowSizing, gsColSizing, gsRowMoving,
     gsColMoving, gsHeaderClicking, gsButtonColumnClicking);
+
+  TGridDrawState = set of (gdSelected, gdFixed, gdFocused);
 
   TGridZone = (gzNormal, gzFixedCols, gzFixedRows, gzFixedCells, gzInvalid);
   TGridZoneSet = set of TGridZone;
@@ -63,6 +67,14 @@ const
 
 type
   TOnSelectEvent = procedure(aSender: TObject; aCol, aRow: Integer) of object;
+  TOnSelectCellEvent = procedure(Sender: TObject; ACol, ARow: LongInt;
+    var CanSelect: Boolean) of object;
+  TOnGetEditTextEvent = procedure(Sender: TObject; ACol, ARow: LongInt;
+    var Value: string) of object;
+  TOnSetEditTextEvent = procedure(Sender: TObject; ACol, ARow: LongInt;
+    const Value: string) of object;
+  TOnDrawCellEvent = procedure(Sender: TObject; ACol, ARow: LongInt;
+    AState: TGridDrawState; ACell: TJSHTMLTableDataCellElement) of object;
 
   { TGridColumnTitle }
 
@@ -174,6 +186,9 @@ type
     fContentTable: TJSHTMLTableElement;
     fDefColWidth: Integer;
     fDefRowHeight: Integer;
+    fEditing: Boolean;
+    fEditor: TJSHTMLInputElement;
+    fEditorCell: TJSHTMLElement;
     fEditorMode: Boolean;
     fGCache: TGridDataCache;
     fFixedColor: TColor;
@@ -185,12 +200,19 @@ type
     fFixedTopLeftTable: TJSHTMLTableElement;
     fFlat: Boolean;
     fGridBorderStyle: TBorderStyle;
+    fMouseCell: TGridCoord;
+    fMouseCellValid: Boolean;
     fGridLineColor: TColor;
     fGridLineStyle: TPenStyle;
     fGridLineWidth: Integer;
     fOnAfterSelection: TOnSelectEvent;
     fOnBeforeSelection: TOnSelectEvent;
+    fOnDrawCell: TOnDrawCellEvent;
+    fOnEditingDone: TNotifyEvent;
+    fOnGetEditText: TOnGetEditTextEvent;
+    fOnSelectCell: TOnSelectCellEvent;
     fOnSelection: TOnSelectEvent;
+    fOnSetEditText: TOnSetEditTextEvent;
     fOnTopLeftChanged: TNotifyEvent;
     fOptions: TGridOptions;
     fRange: TGridRect;
@@ -214,6 +236,8 @@ type
     function GetColWidths(aCol: Integer): Integer;
     function GetDefColWidth: Integer;
     function GetDefRowHeight: Integer;
+    function GetDrawState(aCol, aRow: Integer): TGridDrawState;
+    function GetEditing: Boolean;
     function GetFixedColor: TColor; virtual;
     function GetRowCount: Integer;
     function GetRowHeights(aRow: Integer): Integer;
@@ -251,6 +275,7 @@ type
     procedure AfterMoveSelection(const aPrevCol, aPrevRow: Integer); virtual;
     procedure BeforeMoveSelection(const aCol, aRow: Integer); virtual;
     procedure CacheMouseDown(aX, aY: Integer);
+    function CellFromEvent(AEvent: TJSMouseEvent): TGridCoord;
     procedure CellClick(const aCol, aRow: Integer; const aButton: TMouseButton); virtual;
     procedure Changed; override;
     procedure CheckLimits(var aCol, aRow: Integer);
@@ -259,19 +284,31 @@ type
     procedure ColumnsChanged(aColumn: TGridColumn);
     function CreateColumns: TGridColumns; virtual;
     function CreateHandleElement: TJSHTMLElement; override;
+    procedure DoDrawCell(aCol, aRow: Integer;
+      aCell: TJSHTMLTableDataCellElement); virtual;
     procedure DoScroll; override;
+    procedure EndEdit(aAccept: Boolean); virtual;
     function FirstGridColumn: Integer; virtual;
     function FixedGrid: Boolean;
     function GetCells(aCol, aRow: Integer): String; virtual;
     function GetDefaultRowHeight: Integer; virtual;
     function GetIsCellSelected(aCol, aRow: Integer): Boolean; virtual;
     function GridColumnFromColumnIndex(aColumnIndex: Integer): Integer;
+    function HandleDblClick(AEvent: TJSMouseEvent): boolean; override;
+    function HandleEditorBlur(AEvent: TJSEvent): boolean; virtual;
+    function HandleEditorKeyDown(AEvent: TJSKeyBoardEvent): boolean; virtual;
+    function HandleEditorKeyPress(AEvent: TJSKeyBoardEvent): boolean; virtual;
+    function HandleEditorKeyUp(AEvent: TJSKeyBoardEvent): boolean; virtual;
+    function HandleMouseDown(AEvent: TJSMouseEvent): boolean; override;
     procedure InternalSetColCount(aCount: Integer);
     procedure InvalidateCell(aCol, aRow: Integer; aRedraw: Boolean); overload;
+    function IsCellEditable(aCol, aRow: Integer): Boolean; virtual;
     function IsColumnIndexValid(aIndex: Integer): Boolean;
     function IsColumnIndexVariable(aIndex: Integer): Boolean;
     function IsRowIndexValid(aIndex: Integer): Boolean;
     function IsRowIndexVariable(aIndex: Integer): Boolean;
+    procedure KeyDown(var Key: NativeInt; Shift: TShiftState); override;
+    procedure KeyPress(var Key: char); override;
     procedure MouseDown(aButton: TMouseButton; aShift: TShiftState; aX, aY: integer); override;
     procedure MouseMove(aShift: TShiftState; aX, aY: integer); override;
     procedure MouseUp(aButton: TMouseButton; aShift: TShiftState; aX, aY: integer); override;
@@ -280,7 +317,9 @@ type
     procedure MoveSelection; virtual;
     function OffsetToColRow(aIsCol, aFisical: Boolean; aOffset: Integer; out aIndex, aRest: Integer): Boolean;
     function SelectCell(aCol, aRow: Integer): Boolean; virtual;
+    procedure SetCellText(aCol, aRow: Integer; const aValue: string); virtual;
     procedure SizeChanged(aOldColCount, aOldRowCount: Integer); virtual;
+    procedure StartEdit(const AInitialText: string); virtual;
     function TryMoveSelection(aRelative: Boolean; var aCol, aRow: Integer): Boolean;
     procedure TopLeftChanged; virtual;
     procedure UpdateBorderStyle;
@@ -310,7 +349,12 @@ type
 
     property OnAfterSelection: TOnSelectEvent read fOnAfterSelection write fOnAfterSelection;
     property OnBeforeSelection: TOnSelectEvent read fOnBeforeSelection write fOnBeforeSelection;
+    property OnDrawCell: TOnDrawCellEvent read fOnDrawCell write fOnDrawCell;
+    property OnEditingDone: TNotifyEvent read fOnEditingDone write fOnEditingDone;
+    property OnGetEditText: TOnGetEditTextEvent read fOnGetEditText write fOnGetEditText;
+    property OnSelectCell: TOnSelectCellEvent read fOnSelectCell write fOnSelectCell;
     property OnSelection: TOnSelectEvent read fOnSelection write fOnSelection;
+    property OnSetEditText: TOnSetEditTextEvent read fOnSetEditText write fOnSetEditText;
   public
     constructor Create(aOwner: TComponent); override;
     destructor Destroy; override;
@@ -325,6 +369,7 @@ type
     function MouseToGridZone(aX, aY: Integer): TGridZone;
 
     property EditorMode: Boolean read fEditorMode write SetEditorMode;
+    property Editing: Boolean read GetEditing;
     property FixedCols: Integer read fFixedCols write SetFixedCols default 1;
     property FixedRows: Integer read fFixedRows write SetFixedRows default 1;
 
@@ -403,6 +448,7 @@ type
     fModified: Boolean;
   protected
     function GetCells(aCol, aRow: Integer): String; override;
+    procedure SetCellText(aCol, aRow: Integer; const aValue: string); override;
     procedure SetCells(aCol, aRow: Integer; const aValue: String); virtual;
 
     property Modified: Boolean read fModified write fModified;
@@ -416,16 +462,25 @@ type
   TWStringGrid = class(TCustomStringGrid)
   published
     property Anchors;
+    property Col;
     property ColCount;
     property Columns;
     property DefaultColWidth;
     property DefaultRowHeight;
+    property EditorMode;
     property FixedCols;
     property FixedRows;
     property Options;
+    property Row;
     property RowCount;
+    property ScrollBars;
 
+    property OnDrawCell;
+    property OnEditingDone;
+    property OnGetEditText;
+    property OnSelectCell;
     property OnSelection;
+    property OnSetEditText;
   end;
 
 implementation
@@ -467,6 +522,12 @@ begin
     UpdateCell;
     fModified := True;
   end;
+end;
+
+procedure TCustomStringGrid.SetCellText(aCol, aRow: Integer;
+  const aValue: string);
+begin
+  SetCells(aCol, aRow, aValue);
 end;
 
 { TCustomDrawGrid }
@@ -1083,13 +1144,6 @@ begin
   end;
 end;
 
-function TCustomGrid.ScrollToCell(const aCol, aRow: Integer;
-  const aForceFullyVisible: Boolean): Boolean;
-begin
-  { ToDo }
-  Result := False;
-end;
-
 procedure TCustomGrid.SetBorderColor(aValue: TColor);
 begin
   if fBorderColor = aValue then
@@ -1165,10 +1219,16 @@ end;
 
 procedure TCustomGrid.SetEditorMode(aValue: Boolean);
 begin
-  if fEditorMode = aValue then
-    Exit;
-
-  fEditorMode := aValue;
+  if aValue then
+  begin
+    /// StartEdit sets EditorMode only when the cell is really editable.
+    if not fEditing then
+      StartEdit('');
+  end
+  else if fEditing then
+    EndEdit(True)
+  else
+    fEditorMode := False;
 end;
 
 procedure TCustomGrid.SetFixedColor(aValue: TColor);
@@ -1381,6 +1441,27 @@ begin
     fOnBeforeSelection(Self, aCol, aRow);
 end;
 
+function TCustomGrid.CellFromEvent(AEvent: TJSMouseEvent): TGridCoord;
+var
+  VElement: TJSElement;
+  VRow: TJSHTMLTableRowElement;
+begin
+  /// Uses the DOM position of the clicked cell: the cached row/column sizes
+  /// can differ from the rendered ones (borders, line-height, zoom).
+  Result := Point(-1, -1);
+  VElement := AEvent.targetElement;
+  while Assigned(VElement) and (VElement.tagName <> 'TD') do
+    VElement := VElement.parentElement;
+  if not Assigned(VElement) then
+    Exit;
+  if not Assigned(VElement.parentElement) then
+    Exit;
+  if (VElement.parentElement.tagName <> 'TR') then
+    Exit;
+  VRow := TJSHTMLTableRowElement(VElement.parentElement);
+  Result := Point(TJSHTMLTableCellElement(VElement).cellIndex, VRow.rowIndex);
+end;
+
 procedure TCustomGrid.CacheMouseDown(aX, aY: Integer);
 begin
   fGCache.ClickMouse := Point(aX, aY);
@@ -1434,10 +1515,17 @@ procedure TCustomGrid.Changed;
   begin
     content := TJSHTMLElement(aCell.getElementsByTagName('div')[0]);
 
-    if Assigned(aColumn) and (aRow = 0) then
-      content.textContent := aColumn.Title.Caption
-    else
-      content.textContent := GetCells(aCol, aRow);
+    /// While a cell is being edited its div hosts the <input>: keep it.
+    if (not fEditing) or (aCol <> fCol) or (aRow <> fRow) then
+    begin
+      if Assigned(aColumn) and (aRow = 0) then
+        content.textContent := aColumn.Title.Caption
+      else
+        content.textContent := GetCells(aCol, aRow);
+    end;
+
+    /// The inline editor is positioned inside this div.
+    content.style.setProperty('position', 'relative');
 
     alignment := taLeftJustify;
     layout := tlCenter;
@@ -1547,7 +1635,7 @@ procedure TCustomGrid.Changed;
 var
   row, rowtop, rowleft, rowtopleft: TJSHTMLTableRowElement;
   i, j: LongInt;
-  cell: TJSHTMLTableDataCellElement;
+  cell, contentcell: TJSHTMLTableDataCellElement;
   container: TJSHTMLElement;
   usecolumns: Boolean;
   column: TGridColumn;
@@ -1643,7 +1731,8 @@ begin
       rowtopleft := Nil;
 
     for j := 0 to row.cells.length - 1 do begin
-      cell := TJSHTMLTableDataCellElement(row.cells[j]);
+      contentcell := TJSHTMLTableDataCellElement(row.cells[j]);
+      cell := contentcell;
 
       column := Nil;
       if usecolumns and IsColumnIndexVariable(j) then
@@ -1664,6 +1753,20 @@ begin
       if (j < FixedCols) and (i < FixedRows) then begin
         cell := TJSHTMLTableDataCellElement(rowtopleft.cells[j]);
         UpdateFixedCell(cell, j, i, column, (j = FixedCols - 1) and (ColCount = 1), (i = FixedRows - 1) and (RowCount = 1));
+      end;
+
+      /// Fire OnDrawCell once, on the element that is actually visible.
+      /// The edited cell keeps its <input>, so it is not redrawn.
+      if Assigned(fOnDrawCell) and not (fEditing and (j = fCol) and (i = fRow)) then
+      begin
+        if (i < FixedRows) and (j < FixedCols) and Assigned(rowtopleft) then
+          DoDrawCell(j, i, TJSHTMLTableDataCellElement(rowtopleft.cells[j]))
+        else if (i < FixedRows) and Assigned(rowtop) then
+          DoDrawCell(j, i, TJSHTMLTableDataCellElement(rowtop.cells[j]))
+        else if (j < FixedCols) and Assigned(rowleft) then
+          DoDrawCell(j, i, TJSHTMLTableDataCellElement(rowleft.cells[j]))
+        else
+          DoDrawCell(j, i, contentcell);
       end;
     end;
   end;
@@ -1803,7 +1906,8 @@ end;
 
 procedure TCustomGrid.InvalidateCell(aCol, aRow: Integer; aRedraw: Boolean);
 begin
-  { ToDo }
+  if aRedraw then
+    Changed;
 end;
 
 function TCustomGrid.IsColumnIndexValid(aIndex: Integer): Boolean;
@@ -1841,6 +1945,13 @@ begin
   end;
 
   CacheMouseDown(aX, aY);
+
+  /// Prefer the DOM cell under the pointer over the cached-size maths.
+  if fMouseCellValid then
+  begin
+    fGCache.ClickCell := fMouseCell;
+    fGCache.HotGridZone := CellToGridZone(fMouseCell.X, fMouseCell.Y);
+  end;
 
   case fGCache.HotGridZone of
     gzNormal: begin
@@ -1885,7 +1996,10 @@ var
 begin
   inherited MouseUp(aButton, aShift, aX, aY);
 
-  cur := MouseToCell(Point(aX, aY));
+  if fMouseCellValid then
+    cur := fMouseCell
+  else
+    cur := MouseToCell(Point(aX, aY));
   gz := CellToGridZone(cur.x, cur.y);
 
   case fGridState of
@@ -1913,6 +2027,10 @@ var
   oldrange: TGridRect;
   prevrow, prevcol: Integer;
 begin
+  /// Moving the selection always closes the inline editor first.
+  if fEditing then
+    EndEdit(True);
+
   Result := TryMoveSelection(aRelative, aCol, aRow);
   if not Result then
     Exit;
@@ -2066,8 +2184,434 @@ begin
 end;
 
 function TCustomGrid.SelectCell(aCol, aRow: Integer): Boolean;
+var
+  VCanSelect: Boolean;
 begin
   Result := (ColWidths[aCol] > 0) and (RowHeights[aRow] > 0);
+  if (not Result) or (not Assigned(fOnSelectCell)) then
+    Exit;
+  VCanSelect := True;
+  fOnSelectCell(Self, aCol, aRow, VCanSelect);
+  Result := VCanSelect;
+end;
+
+function TCustomGrid.GetDrawState(aCol, aRow: Integer): TGridDrawState;
+begin
+  Result := [];
+  if (aCol < fFixedCols) or (aRow < fFixedRows) then
+    Include(Result, gdFixed);
+  if GetIsCellSelected(aCol, aRow) then
+    Include(Result, gdSelected);
+  if (aCol = fCol) and (aRow = fRow) then
+    Include(Result, gdFocused);
+end;
+
+function TCustomGrid.GetEditing: Boolean;
+begin
+  Result := fEditing;
+end;
+
+procedure TCustomGrid.DoDrawCell(aCol, aRow: Integer;
+  aCell: TJSHTMLTableDataCellElement);
+begin
+  if Assigned(fOnDrawCell) then
+    fOnDrawCell(Self, aCol, aRow, GetDrawState(aCol, aRow), aCell);
+end;
+
+function TCustomGrid.IsCellEditable(aCol, aRow: Integer): Boolean;
+begin
+  Result := (goEditing in fOptions) and
+    (aCol >= fFixedCols) and (aCol < ColCount) and
+    (aRow >= fFixedRows) and (aRow < RowCount);
+end;
+
+procedure TCustomGrid.SetCellText(aCol, aRow: Integer; const aValue: string);
+begin
+  /// Descendants store the value (TCustomStringGrid writes into Cells).
+end;
+
+procedure TCustomGrid.StartEdit(const AInitialText: string);
+var
+  VRow: TJSHTMLTableRowElement;
+  VCell: TJSHTMLTableDataCellElement;
+  VContent: TJSHTMLElement;
+  VValue: string;
+begin
+  if fEditing then
+    Exit;
+  if not IsCellEditable(fCol, fRow) then
+    Exit;
+  if not Assigned(fContentTable) then
+    Exit;
+  if (fRow < 0) or (fRow >= fContentTable.rows.length) then
+    Exit;
+
+  VRow := TJSHTMLTableRowElement(fContentTable.rows[fRow]);
+  if (fCol < 0) or (fCol >= VRow.cells.length) then
+    Exit;
+
+  VCell := TJSHTMLTableDataCellElement(VRow.cells[fCol]);
+  VContent := TJSHTMLElement(VCell.getElementsByTagName('div')[0]);
+  if not Assigned(VContent) then
+    Exit;
+
+  if not Assigned(fEditor) then
+  begin
+    fEditor := TJSHTMLInputElement(Document.CreateElement('input'));
+    fEditor._type := 'text';
+    fEditor.style.SetProperty('position', 'absolute');
+    fEditor.style.SetProperty('left', '0px');
+    fEditor.style.SetProperty('top', '0px');
+    fEditor.style.SetProperty('width', '100%');
+    fEditor.style.SetProperty('height', '100%');
+    fEditor.style.SetProperty('box-sizing', 'border-box');
+    fEditor.style.SetProperty('margin', '0px');
+    fEditor.style.SetProperty('padding', '0px 2px');
+    fEditor.style.SetProperty('border', 'none');
+    fEditor.style.SetProperty('outline', 'none');
+    fEditor.style.SetProperty('background-color', '#ffffff');
+    fEditor.style.SetProperty('font', 'inherit');
+    fEditor.style.SetProperty('z-index', '10');
+    fEditor.addEventListener('keydown', @HandleEditorKeyDown);
+    fEditor.addEventListener('keypress', @HandleEditorKeyPress);
+    fEditor.addEventListener('keyup', @HandleEditorKeyUp);
+    fEditor.addEventListener('blur', @HandleEditorBlur);
+  end;
+
+  VValue := GetCells(fCol, fRow);
+  if Assigned(fOnGetEditText) then
+    fOnGetEditText(Self, fCol, fRow, VValue);
+
+  VContent.style.SetProperty('position', 'relative');
+  VContent.appendChild(fEditor);
+  fEditorCell := VContent;
+  fEditing := True;
+  fEditorMode := True;
+
+  if (AInitialText <> '') then
+  begin
+    /// Typing a character starts the editor with that character.
+    fEditor.value := AInitialText;
+    fEditor.setSelectionRange(Length(AInitialText), Length(AInitialText));
+  end
+  else
+  begin
+    fEditor.value := VValue;
+    fEditor.select();
+  end;
+  fEditor.focus();
+end;
+
+procedure TCustomGrid.EndEdit(aAccept: Boolean);
+var
+  VCol, VRow: Integer;
+  VValue: string;
+begin
+  if not fEditing then
+    Exit;
+
+  VCol := fCol;
+  VRow := fRow;
+  VValue := '';
+  if Assigned(fEditor) then
+    VValue := fEditor.value;
+
+  fEditing := False;
+  fEditorMode := False;
+  if Assigned(fEditor) and Assigned(fEditorCell) and fEditorCell.contains(fEditor) then
+    fEditorCell.removeChild(fEditor);
+  fEditorCell := nil;
+
+  if aAccept then
+  begin
+    SetCellText(VCol, VRow, VValue);
+    if Assigned(fOnSetEditText) then
+      fOnSetEditText(Self, VCol, VRow, VValue);
+  end;
+
+  InvalidateCell(VCol, VRow);
+  if Assigned(fOnEditingDone) then
+    fOnEditingDone(Self);
+end;
+
+function TCustomGrid.HandleEditorKeyDown(AEvent: TJSKeyBoardEvent): boolean;
+var
+  VKey: string;
+begin
+  Result := True;
+  AEvent.StopPropagation;
+  VKey := '';
+  asm
+    if (AEvent.key != null) VKey = AEvent.key;
+  end;
+
+  if (VKey = 'Enter') then
+  begin
+    AEvent.PreventDefault;
+    EndEdit(True);
+    if MoveNextSelectable(True, 0, 1) then
+      Changed;
+    HandleElement.focus();
+  end
+  else if (VKey = 'Escape') then
+  begin
+    AEvent.PreventDefault;
+    EndEdit(False);
+    HandleElement.focus();
+  end
+  else if (VKey = 'Tab') then
+  begin
+    if (goTabs in Options) then
+    begin
+      AEvent.PreventDefault;
+      EndEdit(True);
+      if (ssShift in ExtractShiftState(AEvent)) then
+      begin
+        if MoveNextSelectable(True, -1, 0) then
+          Changed;
+      end
+      else
+      begin
+        if MoveNextSelectable(True, 1, 0) then
+          Changed;
+      end;
+      HandleElement.focus();
+    end
+    else
+    begin
+      EndEdit(True);
+      Result := False;
+    end;
+  end;
+end;
+
+function TCustomGrid.HandleEditorKeyPress(AEvent: TJSKeyBoardEvent): boolean;
+begin
+  AEvent.StopPropagation;
+  Result := True;
+end;
+
+function TCustomGrid.HandleEditorKeyUp(AEvent: TJSKeyBoardEvent): boolean;
+begin
+  AEvent.StopPropagation;
+  Result := True;
+end;
+
+function TCustomGrid.HandleEditorBlur(AEvent: TJSEvent): boolean;
+begin
+  Result := True;
+  if fEditing then
+    EndEdit(True);
+end;
+
+function TCustomGrid.HandleMouseDown(AEvent: TJSMouseEvent): boolean;
+var
+  VTarget: TJSElement;
+begin
+  if fEditing and Assigned(fEditor) then
+  begin
+    VTarget := AEvent.targetElement;
+    if (VTarget = fEditor) then
+    begin
+      /// Clicking inside the editor must not close it.
+      AEvent.StopPropagation;
+      Exit(True);
+    end;
+  end;
+  fMouseCell := CellFromEvent(AEvent);
+  fMouseCellValid := (fMouseCell.X >= 0) and (fMouseCell.Y >= 0);
+  Result := inherited HandleMouseDown(AEvent);
+end;
+
+function TCustomGrid.HandleDblClick(AEvent: TJSMouseEvent): boolean;
+var
+  VCell: TGridCoord;
+begin
+  Result := inherited HandleDblClick(AEvent);
+
+  if (csDesigning in ComponentState) or (not (goEditing in Options)) then
+    Exit;
+
+  VCell := CellFromEvent(AEvent);
+  if IsCellEditable(VCell.X, VCell.Y) then
+  begin
+    MoveExtend(False, VCell.X, VCell.Y, False);
+    StartEdit('');
+  end;
+end;
+
+procedure TCustomGrid.KeyDown(var Key: NativeInt; Shift: TShiftState);
+var
+  VPage: Integer;
+begin
+  inherited KeyDown(Key, Shift);
+
+  if fEditing then
+    Exit;
+
+  case Key of
+    /// Left
+    37:
+      begin
+        if MoveNextSelectable(True, -1, 0) then
+          Changed;
+        Key := 0;
+      end;
+    /// Right
+    39:
+      begin
+        if MoveNextSelectable(True, 1, 0) then
+          Changed;
+        Key := 0;
+      end;
+    /// Up
+    38:
+      begin
+        if MoveNextSelectable(True, 0, -1) then
+          Changed;
+        Key := 0;
+      end;
+    /// Down
+    40:
+      begin
+        if MoveNextSelectable(True, 0, 1) then
+          Changed;
+        Key := 0;
+      end;
+    /// Home
+    36:
+      begin
+        if MoveNextSelectable(False, fFixedCols, fRow) then
+          Changed;
+        Key := 0;
+      end;
+    /// End
+    35:
+      begin
+        if MoveNextSelectable(False, ColCount - 1, fRow) then
+          Changed;
+        Key := 0;
+      end;
+    /// PageUp / PageDown
+    33, 34:
+      begin
+        VPage := (Height - fGCache.FixedHeight) div DefaultRowHeight;
+        if VPage < 1 then
+          VPage := 1;
+        if (Key = 33) then
+        begin
+          if MoveNextSelectable(False, fCol, fRow - VPage) then
+            Changed;
+        end
+        else
+        begin
+          if MoveNextSelectable(False, fCol, fRow + VPage) then
+            Changed;
+        end;
+        Key := 0;
+      end;
+    /// Enter
+    13:
+      begin
+        if (goEditing in Options) and IsCellEditable(fCol, fRow) then
+          StartEdit('')
+        else if MoveNextSelectable(True, 0, 1) then
+          Changed;
+        Key := 0;
+      end;
+    /// F2
+    113:
+      begin
+        if (goEditing in Options) then
+        begin
+          StartEdit('');
+          Key := 0;
+        end;
+      end;
+    /// Delete
+    46:
+      begin
+        if IsCellEditable(fCol, fRow) then
+        begin
+          SetCellText(fCol, fRow, '');
+          InvalidateCell(fCol, fRow);
+          Key := 0;
+        end;
+      end;
+    /// Tab / Shift+Tab
+    9:
+      begin
+        if (goTabs in Options) then
+        begin
+          if (ssShift in Shift) then
+          begin
+            if MoveNextSelectable(True, -1, 0) then
+              Changed;
+          end
+          else
+          begin
+            if MoveNextSelectable(True, 1, 0) then
+              Changed;
+          end;
+          Key := 0;
+        end;
+      end;
+  end;
+end;
+
+procedure TCustomGrid.KeyPress(var Key: char);
+begin
+  if fEditing then
+    Exit;
+
+  if (goEditing in Options) and IsCellEditable(fCol, fRow) and (Key >= ' ') then
+  begin
+    StartEdit(Key);
+    Key := #0;
+    Exit;
+  end;
+
+  inherited KeyPress(Key);
+end;
+
+function TCustomGrid.ScrollToCell(const aCol, aRow: Integer;
+  const aForceFullyVisible: Boolean): Boolean;
+var
+  VRow: TJSHTMLTableRowElement;
+  VCell, VContainer: TJSHTMLElement;
+  VTop, VLeft: Integer;
+begin
+  Result := False;
+  if not Assigned(fContentTable) then
+    Exit;
+  if (aRow < 0) or (aRow >= fContentTable.rows.length) then
+    Exit;
+
+  VRow := TJSHTMLTableRowElement(fContentTable.rows[aRow]);
+  if (aCol < 0) or (aCol >= VRow.cells.length) then
+    Exit;
+
+  VContainer := HandleElement;
+  /// Nothing to scroll while the grid is hidden (inactive tab).
+  if (VContainer.clientWidth <= 0) or (VContainer.clientHeight <= 0) then
+    Exit;
+
+  VCell := TJSHTMLElement(VRow.cells[aCol]);
+  VTop := Trunc(VCell.offsetTop);
+  VLeft := Trunc(VCell.offsetLeft);
+
+  /// Keep the cell below/right of the fixed overlays and inside the viewport.
+  if VTop < VContainer.scrollTop + fGCache.FixedHeight then
+    VContainer.scrollTop := VTop - fGCache.FixedHeight
+  else if VTop + Trunc(VCell.offsetHeight) > VContainer.scrollTop + VContainer.clientHeight then
+    VContainer.scrollTop := VTop + Trunc(VCell.offsetHeight) - VContainer.clientHeight;
+
+  if VLeft < VContainer.scrollLeft + fGCache.FixedWidth then
+    VContainer.scrollLeft := VLeft - fGCache.FixedWidth
+  else if VLeft + Trunc(VCell.offsetWidth) > VContainer.scrollLeft + VContainer.clientWidth then
+    VContainer.scrollLeft := VLeft + Trunc(VCell.offsetWidth) - VContainer.clientWidth;
+
+  Result := True;
 end;
 
 procedure TCustomGrid.SizeChanged(aOldColCount, aOldRowCount: Integer);
@@ -2141,6 +2685,11 @@ begin
   fDefColWidth := -1;
   fDefRowHeight := -1;
   fAllowOutboundEvents := True;
+
+  fEditing := False;
+  fEditorMode := False;
+  fEditor := nil;
+  fEditorCell := nil;
 
   fScrollBars := ssAutoBoth;
 

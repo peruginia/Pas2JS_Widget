@@ -11,13 +11,16 @@ round rect, round square, circle, ellipse, triangle, squared triangle) and
 `TPaintBox` (`OnPaint` + `Canvas`). `TCanvas` gained `Ellipse`, `RoundRect`,
 `Polygon` and `Polyline`; `TCustomControl` repaints when it changes.
 
-## 2. TStringGrid editing and events
+## 2. TStringGrid editing and events — done
 
-`TCustomGrid` has no cell editor: `EditorMode` is only a flag, there is no
-`goEditing`, no `OnSelectCell`, `OnGetEditText`, `OnSetEditText`, `OnDrawCell`,
-and no keyboard navigation. Add an inline editor (an `<input>` positioned over
-the cell), commit on Enter/Tab, cancel on Escape, and publish the missing events
-and `TGridOption` values.
+`TCustomGrid` now has an inline `<input>` editor, `goEditing`/`goTabs` options,
+keyboard navigation (arrows, Home/End, PageUp/Down, Enter, F2, Delete, Tab) and
+the missing events: `OnSelectCell` (with `CanSelect`), `OnGetEditText`,
+`OnSetEditText`, `OnEditingDone` and `OnDrawCell` (DOM cell, like
+`OnDrawColumnCell`). `EditorMode` reflects and controls the editor, mouse
+clicks resolve the cell from the DOM, `ScrollToCell` keeps the selection
+visible, and `InvalidateCell` repaints. See the StringGrid editing section in
+the README.
 
 ## 3. TActionList and TAction
 
