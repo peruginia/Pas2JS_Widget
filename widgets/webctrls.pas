@@ -1146,6 +1146,13 @@ type
     property OnChange;
   end;
 
+  { TWPopupMenu }
+
+  TWPopupMenu = class(TPopupMenu)
+  published
+    property OnChange;
+  end;
+
 implementation
 
 { TWFloatEdit }

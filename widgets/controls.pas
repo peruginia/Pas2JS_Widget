@@ -111,6 +111,15 @@ type
   TWinControlClass = class of TWinControl;
   TControl = class;
   TControlClass = class of TControl;
+  TCustomPopupMenu = class;
+
+  /// Base class for context menus. The real implementation lives in Menus,
+  /// which depends on Controls, so only the hook is declared here.
+  TCustomPopupMenu = class(TComponent)
+  public
+    /// Shows the menu at viewport coordinates.
+    procedure PopupAt(const AX, AY: Double); virtual;
+  end;
 
   TAlign = (alNone, alTop, alBottom, alLeft, alRight, alClient, alCustom);
   TAlignSet = set of TAlign;
@@ -249,6 +258,7 @@ type
     FParentColor: boolean;
     FParentFont: boolean;
     FParentShowHint: boolean;
+    FPopupMenu: TCustomPopupMenu;
     FShowHint: boolean;
     FTabOrder: NativeInt;
     FTabStop: boolean;
@@ -293,6 +303,7 @@ type
     procedure SetParentColor(AValue: boolean);
     procedure SetParentFont(AValue: boolean);
     procedure SetParentShowHint(AValue: boolean);
+    procedure SetPopupMenu(AValue: TCustomPopupMenu);
     procedure SetShowHint(AValue: boolean);
     procedure SetTabOrder(AValue: NativeInt);
     procedure SetTabStop(AValue: boolean);
@@ -329,6 +340,7 @@ type
     property OnScroll: TNotifyEvent read FOnScroll write FOnScroll;
   protected
     function HandleClick(AEvent: TJSMouseEvent): boolean; virtual;
+    function HandleContextMenu(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleDblClick(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleMouseDown(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleMouseEnter(AEvent: TJSMouseEvent): boolean; virtual;
@@ -340,6 +352,7 @@ type
     function HandleScroll(AEvent: TJSEvent): boolean; virtual;
   protected
     procedure Loaded; override;
+    procedure Notification(AComponent: TComponent; Operation: TOperation); override;
     procedure Changed; virtual;
     function CreateHandleElement: TJSHTMLElement; virtual;
     procedure RegisterHandleEvents; virtual;
@@ -403,6 +416,7 @@ type
   published
     property Constraints: TSizeConstraints read FConstraints write SetConstraints;
     property Cursor: TCursor read FCursor write SetCursor;
+    property PopupMenu: TCustomPopupMenu read FPopupMenu write SetPopupMenu;
     property Left: NativeInt read FLeft write SetLeft;
     property Height: NativeInt read FHeight write SetHeight;
     property Hint: string read FHint write SetHint;
@@ -1186,6 +1200,13 @@ begin
   end;
 end;
 
+{ TCustomPopupMenu }
+
+procedure TCustomPopupMenu.PopupAt(const AX, AY: Double);
+begin
+  /// Descendants (Menus.TPopupMenu) provide the real implementation.
+end;
+
 { TControl }
 
 function TControl.GetClientHeight: NativeInt;
@@ -1449,6 +1470,17 @@ begin
   end;
 end;
 
+procedure TControl.SetPopupMenu(AValue: TCustomPopupMenu);
+begin
+  if (FPopupMenu = AValue) then
+    Exit;
+  if Assigned(FPopupMenu) then
+    FPopupMenu.RemoveFreeNotification(Self);
+  FPopupMenu := AValue;
+  if Assigned(FPopupMenu) then
+    FPopupMenu.FreeNotification(Self);
+end;
+
 procedure TControl.SetShowHint(AValue: boolean);
 begin
   if (FShowHint <> AValue) then
@@ -1591,6 +1623,17 @@ begin
   Result := True;
 end;
 
+function TControl.HandleContextMenu(AEvent: TJSMouseEvent): boolean;
+begin
+  Result := False;
+  if (not Assigned(FPopupMenu)) then
+    Exit;
+  AEvent.PreventDefault;
+  AEvent.StopPropagation;
+  FPopupMenu.PopupAt(AEvent.ClientX, AEvent.ClientY);
+  Result := True;
+end;
+
 function TControl.HandleDblClick(AEvent: TJSMouseEvent): boolean;
 begin
   AEvent.StopPropagation;
@@ -1698,6 +1741,13 @@ begin
   inherited Loaded;
   FDesignRect := Rect(Left, Top, Left + Width - 1, Top + Height - 1);
   Changed;
+end;
+
+procedure TControl.Notification(AComponent: TComponent; Operation: TOperation);
+begin
+  inherited Notification(AComponent, Operation);
+  if (Operation = opRemove) and (AComponent = FPopupMenu) then
+    FPopupMenu := nil;
 end;
 
 procedure TControl.Changed;
@@ -1856,6 +1906,7 @@ begin
   with FHandleElement do
   begin
     AddEventListener('click', @HandleClick);
+    AddEventListener('contextmenu', @HandleContextMenu);
     AddEventListener('dblclick', @HandleDblClick);
     AddEventListener('mousedown', @HandleMouseDown);
     AddEventListener('mouseenter', @HandleMouseEnter);
@@ -1873,6 +1924,7 @@ begin
   with FHandleElement do
   begin
     RemoveEventListener('click', @HandleClick);
+    RemoveEventListener('contextmenu', @HandleContextMenu);
     RemoveEventListener('dblclick', @HandleDblClick);
     RemoveEventListener('mousedown', @HandleMouseDown);
     RemoveEventListener('mouseenter', @HandleMouseEnter);

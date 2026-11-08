@@ -382,6 +382,7 @@ begin
     TWFloatEdit, TWIntegerEdit, TWDateEditBox, TWTimeEditBox, TWDateTimePicker,
     TWFileButton, TWDataGrid, TWPagination, TWStringGrid, TWWebSocketClient,
     TWGroupBox, TWScrollBox, TWProgressBar, TWTrackBar, TWColorPicker, TWSplitter,
+    TWMainMenu, TWPopupMenu,
     TWWebDBConnection, TWWebDBTable], TPas2JSWidgetsRequirements);
 {$endif}
 

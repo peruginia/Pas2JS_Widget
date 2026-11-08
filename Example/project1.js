@@ -22316,6 +22316,12 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
   this.$rtti.$ClassRef("TWinControlClass",{instancetype: this.$rtti["TWinControl"]});
   this.$rtti.$Class("TControl");
   this.$rtti.$ClassRef("TControlClass",{instancetype: this.$rtti["TControl"]});
+  this.$rtti.$Class("TCustomPopupMenu");
+  rtl.createClass(this,"TCustomPopupMenu",pas.Classes.TComponent,function () {
+    this.PopupAt = function (AX, AY) {
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+  });
   this.TAlign = {"0": "alNone", alNone: 0, "1": "alTop", alTop: 1, "2": "alBottom", alBottom: 2, "3": "alLeft", alLeft: 3, "4": "alRight", alRight: 4, "5": "alClient", alClient: 5, "6": "alCustom", alCustom: 6};
   this.$rtti.$Enum("TAlign",{minvalue: 0, maxvalue: 6, ordtype: 1, enumtype: this.TAlign});
   this.$rtti.$Set("TAlignSet",{comptype: this.$rtti["TAlign"]});
@@ -22600,6 +22606,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       this.FParentColor = false;
       this.FParentFont = false;
       this.FParentShowHint = false;
+      this.FPopupMenu = null;
       this.FShowHint = false;
       this.FTabOrder = 0;
       this.FTabStop = false;
@@ -22628,6 +22635,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       this.FFont = undefined;
       this.FHandleElement = undefined;
       this.FParent = undefined;
+      this.FPopupMenu = undefined;
       this.FOnClick = undefined;
       this.FOnDblClick = undefined;
       this.FOnMouseDown = undefined;
@@ -22814,6 +22822,12 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
         };
       };
     };
+    this.SetPopupMenu = function (AValue) {
+      if (this.FPopupMenu === AValue) return;
+      if (this.FPopupMenu != null) this.FPopupMenu.RemoveFreeNotification(this);
+      this.FPopupMenu = AValue;
+      if (this.FPopupMenu != null) this.FPopupMenu.FreeNotification(this);
+    };
     this.SetShowHint = function (AValue) {
       if (this.FShowHint !== AValue) {
         this.FShowHint = AValue;
@@ -22910,6 +22924,16 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       var Result = false;
       AEvent.stopPropagation();
       this.Click();
+      Result = true;
+      return Result;
+    };
+    this.HandleContextMenu = function (AEvent) {
+      var Result = false;
+      Result = false;
+      if (!(this.FPopupMenu != null)) return Result;
+      AEvent.preventDefault();
+      AEvent.stopPropagation();
+      this.FPopupMenu.PopupAt(AEvent.clientX,AEvent.clientY);
       Result = true;
       return Result;
     };
@@ -23023,6 +23047,10 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       this.FDesignRect.$assign(pas.Types.Rect(this.FLeft,this.FTop,(this.FLeft + this.FWidth) - 1,(this.FTop + this.FHeight) - 1));
       this.Changed();
     };
+    this.Notification = function (AComponent, Operation) {
+      pas.Classes.TComponent.Notification.call(this,AComponent,Operation);
+      if ((Operation === pas.Classes.TOperation.opRemove) && (AComponent === this.FPopupMenu)) this.FPopupMenu = null;
+    };
     this.Changed = function () {
       var $Self = this;
       var form = null;
@@ -23108,6 +23136,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
     this.RegisterHandleEvents = function () {
       var $with = this.FHandleElement;
       $with.addEventListener("click",rtl.createCallback(this,"HandleClick"));
+      $with.addEventListener("contextmenu",rtl.createCallback(this,"HandleContextMenu"));
       $with.addEventListener("dblclick",rtl.createCallback(this,"HandleDblClick"));
       $with.addEventListener("mousedown",rtl.createCallback(this,"HandleMouseDown"));
       $with.addEventListener("mouseenter",rtl.createCallback(this,"HandleMouseEnter"));
@@ -23121,6 +23150,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
     this.UnRegisterHandleEvents = function () {
       var $with = this.FHandleElement;
       $with.removeEventListener("click",rtl.createCallback(this,"HandleClick"));
+      $with.removeEventListener("contextmenu",rtl.createCallback(this,"HandleContextMenu"));
       $with.removeEventListener("dblclick",rtl.createCallback(this,"HandleDblClick"));
       $with.removeEventListener("mousedown",rtl.createCallback(this,"HandleMouseDown"));
       $with.removeEventListener("mouseenter",rtl.createCallback(this,"HandleMouseEnter"));
@@ -23575,6 +23605,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
     $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
     $r.addProperty("Constraints",2,$mod.$rtti["TSizeConstraints"],"FConstraints","SetConstraints");
     $r.addProperty("Cursor",2,$mod.$rtti["TCursor"],"FCursor","SetCursor");
+    $r.addProperty("PopupMenu",2,$mod.$rtti["TCustomPopupMenu"],"FPopupMenu","SetPopupMenu");
     $r.addProperty("Left",2,rtl.nativeint,"FLeft","SetLeft");
     $r.addProperty("Height",2,rtl.nativeint,"FHeight","SetHeight");
     $r.addProperty("Hint",2,rtl.string,"FHint","SetHint");
@@ -48071,6 +48102,202 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     $r.addProperty("Top",0,rtl.nativeint,"FTop","FTop",{Default: 0});
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
   });
+  rtl.createClass(this,"TPopupMenu",pas.Controls.TCustomPopupMenu,function () {
+    this.$init = function () {
+      pas.Controls.TCustomPopupMenu.$init.call(this);
+      this.FDocClick = null;
+      this.FDocKeyDown = null;
+      this.FItems = null;
+      this.FOnChange = null;
+      this.FOpen = false;
+      this.FPanel = null;
+      this.FPanelClick = null;
+    };
+    this.$final = function () {
+      this.FDocClick = undefined;
+      this.FDocKeyDown = undefined;
+      this.FItems = undefined;
+      this.FOnChange = undefined;
+      this.FPanel = undefined;
+      this.FPanelClick = undefined;
+      pas.Controls.TCustomPopupMenu.$final.call(this);
+    };
+    this.EnsurePanel = function () {
+      if (this.FPanel != null) return;
+      this.FPanel = document.createElement("div");
+      this.FPanel.className = "wcl-menubar-drop wcl-popup";
+      this.FPanel.style.setProperty("position","fixed");
+      this.FPanel.style.setProperty("display","none");
+      this.FPanel.style.setProperty("z-index","2000");
+      this.FPanel.addEventListener("click",rtl.createCallback(this,"HandlePanelClick"));
+      document.body.appendChild(this.FPanel);
+    };
+    this.HandleDocClick = function (AEvent) {
+      var Result = false;
+      var VTarget = null;
+      Result = false;
+      if (!this.FOpen || !(this.FPanel != null)) return Result;
+      VTarget = pas.Web.TJSEventHelper.GetTargetElement.call(AEvent);
+      if ((VTarget != null) && this.FPanel.contains(VTarget)) return Result;
+      this.Close();
+      Result = true;
+      return Result;
+    };
+    this.HandleDocKeyDown = function (AEvent) {
+      var Result = false;
+      Result = false;
+      if (!this.FOpen) return Result;
+      if (AEvent.key === "Escape") {
+        this.Close();
+        Result = true;
+      };
+      return Result;
+    };
+    this.HandlePanelClick = function (AEvent) {
+      var Result = false;
+      var VElement = null;
+      var VPath = "";
+      var VItem = null;
+      Result = false;
+      VElement = pas.Web.TJSEventHelper.GetTargetElement.call(AEvent);
+      while ((VElement != null) && (VElement !== this.FPanel)) {
+        VPath = "";
+        if (rtl.isExt(VElement,HTMLElement)) {
+          VPath = VElement.getAttribute("data-path");
+          if (VPath == null) VPath = "";
+        };
+        if (VPath !== "") {
+          VItem = this.FItems.GetItem(pas.SysUtils.StrToIntDef(VPath,-1));
+          this.Close();
+          if (VItem != null) VItem.Click();
+          Result = true;
+          return Result;
+        };
+        VElement = VElement.parentElement;
+      };
+      return Result;
+    };
+    this.StartDocTracking = function () {
+      document.addEventListener('click', this.FDocClick, true);
+      document.addEventListener('keydown', this.FDocKeyDown, true);
+    };
+    this.StopDocTracking = function () {
+      document.removeEventListener('click', this.FDocClick, true);
+      document.removeEventListener('keydown', this.FDocKeyDown, true);
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Classes.TComponent.Create$1.call(this,AOwner);
+      this.FDocClick = rtl.createCallback(this,"HandleDocClick");
+      this.FDocKeyDown = rtl.createCallback(this,"HandleDocKeyDown");
+      this.FPanelClick = rtl.createCallback(this,"HandlePanelClick");
+      this.FItems = $mod.TMenuItems.$create("Create$1",[this,null]);
+      this.FPanel = null;
+      this.FOpen = false;
+      this.FOnChange = null;
+      return this;
+    };
+    this.Destroy = function () {
+      this.Close();
+      rtl.free(this,"FItems");
+      this.FItems = null;
+      if (this.FPanel != null) {
+        document.body.removeChild(this.FPanel);
+        this.FPanel = null;
+      };
+      pas.Classes.TComponent.Destroy.call(this);
+    };
+    this.GetChildOwner = function () {
+      var Result = null;
+      Result = this;
+      return Result;
+    };
+    this.GetChildParent = function () {
+      var Result = null;
+      Result = null;
+      return Result;
+    };
+    this.Notification = function (AComponent, Operation) {
+      pas.Classes.TComponent.Notification.call(this,AComponent,Operation);
+      if ($mod.TMenuItem.isPrototypeOf(AComponent) && (this.FItems != null) && (AComponent.FOwner === this)) {
+        if (Operation === pas.Classes.TOperation.opInsert) {
+          this.FItems.AddItem(AComponent)}
+         else this.FItems.RemoveItem(AComponent);
+      };
+    };
+    this.Close = function () {
+      if (!this.FOpen) return;
+      this.FOpen = false;
+      this.StopDocTracking();
+      if (this.FPanel != null) this.FPanel.style.setProperty("display","none");
+      if (this.FOnChange != null) this.FOnChange(this);
+    };
+    this.PopupAt = function (AX, AY) {
+      var VWidth = 0;
+      var VHeight = 0;
+      var VLeft = 0;
+      var VTop = 0;
+      this.Render();
+      if (this.FItems.GetCount() === 0) return;
+      this.FPanel.style.setProperty("left","0px");
+      this.FPanel.style.setProperty("top","0px");
+      this.FPanel.style.setProperty("display","block");
+      this.FPanel.style.setProperty("visibility","hidden");
+      VWidth = pas.System.Trunc(this.FPanel.offsetWidth);
+      VHeight = pas.System.Trunc(this.FPanel.offsetHeight);
+      VLeft = pas.System.Trunc(AX);
+      VTop = pas.System.Trunc(AY);
+      if ((VLeft + VWidth) > window.innerWidth) VLeft = pas.System.Trunc(AX) - VWidth;
+      if ((VTop + VHeight) > window.innerHeight) VTop = pas.System.Trunc(AY) - VHeight;
+      if (VLeft < 0) VLeft = 0;
+      if (VTop < 0) VTop = 0;
+      this.FPanel.style.setProperty("left",pas.SysUtils.IntToStr(VLeft) + "px");
+      this.FPanel.style.setProperty("top",pas.SysUtils.IntToStr(VTop) + "px");
+      this.FPanel.style.setProperty("visibility","visible");
+      this.FOpen = true;
+      this.StartDocTracking();
+      if (this.FOnChange != null) this.FOnChange(this);
+    };
+    this.Render = function () {
+      var VHtml = "";
+      var VIndex = 0;
+      var VItem = null;
+      var VClass = "";
+      var VCheck = "";
+      var VIcon = "";
+      var VStyle = "";
+      var VShortCut = "";
+      this.EnsurePanel();
+      $impl._RegisterMenuRules();
+      VHtml = "";
+      for (var $l = 0, $end = this.FItems.GetCount() - 1; $l <= $end; $l++) {
+        VIndex = $l;
+        VItem = this.FItems.GetItem(VIndex);
+        if (!(VItem != null) || !VItem.FVisible) continue;
+        if (VItem.IsSeparator()) {
+          VHtml = VHtml + '<div class="wcl-menubar-sep"></div>';
+          continue;
+        };
+        VClass = "wcl-menubar-entry";
+        if (!VItem.FEnabled) VClass = VClass + " wcl-disabled";
+        if (VItem.FItems.GetCount() > 0) VClass = VClass + " wcl-has-sub";
+        VCheck = "";
+        if (VItem.FChecked) VCheck = "&#10003; ";
+        VIcon = "";
+        if (VItem.FImageUrl !== "") VIcon = '<img class="wcl-menubar-icon" src="' + $impl.EscapeMenuText(VItem.FImageUrl) + '">';
+        VStyle = "";
+        if (VItem.FDefault) VStyle = ' style="font-weight:bold"';
+        VHtml = VHtml + '<div class="' + VClass + '" data-path="' + pas.SysUtils.IntToStr(VIndex) + '">' + VIcon + "<span" + VStyle + ">" + VCheck + $impl.EscapeMenuText(VItem.FCaption) + "</span>";
+        VShortCut = $mod.ShortCutToText(VItem.FShortCut);
+        if (VShortCut !== "") VHtml = VHtml + '<span class="wcl-menubar-shortcut">' + $impl.EscapeMenuText(VShortCut) + "</span>";
+        VHtml = VHtml + "</div>";
+      };
+      this.FPanel.innerHTML = VHtml;
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+    $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
+  });
   this.TextToShortCut = function (AText) {
     var Result = 0;
     var VRest = "";
@@ -49335,6 +49562,11 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
   });
   rtl.createClass(this,"TWMainMenu",pas.Menus.TMainMenu,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
+  });
+  rtl.createClass(this,"TWPopupMenu",pas.Menus.TPopupMenu,function () {
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
@@ -51573,6 +51805,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoLastCity = "";
       this.FDemoSeparators = false;
       this.FDemoTable = null;
+      this.FGridPopup = null;
       this.FLayoutInfo = null;
       this.FLayoutLeft = null;
       this.FLayoutTop = null;
@@ -51639,6 +51872,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDemoGrid = undefined;
       this.FDemoInfo = undefined;
       this.FDemoTable = undefined;
+      this.FGridPopup = undefined;
       this.FLayoutInfo = undefined;
       this.FLayoutLeft = undefined;
       this.FLayoutTop = undefined;
@@ -51811,6 +52045,15 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       $with6.SetText("Toggle separators");
       $with6.FOnClick = rtl.createCallback(this,"DemoToggleSeparators");
       this.DemoUpdateInfo();
+      this.BuildGridPopup();
+    };
+    this.BuildGridPopup = function () {
+      this.FGridPopup = pas.WebCtrls.TWPopupMenu.$create("Create$1",[this]);
+      this.FGridPopup.FItems.Add("Open row",rtl.createCallback(this,"MenuDemoClick"));
+      this.FGridPopup.FItems.Add("Copy value",rtl.createCallback(this,"MenuDemoClick"));
+      this.FGridPopup.FItems.AddSeparator();
+      this.FGridPopup.FItems.Add("Clear filter",rtl.createCallback(this,"MenuDemoClick"));
+      if (this.FDemoGrid != null) this.FDemoGrid.SetPopupMenu(this.FGridPopup);
     };
     this.BuildSplitterTab = function () {
       var VSheet = null;

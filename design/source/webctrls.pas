@@ -877,6 +877,11 @@ type
   TWMainMenu = class(TMainMenu)
   end;
 
+  { TWPopupMenu }
+
+  TWPopupMenu = class(TPopupMenu)
+  end;
+
   { TWFloatEdit }
 
   TWFloatEdit = class(TCustomNumericEdit)
@@ -1302,6 +1307,7 @@ begin
     TWColorPicker,
     TWSplitter,
     TWMainMenu,
+    TWPopupMenu,
     TWWebDBConnection,
     TWWebDBTable
     ]);

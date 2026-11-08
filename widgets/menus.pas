@@ -183,6 +183,39 @@ type
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   end;
 
+  { TPopupMenu }
+
+  TPopupMenu = class(TCustomPopupMenu)
+  private
+    FDocClick: TMouseMenuHandler;
+    FDocKeyDown: TKeyMenuHandler;
+    FItems: TMenuItems;
+    FOnChange: TNotifyEvent;
+    FOpen: Boolean;
+    FPanel: TJSHTMLElement;
+    FPanelClick: TMouseMenuHandler;
+    procedure EnsurePanel;
+    function HandleDocClick(AEvent: TJSMouseEvent): boolean;
+    function HandleDocKeyDown(AEvent: TJSKeyBoardEvent): boolean;
+    function HandlePanelClick(AEvent: TJSMouseEvent): boolean;
+    procedure StartDocTracking;
+    procedure StopDocTracking;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    function GetChildOwner: TComponent; override;
+    function GetChildParent: TComponent; override;
+    procedure Notification(AComponent: TComponent; Operation: TOperation); override;
+    procedure Close;
+    /// Shows the menu at viewport coordinates, flipping when it would not fit.
+    procedure PopupAt(const AX, AY: Double); override;
+    procedure Render;
+    property IsOpen: Boolean read FOpen;
+    property Items: TMenuItems read FItems;
+  published
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
+
 /// Converts 'Ctrl+S' (and similar) to the numeric shortcut used by the .lfm.
 function TextToShortCut(const AText: string): TShortCut;
 /// Converts a numeric shortcut back to text, for display.
@@ -1088,6 +1121,236 @@ begin
     FBar.Render;
   if Assigned(FOnChange) then
     FOnChange(Self);
+end;
+
+{ TPopupMenu }
+
+constructor TPopupMenu.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FDocClick := @HandleDocClick;
+  FDocKeyDown := @HandleDocKeyDown;
+  FPanelClick := @HandlePanelClick;
+  FItems := TMenuItems.Create(Self, nil);
+  FPanel := nil;
+  FOpen := False;
+  FOnChange := nil;
+end;
+
+destructor TPopupMenu.Destroy;
+begin
+  Close;
+  FItems.Free;
+  FItems := nil;
+  if Assigned(FPanel) then
+  begin
+    Document.Body.RemoveChild(FPanel);
+    FPanel := nil;
+  end;
+  inherited Destroy;
+end;
+
+function TPopupMenu.GetChildOwner: TComponent;
+begin
+  /// Menu items streamed from the .lfm are owned by the popup menu.
+  Result := Self;
+end;
+
+function TPopupMenu.GetChildParent: TComponent;
+begin
+  Result := nil;
+end;
+
+procedure TPopupMenu.Notification(AComponent: TComponent; Operation: TOperation);
+begin
+  inherited Notification(AComponent, Operation);
+  if (AComponent is TMenuItem) and Assigned(FItems) and (AComponent.Owner = Self) then
+  begin
+    if (Operation = opInsert) then
+      FItems.AddItem(TMenuItem(AComponent))
+    else
+      FItems.RemoveItem(TMenuItem(AComponent));
+  end;
+end;
+
+procedure TPopupMenu.EnsurePanel;
+begin
+  if Assigned(FPanel) then
+    Exit;
+  FPanel := TJSHTMLElement(Document.CreateElement('div'));
+  FPanel.ClassName := 'wcl-menubar-drop wcl-popup';
+  FPanel.Style.SetProperty('position', 'fixed');
+  FPanel.Style.SetProperty('display', 'none');
+  FPanel.Style.SetProperty('z-index', '2000');
+  FPanel.AddEventListener('click', @HandlePanelClick);
+  Document.Body.AppendChild(FPanel);
+end;
+
+procedure TPopupMenu.Render;
+var
+  VHtml: string;
+  VIndex: NativeInt;
+  VItem: TMenuItem;
+  VClass: string;
+  VCheck: string;
+  VIcon: string;
+  VStyle: string;
+  VShortCut: string;
+begin
+  EnsurePanel;
+  _RegisterMenuRules;
+  VHtml := '';
+  for VIndex := 0 to (FItems.Count - 1) do
+  begin
+    VItem := FItems[VIndex];
+    if (not Assigned(VItem)) or (not VItem.Visible) then
+      Continue;
+    if VItem.IsSeparator then
+    begin
+      VHtml := VHtml + '<div class="wcl-menubar-sep"></div>';
+      Continue;
+    end;
+    VClass := 'wcl-menubar-entry';
+    if (not VItem.Enabled) then
+      VClass := VClass + ' wcl-disabled';
+    if (VItem.Items.Count > 0) then
+      VClass := VClass + ' wcl-has-sub';
+    VCheck := '';
+    if VItem.Checked then
+      VCheck := '&#10003; ';
+    VIcon := '';
+    if (VItem.ImageUrl <> '') then
+      VIcon := '<img class="wcl-menubar-icon" src="' + EscapeMenuText(VItem.ImageUrl) + '">';
+    VStyle := '';
+    if VItem.Default then
+      VStyle := ' style="font-weight:bold"';
+    VHtml := VHtml + '<div class="' + VClass + '" data-path="' + IntToStr(VIndex) + '">' +
+      VIcon + '<span' + VStyle + '>' + VCheck + EscapeMenuText(VItem.Caption) + '</span>';
+    VShortCut := ShortCutToText(VItem.ShortCut);
+    if (VShortCut <> '') then
+      VHtml := VHtml + '<span class="wcl-menubar-shortcut">' +
+        EscapeMenuText(VShortCut) + '</span>';
+    VHtml := VHtml + '</div>';
+  end;
+  FPanel.InnerHTML := VHtml;
+end;
+
+procedure TPopupMenu.PopupAt(const AX, AY: Double);
+var
+  VWidth, VHeight: NativeInt;
+  VLeft, VTop: NativeInt;
+begin
+  Render;
+  if (FItems.Count = 0) then
+    Exit;
+  FPanel.Style.SetProperty('left', '0px');
+  FPanel.Style.SetProperty('top', '0px');
+  FPanel.Style.SetProperty('display', 'block');
+  FPanel.Style.SetProperty('visibility', 'hidden');
+  VWidth := Trunc(FPanel.OffsetWidth);
+  VHeight := Trunc(FPanel.OffsetHeight);
+  VLeft := Trunc(AX);
+  VTop := Trunc(AY);
+  /// Flip towards the other side when the menu would leave the viewport.
+  if (VLeft + VWidth > Window.InnerWidth) then
+    VLeft := Trunc(AX) - VWidth;
+  if (VTop + VHeight > Window.InnerHeight) then
+    VTop := Trunc(AY) - VHeight;
+  if (VLeft < 0) then
+    VLeft := 0;
+  if (VTop < 0) then
+    VTop := 0;
+  FPanel.Style.SetProperty('left', IntToStr(VLeft) + 'px');
+  FPanel.Style.SetProperty('top', IntToStr(VTop) + 'px');
+  FPanel.Style.SetProperty('visibility', 'visible');
+  FOpen := True;
+  StartDocTracking;
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TPopupMenu.Close;
+begin
+  if (not FOpen) then
+    Exit;
+  FOpen := False;
+  StopDocTracking;
+  if Assigned(FPanel) then
+    FPanel.Style.SetProperty('display', 'none');
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TPopupMenu.StartDocTracking;
+begin
+  asm
+    document.addEventListener('click', this.FDocClick, true);
+    document.addEventListener('keydown', this.FDocKeyDown, true);
+  end;
+end;
+
+procedure TPopupMenu.StopDocTracking;
+begin
+  asm
+    document.removeEventListener('click', this.FDocClick, true);
+    document.removeEventListener('keydown', this.FDocKeyDown, true);
+  end;
+end;
+
+function TPopupMenu.HandleDocClick(AEvent: TJSMouseEvent): boolean;
+var
+  VTarget: TJSElement;
+begin
+  Result := False;
+  if (not FOpen) or (not Assigned(FPanel)) then
+    Exit;
+  VTarget := AEvent.targetElement;
+  if Assigned(VTarget) and FPanel.Contains(VTarget) then
+    Exit;
+  Close;
+  Result := True;
+end;
+
+function TPopupMenu.HandleDocKeyDown(AEvent: TJSKeyBoardEvent): boolean;
+begin
+  Result := False;
+  if (not FOpen) then
+    Exit;
+  if (AEvent.key = 'Escape') then
+  begin
+    Close;
+    Result := True;
+  end;
+end;
+
+function TPopupMenu.HandlePanelClick(AEvent: TJSMouseEvent): boolean;
+var
+  VElement: TJSElement;
+  VPath: string;
+  VItem: TMenuItem;
+begin
+  Result := False;
+  VElement := AEvent.targetElement;
+  while Assigned(VElement) and (VElement <> FPanel) do
+  begin
+    VPath := '';
+    if (VElement is TJSHTMLElement) then
+    begin
+      VPath := TJSHTMLElement(VElement).getAttribute('data-path');
+      if (VPath = Null) then
+        VPath := '';
+    end;
+    if (VPath <> '') then
+    begin
+      VItem := FItems[StrToIntDef(VPath, -1)];
+      Close;
+      if Assigned(VItem) then
+        VItem.Click;
+      Result := True;
+      Exit;
+    end;
+    VElement := VElement.parentElement;
+  end;
 end;
 
 initialization

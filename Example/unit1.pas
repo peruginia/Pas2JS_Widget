@@ -88,10 +88,12 @@ type
     FDemoLastCity: string;
     FDemoSeparators: Boolean;
     FDemoTable: TWWebDBTable;
+    FGridPopup: TWPopupMenu;
     FLayoutInfo: TWLabel;
     FLayoutLeft: TWPanel;
     FLayoutTop: TWPanel;
     procedure BuildGridModesTab;
+    procedure BuildGridPopup;
     procedure BuildSplitterTab;
     procedure DemoSplitterMoved(Sender: TObject);
     procedure MenuDemoClick(Sender: TObject);
@@ -602,6 +604,20 @@ begin
   end;
 
   DemoUpdateInfo;
+  BuildGridPopup;
+end;
+
+{ --- TPopupMenu demo: right click on the grid --- }
+
+procedure TWForm1.BuildGridPopup;
+begin
+  FGridPopup := TWPopupMenu.Create(Self);
+  FGridPopup.Items.Add('Open row', @MenuDemoClick);
+  FGridPopup.Items.Add('Copy value', @MenuDemoClick);
+  FGridPopup.Items.AddSeparator;
+  FGridPopup.Items.Add('Clear filter', @MenuDemoClick);
+  if Assigned(FDemoGrid) then
+    FDemoGrid.PopupMenu := FGridPopup;
 end;
 
 { --- TSplitter demo: two panels split vertically and horizontally --- }

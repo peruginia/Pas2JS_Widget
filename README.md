@@ -47,6 +47,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWColorPicker** | `<input type="color">` | Native color picker with `Color`, `OnChange` |
 | **TWSplitter** | `<div>` | Draggable splitter: `Align`, `MinSize`, `ResizeStyle`, `AutoSnap`, `Beveled`, `OnMoved` |
 | **TWMainMenu** | `<div>` bar | Menu bar with dropdowns, separators, shortcuts and check marks |
+| **TWPopupMenu** | `<div>` panel | Context menu shown by `TControl.PopupMenu` on right click |
 | **TWForm** | form overlay | Application form, `ModalResult`, `AlphaBlend` |
 | **TWFrame** | frame container | Embeddable frame |
 
@@ -366,6 +367,19 @@ Items expose `Caption`, `ShortCut`, `Enabled`, `Checked`, `RadioItem`, `GroupInd
 * **Icons** are set with `ImageUrl` (a URL, resolved by the browser). `ImageIndex` is accepted for `.lfm` compatibility but is not resolved, because the runtime has no image list.
 
 Items can be built in code (above) or designed in the IDE: drop `TWMainMenu` on a form and use the menu designer. The items are streamed from the `.lfm` and attached to the tree automatically; `ShortCut` uses the LCL numeric encoding (`TShortCut`), so `Ctrl+S` designed in the IDE arrives as `16467` and is rendered back as `Ctrl+S`.
+
+**TPopupMenu** — `TPopupMenu` in `widgets/menus.pas`, `TWPopupMenu` in `widgets/webctrls.pas`. Assign it to any control's `PopupMenu` property to show it on right click:
+
+```pascal
+FGridPopup := TWPopupMenu.Create(Self);
+FGridPopup.Items.Add('Open row', @OpenRowClick);
+FGridPopup.Items.Add('Copy value', @CopyValueClick);
+FGridPopup.Items.AddSeparator;
+FGridPopup.Items.Add('Clear filter', @ClearFilterClick);
+FDemoGrid.PopupMenu := FGridPopup;
+```
+
+`TControl.PopupMenu` is inherited by every control, so the same menu can be shared. The menu is rendered with the same CSS as the menu bar dropdowns (entries, separators, shortcuts, check marks, icons), opens at the mouse position, and flips left/up when it would leave the viewport. Choosing an entry runs its `OnClick`; clicking outside or pressing `Esc` closes it. `Items` accepts the same `TMenuItem` properties as `TMainMenu`, and the menu can also be designed in the IDE with the menu designer.
 
 ### Further plans
 - TPaintBox (Canvas 2D)
