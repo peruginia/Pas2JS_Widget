@@ -1,8 +1,9 @@
 /* WCL Mobile Demo service worker: cache-first app shell. */
-const CACHE = 'wcl-mobile-v1';
+const CACHE = 'wcl-mobile-v2';
 const ASSETS = [
   './mobile.html',
   './mobile.js',
+  './mobile.ico',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
