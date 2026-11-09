@@ -24913,6 +24913,12 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       this.Deactivate();
       return Result;
     };
+    this.HandleWindowResize = function (AEvent) {
+      var Result = false;
+      this.Resize();
+      Result = true;
+      return Result;
+    };
     this.Changed = function () {
       pas.Controls.TCustomControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
@@ -24984,10 +24990,12 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       pas.System.TObject.AfterConstruction.call(this);
       $mod.Application().UpdateMainForm(this);
       $mod.Application().RegisterModule(this);
+      window.addEventListener("resize",rtl.createSafeCallback(this,"HandleWindowResize"));
       this.Loaded();
       this.DoCreate();
     };
     this.BeforeDestruction = function () {
+      window.removeEventListener("resize",rtl.createSafeCallback(this,"HandleWindowResize"));
       pas.Classes.TComponent.BeforeDestruction.call(this);
       $mod.Application().UnRegisterModule(this);
       this.DoDestroy();
@@ -25127,16 +25135,20 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
     $r.addMethod("CreateNew",2,[["AOwner",pas.Classes.$rtti["TComponent"]],["Num",rtl.longint]]);
   });
   this.$rtti.$ClassRef("TCustomFormClass",{instancetype: this.$rtti["TCustomForm"]});
+  this.TViewportMode = {"0": "vmResponsive", vmResponsive: 0, "1": "vmFitDesign", vmFitDesign: 1};
+  this.$rtti.$Enum("TViewportMode",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TViewportMode});
   rtl.createClass(this,"TApplication",pas.Classes.TComponent,function () {
     this.$init = function () {
       pas.Classes.TComponent.$init.call(this);
       this.FModules = null;
       this.FActiveForm = null;
       this.FBackgroundColor = 0;
+      this.FDesignWidth = 0;
       this.FMainForm = null;
       this.FStopOnException = false;
       this.FTerminated = false;
       this.FTitle = "";
+      this.FViewportMode = 0;
       this.FOnResize = null;
       this.FOnUnload = null;
     };
@@ -25278,10 +25290,12 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       rtl.showUncaughtExceptions=true;
       this.FModules = new Array();
       this.FBackgroundColor = 536870912;
+      this.FDesignWidth = 0;
       this.FMainForm = null;
       this.FStopOnException = true;
       this.FTerminated = false;
       this.FTitle = "";
+      this.FViewportMode = $mod.TViewportMode.vmResponsive;
       return this;
     };
     this.Destroy = function () {
@@ -25300,6 +25314,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
     };
     this.Run = function () {
       this.RegisterHandleEvents();
+      this.ApplyViewport();
       this.LoadIcon();
       this.ApplyBackground();
       if (this.FMainForm != null) {
@@ -25327,6 +25342,23 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
         this.FMainForm = AForm;
         this.FActiveForm = AForm;
       };
+    };
+    this.ApplyViewport = function () {
+      var VMeta = null;
+      var VContent = "";
+      var VWidth = 0;
+      VWidth = this.FDesignWidth;
+      if ((VWidth <= 0) && (this.FMainForm != null)) VWidth = this.FMainForm.FWidth;
+      if ((this.FViewportMode === $mod.TViewportMode.vmFitDesign) && (VWidth > 0)) {
+        VContent = "width=" + pas.SysUtils.IntToStr(VWidth) + ", initial-scale=1"}
+       else VContent = "width=device-width, initial-scale=1";
+      VMeta = document.querySelector('meta[name="viewport"]');
+      if (!(VMeta != null)) {
+        VMeta = document.createElement("meta");
+        VMeta.setAttribute("name","viewport");
+        document.head.appendChild(VMeta);
+      };
+      VMeta.setAttribute("content",VContent);
     };
     this.RegisterModule = function (AModule) {
       if (AModule != null) {
@@ -25436,9 +25468,31 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
   });
   this.$rtti.$ClassRef("TWFrameClass",{instancetype: this.$rtti["TWFrame"]});
   rtl.createClass(this,"TScreen",pas.Classes.TComponent,function () {
+    this.GetClientHeight = function () {
+      var Result = 0;
+      Result = window.innerHeight;
+      return Result;
+    };
+    this.GetClientWidth = function () {
+      var Result = 0;
+      Result = window.innerWidth;
+      return Result;
+    };
     this.GetHeight = function () {
       var Result = 0;
       Result = window.screen.height;
+      return Result;
+    };
+    this.GetIsMobile = function () {
+      var Result = false;
+      Result = (window.screen !== undefined) &&
+      (Math.min(window.screen.width, window.screen.height) <= 600);
+      return Result;
+    };
+    this.GetIsTouch = function () {
+      var Result = false;
+      Result = (window.matchMedia !== undefined) &&
+      window.matchMedia('(pointer: coarse)').matches;
       return Result;
     };
     this.GetPixelsPerInch = function () {
@@ -27084,7 +27138,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     $impl._WCLStdRulesRegistered = false;
     $impl._RegisterWCLStdRules = function () {
       if ($impl._WCLStdRulesRegistered) return;
-      pas.Controls.RegisterWCLStyle(".wcl-btn{" + "padding:6px 16px;" + "border-radius:4px;" + "border:1px solid #888;" + "background-color:#f0f0f0;" + "color:#333;" + "cursor:pointer;" + "font-size:14px!important;" + "display:inline-flex;" + "align-items:center;" + "justify-content:center;" + "transition:background-color 0.15s,border-color 0.15s;}" + ".wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}" + ".wcl-btn:active{background-color:#d0d0d0;border-color:#555;}" + ".wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "padding:6px 8px;" + "border-radius:4px;" + "border:1px solid #888;" + "font-family:inherit;" + "font-size:inherit;" + "background-color:#fff;" + "box-sizing:border-box;}" + "select.wcl-input{" + "padding:3px 4px!important;" + "border-radius:4px;" + "border:1px solid #888;" + "font-size:14px!important;" + "background-color:#fff;}" + ".wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}" + ".wcl-input:disabled{opacity:0.5;}" + "@media(max-width:600px){" + ".wcl-btn{font-size:13px!important;padding:4px 10px!important;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{font-size:13px!important;padding:4px 6px!important;}" + "select.wcl-input{padding:2px 4px!important;}" + "}");
+      pas.Controls.RegisterWCLStyle(".wcl-btn{" + "padding:6px 16px;" + "border-radius:4px;" + "border:1px solid #888;" + "background-color:#f0f0f0;" + "color:#333;" + "cursor:pointer;" + "font-size:14px!important;" + "display:inline-flex;" + "align-items:center;" + "justify-content:center;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;" + "transition:background-color 0.15s,border-color 0.15s;}" + "@media(hover:hover){" + ".wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}" + "}" + ".wcl-btn:active{background-color:#d0d0d0;border-color:#555;}" + ".wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "padding:6px 8px;" + "border-radius:4px;" + "border:1px solid #888;" + "font-family:inherit;" + "font-size:inherit;" + "background-color:#fff;" + "box-sizing:border-box;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;}" + "select.wcl-input{" + "padding:3px 4px!important;" + "border-radius:4px;" + "border:1px solid #888;" + "font-size:14px!important;" + "background-color:#fff;}" + ".wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}" + ".wcl-input:disabled{opacity:0.5;}" + "@media(pointer:coarse){" + ".wcl-btn{min-height:36px;padding:8px 14px!important;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "min-height:36px;font-size:16px!important;padding:8px 10px!important;}" + "select.wcl-input{min-height:36px;font-size:16px!important;padding:6px 8px!important;}" + "}" + "@media(prefers-reduced-motion:reduce){" + ".wcl-btn{transition:none;}" + "}");
       $impl._WCLStdRulesRegistered = true;
     };
     rtl.createClass($impl,"TCustomMemoStrings",pas.Classes.TStringList,function () {
@@ -28919,6 +28973,7 @@ rtl.module("ComCtrls",["System","Classes","SysUtils","Types","JS","Web","Graphic
           Result = this.FTabHeight;
         } else {
           Result = this.FFont.TextHeight("Fj") + 10;
+          if (pas.Forms.Screen.GetIsTouch() && (Result < 36)) Result = 36;
         };
       } else {
         Result = 0;
@@ -52964,6 +53019,12 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
     this.MenuGotoLayout = function (Sender) {
       this.WPageControl1.SetPageIndex(5);
     };
+    this.MenuToggleViewport = function (Sender) {
+      if (pas.Menus.TMenuItem.isPrototypeOf(Sender) && Sender.FChecked) {
+        pas.Forms.Application().FViewportMode = pas.Forms.TViewportMode.vmFitDesign}
+       else pas.Forms.Application().FViewportMode = pas.Forms.TViewportMode.vmResponsive;
+      pas.Forms.Application().ApplyViewport();
+    };
     this.SetupMenu = function () {
       var VView = null;
       var VItem = null;
@@ -52981,6 +53042,10 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       VItem = VView.FItems.Add("Layout",rtl.createCallback(this,"MenuGotoLayout"));
       VItem.SetRadioItem(true);
       VItem.SetGroupIndex(1);
+      VView.FItems.AddSeparator();
+      VItem = VView.FItems.Add("Mobile: fit layout",rtl.createCallback(this,"MenuToggleViewport"));
+      VItem.FAutoCheck = true;
+      VItem.SetChecked(pas.Forms.Application().FViewportMode === pas.Forms.TViewportMode.vmFitDesign);
     };
     this.AssignMenuHandler = function (AItems, ACaption, AHandler) {
       var VIndex = 0;
@@ -53153,6 +53218,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
     };
     this.AfterConstruction = function () {
       pas.Forms.TCustomForm.AfterConstruction.call(this);
+      pas.Forms.Application().FDesignWidth = this.FWidth;
       this.WEdit1.SetTextHint("Enter your name");
       this.WMemo1.SetTextHint("Enter description...");
       this.WFloatEdit1.SetTextHint("Float value");

@@ -112,6 +112,7 @@ type
     procedure MenuDemoClick(Sender: TObject);
     procedure MenuGotoGrid(Sender: TObject);
     procedure MenuGotoLayout(Sender: TObject);
+    procedure MenuToggleViewport(Sender: TObject);
     procedure SetupMenu;
     procedure AssignMenuHandler(AItems: TMenuItems; const ACaption: string; AHandler: TNotifyEvent);
     function FindMenuItem(AItems: TMenuItems; const ACaption: string): TMenuItem;
@@ -151,6 +152,9 @@ uses
 procedure TWForm1.AfterConstruction;
 begin
   inherited AfterConstruction;
+  /// Remember the design width: the form fills the window at runtime, so
+  /// Width is no longer the .lfm value once shown.
+  Application.DesignWidth := Width;
   WEdit1.TextHint := 'Enter your name';
   WMemo1.TextHint := 'Enter description...';
   WFloatEdit1.TextHint := 'Float value';
@@ -929,6 +933,16 @@ begin
   WPageControl1.TabIndex := 5;
 end;
 
+procedure TWForm1.MenuToggleViewport(Sender: TObject);
+begin
+  if (Sender is TMenuItem) and TMenuItem(Sender).Checked then
+    /// Fixed design viewport: the browser scales the whole form to the device.
+    Application.ViewportMode := vmFitDesign
+  else
+    Application.ViewportMode := vmResponsive;
+  Application.ApplyViewport;
+end;
+
 procedure TWForm1.AssignMenuHandler(AItems: TMenuItems; const ACaption: string;
   AHandler: TNotifyEvent);
 var
@@ -998,6 +1012,12 @@ begin
   VItem := VView.Items.Add('Layout', @MenuGotoLayout);
   VItem.RadioItem := True;
   VItem.GroupIndex := 1;
+
+  /// Viewport demo: fit the fixed layout to the device, or stay responsive.
+  VView.Items.AddSeparator;
+  VItem := VView.Items.Add('Mobile: fit layout', @MenuToggleViewport);
+  VItem.AutoCheck := True;
+  VItem.Checked := (Application.ViewportMode = vmFitDesign);
 end;
 
 end.

@@ -128,6 +128,8 @@ type
   protected
     function HandleEnter(AEvent: TJSFocusEvent): boolean; override;
     function HandleExit(AEvent: TJSEvent): boolean; override;
+    /// Follows window/viewport resizes (ftWindow forms fill the window).
+    function HandleWindowResize(AEvent: TJSEvent): boolean; virtual;
   protected
     procedure Changed; override;
     function CreateHandleElement: TJSHTMLElement; override;
@@ -170,6 +172,11 @@ type
   end;
   TCustomFormClass = class of TCustomForm;
 
+  /// How the page declares its viewport to the browser.
+  /// vmResponsive: width=device-width, the app reflows (Align/Anchors).
+  /// vmFitDesign: width=DesignWidth, the browser scales the fixed layout to fit.
+  TViewportMode = (vmResponsive, vmFitDesign);
+
   { TApplication }
 
   TApplication = class(TComponent)
@@ -177,10 +184,12 @@ type
     FModules: TJSArray;
     FActiveForm: TCustomForm;
     FBackgroundColor: TColor;
+    FDesignWidth: Integer;
     FMainForm: TCustomForm;
     FStopOnException: boolean;
     FTerminated: boolean;
     FTitle: string;
+    FViewportMode: TViewportMode;
     FOnResize: TNotifyEvent;
     FOnUnload: TNotifyEvent;
     function GetApplicatioName: string;
@@ -211,6 +220,8 @@ type
     procedure Run; virtual;
     procedure Terminate; virtual;   
     procedure UpdateMainForm(AForm: TCustomForm);  
+    /// Writes/updates the <meta name="viewport"> tag from ViewportMode.
+    procedure ApplyViewport; virtual;
     procedure RegisterModule(AModule: TControl); virtual;
     procedure UnRegisterModule(AModule: TControl); virtual;
   public      
@@ -221,6 +232,8 @@ type
     property Module[const AIndex: NativeInt]: TControl read GetModule;
     property MainForm: TCustomForm read FMainForm;
     property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor;
+    property DesignWidth: Integer read FDesignWidth write FDesignWidth default 0;
+    property ViewportMode: TViewportMode read FViewportMode write FViewportMode default vmResponsive;
     property StopOnException: boolean read FStopOnException write FStopOnException;
     property Terminated: boolean read FTerminated;
     property Title: string read GetTitle write SetTitle;
@@ -318,13 +331,23 @@ type
 
   TScreen = class(TComponent)
   private
+    function GetClientHeight: Integer;
+    function GetClientWidth: Integer;
     function GetHeight: Integer;
+    function GetIsMobile: Boolean;
+    function GetIsTouch: Boolean;
     function GetPixelsPerInch: Integer;
     function GetWidth: Integer;
     function GetWorkAreaHeight: Integer;
     function GetWorkAreaWidth: Integer;
   public
+    property ClientHeight: Integer read GetClientHeight;
+    property ClientWidth: Integer read GetClientWidth;
     property Height: Integer read GetHeight;
+    /// True when the primary pointer is coarse (touch), independent of size.
+    property IsTouch: Boolean read GetIsTouch;
+    /// True when the physical screen is phone-sized (<= 600 CSS px).
+    property IsMobile: Boolean read GetIsMobile;
     property PixelsPerInch: Integer read GetPixelsPerInch;
     property Width: Integer read GetWidth;
     property WorkAreaHeight: Integer read GetWorkAreaHeight;
@@ -377,6 +400,32 @@ end;
 function TScreen.GetPixelsPerInch: Integer;
 begin
   asm Result = Math.round(window.devicePixelRatio * 96); end;
+end;
+
+function TScreen.GetClientHeight: Integer;
+begin
+  asm Result = window.innerHeight; end;
+end;
+
+function TScreen.GetClientWidth: Integer;
+begin
+  asm Result = window.innerWidth; end;
+end;
+
+function TScreen.GetIsMobile: Boolean;
+begin
+  asm
+    Result = (window.screen !== undefined) &&
+      (Math.min(window.screen.width, window.screen.height) <= 600);
+  end;
+end;
+
+function TScreen.GetIsTouch: Boolean;
+begin
+  asm
+    Result = (window.matchMedia !== undefined) &&
+      window.matchMedia('(pointer: coarse)').matches;
+  end;
 end;
 
 function TScreen.GetWidth: Integer;
@@ -819,15 +868,23 @@ begin
   inherited AfterConstruction;
   Application.UpdateMainForm(Self);
   Application.RegisterModule(Self);
+  Window.AddEventListener('resize', @HandleWindowResize);
   Loaded;
   DoCreate;
 end;
 
 procedure TCustomForm.BeforeDestruction;
 begin
+  Window.RemoveEventListener('resize', @HandleWindowResize);
   inherited BeforeDestruction;
   Application.UnRegisterModule(Self);
   DoDestroy;
+end;
+
+function TCustomForm.HandleWindowResize(AEvent: TJSEvent): boolean;
+begin
+  Resize;
+  Result := True;
 end;
 
 procedure TCustomForm.Close;
@@ -1068,6 +1125,31 @@ begin
   end;
 end;
 
+procedure TApplication.ApplyViewport;
+var
+  VMeta: TJSHTMLElement;
+  VContent: string;
+  VWidth: Integer;
+begin
+  VWidth := FDesignWidth;
+  if (VWidth <= 0) and Assigned(FMainForm) then
+    VWidth := FMainForm.Width;
+
+  if (FViewportMode = vmFitDesign) and (VWidth > 0) then
+    VContent := 'width=' + IntToStr(VWidth) + ', initial-scale=1'
+  else
+    VContent := 'width=device-width, initial-scale=1';
+
+  VMeta := TJSHTMLElement(Document.QuerySelector('meta[name="viewport"]'));
+  if not Assigned(VMeta) then
+  begin
+    VMeta := TJSHTMLElement(Document.CreateElement('meta'));
+    VMeta.setAttribute('name', 'viewport');
+    Document.Head.AppendChild(VMeta);
+  end;
+  VMeta.setAttribute('content', VContent);
+end;
+
 procedure TApplication.ApplyBackground;
 var
   VColor: TColor;
@@ -1185,10 +1267,12 @@ begin
 {$endif}
   FModules := TJSArray.New;
   FBackgroundColor := clDefault;
+  FDesignWidth := 0;
   FMainForm := nil;
   FStopOnException := True;
   FTerminated := False;
   FTitle := '';
+  FViewportMode := vmResponsive;
 end;
 
 destructor TApplication.Destroy;
@@ -1214,6 +1298,7 @@ end;
 procedure TApplication.Run;
 begin
   RegisterHandleEvents;
+  ApplyViewport;
   LoadIcon;
   ApplyBackground;
   if (Assigned(FMainForm)) then

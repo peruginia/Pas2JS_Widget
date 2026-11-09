@@ -545,8 +545,12 @@ begin
     'display:inline-flex;' +
     'align-items:center;' +
     'justify-content:center;' +
+    'touch-action:manipulation;' +
+    '-webkit-tap-highlight-color:transparent;' +
     'transition:background-color 0.15s,border-color 0.15s;}' +
+    '@media(hover:hover){' +
     '.wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}' +
+    '}' +
     '.wcl-btn:active{background-color:#d0d0d0;border-color:#555;}' +
     '.wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}' +
     '.wcl-input,input.wcl-input,textarea.wcl-input{' +
@@ -556,7 +560,9 @@ begin
     'font-family:inherit;' +
     'font-size:inherit;' +
     'background-color:#fff;' +
-    'box-sizing:border-box;}' +
+    'box-sizing:border-box;' +
+    'touch-action:manipulation;' +
+    '-webkit-tap-highlight-color:transparent;}' +
     'select.wcl-input{' +
     'padding:3px 4px!important;' +
     'border-radius:4px;' +
@@ -565,10 +571,17 @@ begin
     'background-color:#fff;}' +
     '.wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}' +
     '.wcl-input:disabled{opacity:0.5;}' +
-    '@media(max-width:600px){' +
-    '.wcl-btn{font-size:13px!important;padding:4px 10px!important;}' +
-    '.wcl-input,input.wcl-input,textarea.wcl-input{font-size:13px!important;padding:4px 6px!important;}' +
-    'select.wcl-input{padding:2px 4px!important;}' +
+    /// Touch devices: readable text (16px avoids the iOS focus zoom) and
+    /// finger-sized targets. Independent of the viewport width, so it also
+    /// applies in fit-design mode.
+    '@media(pointer:coarse){' +
+    '.wcl-btn{min-height:36px;padding:8px 14px!important;}' +
+    '.wcl-input,input.wcl-input,textarea.wcl-input{' +
+    'min-height:36px;font-size:16px!important;padding:8px 10px!important;}' +
+    'select.wcl-input{min-height:36px;font-size:16px!important;padding:6px 8px!important;}' +
+    '}' +
+    '@media(prefers-reduced-motion:reduce){' +
+    '.wcl-btn{transition:none;}' +
     '}'
   );
   _WCLStdRulesRegistered := True;

@@ -264,14 +264,46 @@ The editor is an `<input>` placed inside the cell, so it scrolls with the grid a
 
 | Feature | Description |
 |---|---|
-| **Screen** | Global singleton: `Width`, `Height`, `PixelsPerInch`, `WorkArea` |
+| **Screen** | Global singleton: `Width`, `Height`, `PixelsPerInch`, `WorkArea`, `ClientWidth`/`ClientHeight` (browser window), `IsTouch`, `IsMobile` |
 | **Application** | App lifecycle: `Initialize`, `Run`, `Terminate`, `MainForm`, `ActiveForm`, `BackgroundColor` |
+| **Viewport** | `Application.ViewportMode` (`vmResponsive` / `vmFitDesign`), `DesignWidth`, `ApplyViewport` |
 | **Constraints** | `MinWidth`/`MaxWidth`/`MinHeight`/`MaxHeight` on every control, enforced in `SetBounds` |
 | **Selection** | `SelStart`/`SelLength`/`SelText` on `TWEdit`/`TWMemo` (runtime only, as in LCL) |
 | **Theme** | Shared CSS via `RegisterWCLStyle` — `.wcl-btn`, `.wcl-input`, `.wcl-panel` classes with hover/active/focus |
-| **Responsive** | `@media(max-width:600px)` auto-scales buttons and inputs |
+| **Responsive** | Touch devices (`pointer: coarse`): 16px inputs (no iOS zoom), 36px targets, hover gated to `(hover: hover)`, `touch-action`, reduced motion |
 | **Keyboard nav** | Tab / Shift+Tab between controls via `TabOrder` |
 | **Dialogs** | `MessageDlg`, `ShowMessage`, `InputBox`, `QuestionDlg`, `ShowMessageFmt` |
+
+---
+
+### Mobile and viewport
+
+The application owns the `<meta name="viewport">` tag. `Application.Run` writes it from `ViewportMode` and `DesignWidth`, so the app HTML does not need to declare it (an existing tag is updated).
+
+```pascal
+Application.ViewportMode := vmResponsive; // default: width=device-width
+Application.ViewportMode := vmFitDesign;  // width=DesignWidth: the browser scales the layout
+Application.DesignWidth := 1024;          // defaults to MainForm.Width when 0
+Application.ApplyViewport;                // re-apply after changing them at runtime
+```
+
+* **`vmResponsive`** — the layout viewport matches the device. Media queries work; the app must reflow with `Align`/`Anchors`.
+* **`vmFitDesign`** — the layout viewport is `DesignWidth` and the browser scales the whole page to the screen. A fixed LCL layout stays reachable and proportional on a phone, with smaller text. Media queries on width do not fire in this mode, but touch queries (`pointer: coarse`) do.
+
+For runtime decisions use `Screen`:
+
+```pascal
+if Screen.IsTouch then
+  WPageControl1.TabHeight := 36;   // the default already grows to 36 on touch
+if Screen.ClientWidth < 600 then
+  // switch to a compact layout
+```
+
+`Screen.Width`/`Height` are the physical screen, `Screen.ClientWidth`/`ClientHeight` the browser window, `Screen.IsTouch` checks `(pointer: coarse)` and `Screen.IsMobile` a phone-sized screen (`<= 600` CSS px).
+
+Forms follow window and viewport changes: `ftWindow` forms fill the window and modal forms re-center, so rotating a phone or toggling the viewport keeps the layout in place.
+
+On touch devices the shared theme also enlarges inputs to 16px (which prevents iOS from zooming on focus), gives buttons and fields a 36px minimum height, disables sticky `:hover` styles and honours `prefers-reduced-motion`. The page control uses a 36px minimum tab height unless `TabHeight` is set.
 
 ---
 
@@ -281,7 +313,7 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
-The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`.
+The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width.
 
 The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
 

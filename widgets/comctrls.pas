@@ -383,6 +383,9 @@ begin
     else
     begin
       Result := Font.TextHeight('Fj') + 10;
+      /// A finger needs a bigger target than a mouse pointer.
+      if Screen.IsTouch and (Result < 36) then
+        Result := 36;
     end;
   end
   else
