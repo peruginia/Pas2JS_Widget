@@ -39,6 +39,7 @@ uses
   ExtCtrls,
   ComCtrls,
   Menus,
+  ActnList,
   NumCtrlsD,
   DttCtrlsD,
   BtnCtrlsD,
@@ -887,6 +888,16 @@ type
   TWPopupMenu = class(TPopupMenu)
   end;
 
+  { TWAction }
+
+  TWAction = class(TAction)
+  end;
+
+  { TWActionList }
+
+  TWActionList = class(TActionList)
+  end;
+
   { TWShape }
 
   TWShape = class(TShape)
@@ -1323,6 +1334,8 @@ begin
     TWSplitter,
     TWMainMenu,
     TWPopupMenu,
+    TWAction,
+    TWActionList,
     TWShape,
     TWPaintBox,
     TWWebDBConnection,

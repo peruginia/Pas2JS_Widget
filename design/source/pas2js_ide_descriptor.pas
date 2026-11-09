@@ -383,6 +383,7 @@ begin
     TWFileButton, TWDataGrid, TWPagination, TWStringGrid, TWWebSocketClient,
     TWGroupBox, TWScrollBox, TWProgressBar, TWTrackBar, TWColorPicker, TWSplitter,
     TWMainMenu, TWPopupMenu,
+    TWAction, TWActionList,
     TWShape, TWPaintBox,
     TWWebDBConnection, TWWebDBTable], TPas2JSWidgetsRequirements);
 {$endif}

@@ -5,7 +5,7 @@ unit Unit1;
 interface
 
 uses
-  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls, Menus, ExtCtrls, Web;
+  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls, Menus, ExtCtrls, Web, ActnList;
 
 type
 
@@ -88,6 +88,8 @@ type
     FDemoLastCity: string;
     FDemoSeparators: Boolean;
     FDemoTable: TWWebDBTable;
+    FActionDemo: TAction;
+    FActionList: TActionList;
     FGridInfo: TWLabel;
     FGridPopup: TWPopupMenu;
     FLayoutInfo: TWLabel;
@@ -114,6 +116,8 @@ type
     procedure MenuGotoLayout(Sender: TObject);
     procedure MenuToggleViewport(Sender: TObject);
     procedure SetupMenu;
+    procedure SetupActions;
+    procedure ActionDemoExecute(Sender: TObject);
     procedure AssignMenuHandler(AItems: TMenuItems; const ACaption: string; AHandler: TNotifyEvent);
     function FindMenuItem(AItems: TMenuItems; const ACaption: string): TMenuItem;
     procedure DemoAddRow(AData: TJSArray; const AName: string; AAge: NativeInt;
@@ -194,6 +198,7 @@ begin
   BuildCanvasTab;
   SetupStringGrid;
   SetupMenu;
+  SetupActions;
 end;
 
 procedure TWForm1.LoadFromArray(Sender: TObject);
@@ -1019,6 +1024,45 @@ begin
   VItem := VView.Items.Add('Mobile: fit layout', @MenuToggleViewport);
   VItem.AutoCheck := True;
   VItem.Checked := (Application.ViewportMode = vmFitDesign);
+end;
+
+procedure TWForm1.SetupActions;
+var
+  VButton: TWButton;
+  VItem, VView: TMenuItem;
+begin
+  FActionList := TActionList.Create(Self);
+
+  FActionDemo := FActionList.AddAction;
+  FActionDemo.Name := 'ActionDemo';
+  FActionDemo.Caption := 'Action demo';
+  FActionDemo.Hint := 'Runs through TAction (Ctrl+Shift+A)';
+  FActionDemo.ShortCut := TextToShortCut('Ctrl+Shift+A');
+  FActionDemo.OnExecute := @ActionDemoExecute;
+
+  /// Linked menu item: caption, check mark, enabled and shortcut come from
+  /// the action; the shortcut is handled by the menu bar.
+  VView := FindMenuItem(WMainMenu1.Items, 'View');
+  if Assigned(VView) then
+  begin
+    VView.Items.AddSeparator;
+    VItem := VView.Items.Add('');
+    VItem.Action := FActionDemo;
+  end;
+
+  /// Linked button on the Basic Inputs tab.
+  VButton := TWButton.Create(Self);
+  VButton.Parent := WEdit1.Parent;
+  VButton.SetBounds(500, 300, 140, 31);
+  VButton.Action := FActionDemo;
+end;
+
+procedure TWForm1.ActionDemoExecute(Sender: TObject);
+begin
+  if (Sender is TBasicAction) then
+    TBasicAction(Sender).Checked := not TBasicAction(Sender).Checked;
+  ShowMessage('Action executed: ' + TBasicAction(Sender).Caption +
+    ' (checked: ' + BoolToStr(TBasicAction(Sender).Checked, True) + ')');
 end;
 
 end.

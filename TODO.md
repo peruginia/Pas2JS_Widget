@@ -22,12 +22,16 @@ clicks resolve the cell from the DOM, `ScrollToCell` keeps the selection
 visible, and `InvalidateCell` repaints. See the StringGrid editing section in
 the README.
 
-## 3. TActionList and TAction
+## 3. TActionList and TAction — done
 
-No action support: handlers are duplicated per control and `Enabled`/`Checked`
-are not centralised. Implement `TAction` (Caption, ShortCut, Enabled, Checked,
-OnExecute, OnUpdate), `TActionList`, and the `Action` property on buttons, menu
-items and edits.
+`TBasicAction` lives in `controls.pas` (caption, enabled, visible, checked,
+hint, shortcut, `Update`, client links); `TAction`/`TActionList` are in
+`widgets/actnlist.pas`, with `TWAction`/`TWActionList` in `webctrls.pas`.
+`TControl.Action` and `TMenuItem.Action` link controls and menu items to an
+action: caption/state/shortcut follow the action, clicking runs `OnExecute`,
+and the menu bar handles the shortcut of a linked item. Actions can be added
+in code or designed with the action list editor (nested `TAction` blocks are
+registered for the reader).
 
 ## 4. TTreeView and TListView
 

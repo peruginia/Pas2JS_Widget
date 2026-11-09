@@ -146,6 +146,10 @@ MIT:
         <Filename Value="menus.pas"/>
         <UnitName Value="Menus"/>
       </Item20>
+      <Item21>
+        <Filename Value="actnlist.pas"/>
+        <UnitName Value="ActnList"/>
+      </Item21>
     </Files>
     <CompatibilityMode Value="True"/>
     <RequiredPkgs Count="1">

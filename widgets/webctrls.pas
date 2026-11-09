@@ -42,6 +42,7 @@ uses
   BtnCtrls,
   DataGrid,
   Menus,
+  ActnList,
   WebDB;
 
 type
@@ -1223,6 +1224,27 @@ type
   { TWPopupMenu }
 
   TWPopupMenu = class(TPopupMenu)
+  published
+    property OnChange;
+  end;
+
+  { TWAction }
+
+  TWAction = class(TAction)
+  published
+    property Caption;
+    property Checked;
+    property Enabled;
+    property Hint;
+    property ShortCut;
+    property Visible;
+    property OnExecute;
+    property OnUpdate;
+  end;
+
+  { TWActionList }
+
+  TWActionList = class(TActionList)
   published
     property OnChange;
   end;

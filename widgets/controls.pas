@@ -106,11 +106,21 @@ const
 type
   TIntegerList = TList<Integer>;
 
+  /// Shortcut encoding, same as LCL: a virtual key code plus the modifier bits.
+  TShortCut = Word;
+
+const
+  scShift = $2000;
+  scCtrl = $4000;
+  scAlt = $8000;
+
+type
   /// Forward declaration
   TWinControl = class;
   TWinControlClass = class of TWinControl;
   TControl = class;
   TControlClass = class of TControl;
+  TBasicAction = class;
   TCustomPopupMenu = class;
 
   /// Base class for context menus. The real implementation lives in Menus,
@@ -234,6 +244,7 @@ type
 
   TControl = class(TComponent)
   private
+    FAction: TBasicAction;
     FAlign: TAlign;
     FAnchors: TAnchors;
     FAutoSize: boolean;
@@ -282,6 +293,7 @@ type
     function GetClientWidth: NativeInt;
     function GetText: TCaption;
     function IsAnchorsStored: Boolean;
+    procedure SetAction(AValue: TBasicAction);
     procedure SetAlign(AValue: TAlign);
     procedure SetAnchors(AValue: TAnchors);
     procedure SetAutoSize(AValue: boolean);
@@ -315,6 +327,7 @@ type
     procedure SetBorderStyle(AValue: TBorderStyle);
 
   protected
+    procedure ActionUpdate(Sender: TObject); virtual;
     procedure Click; virtual;
     procedure DblClick; virtual;
     procedure DoResize; virtual;
@@ -416,12 +429,59 @@ type
   published
     property Constraints: TSizeConstraints read FConstraints write SetConstraints;
     property Cursor: TCursor read FCursor write SetCursor;
+    property Action: TBasicAction read FAction write SetAction;
     property PopupMenu: TCustomPopupMenu read FPopupMenu write SetPopupMenu;
     property Left: NativeInt read FLeft write SetLeft;
     property Height: NativeInt read FHeight write SetHeight;
     property Hint: string read FHint write SetHint;
     property Top: NativeInt read FTop write SetTop;
     property Width: NativeInt read FWidth write SetWidth;
+  end;
+
+  { TBasicAction }
+
+  TBasicActionClient = class
+  public
+    Client: TComponent;
+    Update: TNotifyEvent;
+  end;
+
+  /// Minimal action shared by controls and menu items. TAction (ActnList)
+  /// adds OnExecute and the concrete Execute.
+  TBasicAction = class(TComponent)
+  private
+    FCaption: string;
+    FChecked: Boolean;
+    FClients: TList<TBasicActionClient>;
+    FEnabled: Boolean;
+    FHint: string;
+    FShortCut: TShortCut;
+    FVisible: Boolean;
+    FOnUpdate: TNotifyEvent;
+    procedure SetCaption(const AValue: string);
+    procedure SetChecked(AValue: Boolean);
+    procedure SetEnabled(AValue: Boolean);
+    procedure SetHint(const AValue: string);
+    procedure SetShortCut(AValue: TShortCut);
+    procedure SetVisible(AValue: Boolean);
+    procedure DoChanged;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    function Execute: Boolean; virtual;
+    /// Calls OnUpdate and refreshes every linked client.
+    procedure Update; virtual;
+    procedure RegisterClient(AClient: TComponent; AUpdate: TNotifyEvent);
+    procedure UnregisterClient(AClient: TComponent);
+    procedure Notification(AComponent: TComponent; Operation: TOperation); override;
+  published
+    property Caption: string read FCaption write SetCaption;
+    property Checked: Boolean read FChecked write SetChecked default False;
+    property Enabled: Boolean read FEnabled write SetEnabled default True;
+    property Hint: string read FHint write SetHint;
+    property ShortCut: TShortCut read FShortCut write SetShortCut default 0;
+    property Visible: Boolean read FVisible write SetVisible default True;
+    property OnUpdate: TNotifyEvent read FOnUpdate write FOnUpdate;
   end;
 
   { TWinControl }
@@ -1486,6 +1546,24 @@ begin
     FPopupMenu.FreeNotification(Self);
 end;
 
+procedure TControl.SetAction(AValue: TBasicAction);
+begin
+  if (FAction = AValue) then
+    Exit;
+  if Assigned(FAction) then
+  begin
+    FAction.RemoveFreeNotification(Self);
+    FAction.UnregisterClient(Self);
+  end;
+  FAction := AValue;
+  if Assigned(FAction) then
+  begin
+    FAction.RegisterClient(Self, @ActionUpdate);
+    FAction.FreeNotification(Self);
+    ActionUpdate(FAction);
+  end;
+end;
+
 procedure TControl.SetShowHint(AValue: boolean);
 begin
   if (FShowHint <> AValue) then
@@ -1543,10 +1621,24 @@ end;
 
 procedure TControl.Click;
 begin
-  if (Assigned(FOnClick)) then
+  if Assigned(FAction) then
+  begin
+    FAction.Execute;
+  end
+  else if (Assigned(FOnClick)) then
   begin
     FOnClick(Self);
   end;
+end;
+
+procedure TControl.ActionUpdate(Sender: TObject);
+begin
+  if (not Assigned(FAction)) then
+    Exit;
+  Enabled := FAction.Enabled;
+  Visible := FAction.Visible;
+  Caption := FAction.Caption;
+  Hint := FAction.Hint;
 end;
 
 procedure TControl.DblClick;
@@ -1751,8 +1843,179 @@ end;
 procedure TControl.Notification(AComponent: TComponent; Operation: TOperation);
 begin
   inherited Notification(AComponent, Operation);
-  if (Operation = opRemove) and (AComponent = FPopupMenu) then
-    FPopupMenu := nil;
+  if (Operation = opRemove) then
+  begin
+    if (AComponent = FPopupMenu) then
+      FPopupMenu := nil;
+    if (AComponent = FAction) then
+      FAction := nil;
+  end;
+end;
+
+{ TBasicAction }
+
+constructor TBasicAction.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FCaption := '';
+  FChecked := False;
+  FClients := TList<TBasicActionClient>.Create;
+  FEnabled := True;
+  FHint := '';
+  FShortCut := 0;
+  FVisible := True;
+  FOnUpdate := nil;
+end;
+
+destructor TBasicAction.Destroy;
+var
+  VClient: TBasicActionClient;
+  VIndex: NativeInt;
+begin
+  if Assigned(FClients) then
+  begin
+    for VIndex := 0 to (FClients.Count - 1) do
+    begin
+      VClient := FClients[VIndex];
+      VClient.Free;
+    end;
+    FClients.Free;
+    FClients := nil;
+  end;
+  inherited Destroy;
+end;
+
+procedure TBasicAction.DoChanged;
+var
+  VClient: TBasicActionClient;
+  VIndex: NativeInt;
+begin
+  if (not Assigned(FClients)) then
+    Exit;
+  for VIndex := (FClients.Count - 1) downto 0 do
+  begin
+    VClient := FClients[VIndex];
+    if Assigned(VClient) and Assigned(VClient.Update) then
+      VClient.Update(Self);
+  end;
+end;
+
+function TBasicAction.Execute: Boolean;
+begin
+  Result := False;
+end;
+
+procedure TBasicAction.Update;
+begin
+  if Assigned(FOnUpdate) then
+    FOnUpdate(Self);
+  DoChanged;
+end;
+
+procedure TBasicAction.RegisterClient(AClient: TComponent;
+  AUpdate: TNotifyEvent);
+var
+  VClient: TBasicActionClient;
+  VIndex: NativeInt;
+begin
+  if (not Assigned(AClient)) then
+    Exit;
+  for VIndex := 0 to (FClients.Count - 1) do
+  begin
+    VClient := FClients[VIndex];
+    if (VClient.Client = AClient) then
+    begin
+      VClient.Update := AUpdate;
+      Exit;
+    end;
+  end;
+  VClient := TBasicActionClient.Create;
+  VClient.Client := AClient;
+  VClient.Update := AUpdate;
+  FClients.Add(VClient);
+  AClient.FreeNotification(Self);
+end;
+
+procedure TBasicAction.UnregisterClient(AClient: TComponent);
+var
+  VClient: TBasicActionClient;
+  VIndex: NativeInt;
+begin
+  if (not Assigned(AClient)) then
+    Exit;
+  for VIndex := (FClients.Count - 1) downto 0 do
+  begin
+    if (FClients[VIndex].Client = AClient) then
+    begin
+      AClient.RemoveFreeNotification(Self);
+      VClient := FClients[VIndex];
+      VClient.Free;
+      FClients.Delete(VIndex);
+      Exit;
+    end;
+  end;
+end;
+
+procedure TBasicAction.Notification(AComponent: TComponent;
+  Operation: TOperation);
+begin
+  inherited Notification(AComponent, Operation);
+  if (Operation = opRemove) then
+    UnregisterClient(AComponent);
+end;
+
+procedure TBasicAction.SetCaption(const AValue: string);
+begin
+  if (FCaption <> AValue) then
+  begin
+    FCaption := AValue;
+    DoChanged;
+  end;
+end;
+
+procedure TBasicAction.SetChecked(AValue: Boolean);
+begin
+  if (FChecked <> AValue) then
+  begin
+    FChecked := AValue;
+    DoChanged;
+  end;
+end;
+
+procedure TBasicAction.SetEnabled(AValue: Boolean);
+begin
+  if (FEnabled <> AValue) then
+  begin
+    FEnabled := AValue;
+    DoChanged;
+  end;
+end;
+
+procedure TBasicAction.SetHint(const AValue: string);
+begin
+  if (FHint <> AValue) then
+  begin
+    FHint := AValue;
+    DoChanged;
+  end;
+end;
+
+procedure TBasicAction.SetShortCut(AValue: TShortCut);
+begin
+  if (FShortCut <> AValue) then
+  begin
+    FShortCut := AValue;
+    DoChanged;
+  end;
+end;
+
+procedure TBasicAction.SetVisible(AValue: Boolean);
+begin
+  if (FVisible <> AValue) then
+  begin
+    FVisible := AValue;
+    DoChanged;
+  end;
 end;
 
 procedure TControl.Changed;

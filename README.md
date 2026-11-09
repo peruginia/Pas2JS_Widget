@@ -61,6 +61,8 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWWebDBTable** | Dataset table: binds to a `TWWebDBConnection`, `Load`/`Save`/`LoadNextPage`/`LoadAll` async, `Progressive` loading, `AutoLoad`, exposes `DataJson: TLocalJSONDataset` |
 | **TWTimer** | JS timer | Interval timer, `OnTimer` |
 | **TWWebSocketClient** | WebSocket client, `Url`, `OnMessage`, `OnBinaryMessage` |
+| **TWAction** | Action: `Caption`, `Enabled`, `Checked`, `Visible`, `Hint`, `ShortCut`, `OnExecute`, `OnUpdate` |
+| **TWActionList** | Owns actions: `AddAction`, `ActionByName`, `Update` |
 | **TWDataModule** | Non-visual data container |
 
 ### New: WebDB — storage abstraction
@@ -317,7 +319,7 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
-The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width.
+The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
 
 The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
 
@@ -505,7 +507,22 @@ FDemoGrid.PopupMenu := FGridPopup;
 
 `TControl.PopupMenu` is inherited by every control, so the same menu can be shared. The menu is rendered with the same CSS as the menu bar dropdowns (entries, separators, shortcuts, check marks, icons), opens at the mouse position, and flips left/up when it would leave the viewport. Choosing an entry runs its `OnClick`; clicking outside or pressing `Esc` closes it. `Items` accepts the same `TMenuItem` properties as `TMainMenu`, and the menu can also be designed in the IDE with the menu designer.
 
-**TShape and TPaintBox** — `TCustomShape`, `TCustomPaintBox` in `widgets/extctrls.pas`; `TWShape`, `TWPaintBox` in `widgets/webctrls.pas`. Both draw on an HTML `<canvas>` that fills the control:
+**Actions** — `TAction` and `TActionList` in `widgets/actnlist.pas`; `TWAction`, `TWActionList` in `widgets/webctrls.pas`. An action centralises caption, state and handler; controls and menu items linked to it follow the action and run it on click:
+
+```pascal
+FActionList := TActionList.Create(Self);
+FAction := FActionList.AddAction;
+FAction.Caption := 'Save';
+FAction.ShortCut := TextToShortCut('Ctrl+S');
+FAction.OnExecute := @SaveExecute;
+
+SaveButton.Action := FAction;       // caption, enabled and click come from it
+SaveItem.Action := FAction;         // menu item: caption, check mark, shortcut
+```
+
+`TControl.Action` is available on every control; `TMenuItem.Action` on menu entries. Changing `Caption`, `Enabled`, `Visible`, `Checked`, `Hint` or `ShortCut` updates every linked client immediately, and `Action.Execute` runs `OnExecute`. When a menu item is linked, the action shortcut is displayed and handled by the menu bar. `ActionList.Update` calls `OnUpdate` on each action and refreshes the clients, for state that depends on the application (call it from a timer or before opening a menu). Actions can be created in the IDE with the standard action list editor, or added in code with `AddAction`.
+
+**TShape and TPaintBox** - `TCustomShape`, `TCustomPaintBox` in `widgets/extctrls.pas`; `TWShape`, `TWPaintBox` in `widgets/webctrls.pas`. Both draw on an HTML `<canvas>` that fills the control:
 
 ```pascal
 Shape1.Shape := stEllipse;

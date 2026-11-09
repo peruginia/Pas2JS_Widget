@@ -15,13 +15,13 @@ uses
   Controls;
 
 const
-  scShift = $2000;
-  scCtrl = $4000;
-  scAlt = $8000;
+  scShift = Controls.scShift;
+  scCtrl = Controls.scCtrl;
+  scAlt = Controls.scAlt;
 
 type
   /// Same encoding as LCL: a virtual key code plus the modifier bits above.
-  TShortCut = Word;
+  TShortCut = Controls.TShortCut;
 
   TMainMenu = class;
   TMenuItem = class;
@@ -36,6 +36,7 @@ type
 
   TMenuItem = class(TComponent)
   private
+    FAction: TBasicAction;
     FAutoCheck: Boolean;
     FCaption: string;
     FChecked: Boolean;
@@ -51,6 +52,7 @@ type
     FVisible: Boolean;
     FOnClick: TNotifyEvent;
     FRoot: TMainMenu;
+    procedure SetAction(AValue: TBasicAction);
     procedure SetCaption(const AValue: string);
     procedure SetChecked(AValue: Boolean);
     procedure SetEnabled(AValue: Boolean);
@@ -61,6 +63,7 @@ type
     procedure SetImageUrl(const AValue: string);
     procedure UncheckRadioSiblings;
     procedure MenuChanged;
+    function GetShortCut: TShortCut;
   protected
     /// The reader creates the nested items with this item as owner, so they
     /// land in this item's list through Notification.
@@ -70,6 +73,7 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    procedure ActionUpdate(Sender: TObject);
     procedure Click;
     /// A caption of '-' renders a separator.
     function IsSeparator: Boolean;
@@ -77,6 +81,7 @@ type
     property Root: TMainMenu read FRoot;
     property OwnerItems: TMenuItems read FOwnerItems write FOwnerItems;
   published
+    property Action: TBasicAction read FAction write SetAction;
     property AutoCheck: Boolean read FAutoCheck write FAutoCheck default False;
     property Caption: string read FCaption write SetCaption;
     property Checked: Boolean read FChecked write SetChecked default False;
@@ -88,7 +93,7 @@ type
     property ImageIndex: NativeInt read FImageIndex write FImageIndex default -1;
     property ImageUrl: string read FImageUrl write SetImageUrl;
     property RadioItem: Boolean read FRadioItem write SetRadioItem default False;
-    property ShortCut: TShortCut read FShortCut write SetShortCut default 0;
+    property ShortCut: TShortCut read GetShortCut write SetShortCut default 0;
     property Visible: Boolean read FVisible write SetVisible default True;
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
   end;
@@ -501,6 +506,8 @@ end;
 procedure TMenuItem.Notification(AComponent: TComponent; Operation: TOperation);
 begin
   inherited Notification(AComponent, Operation);
+  if (Operation = opRemove) and (AComponent = FAction) then
+    FAction := nil;
   if (AComponent is TMenuItem) and Assigned(FItems) and (AComponent.Owner = Self) then
   begin
     if (Operation = opInsert) then
@@ -508,6 +515,45 @@ begin
     else
       FItems.RemoveItem(TMenuItem(AComponent));
   end;
+end;
+
+function TMenuItem.GetShortCut: TShortCut;
+begin
+  if (FShortCut <> 0) then
+    Result := FShortCut
+  else if Assigned(FAction) then
+    Result := FAction.ShortCut
+  else
+    Result := 0;
+end;
+
+procedure TMenuItem.SetAction(AValue: TBasicAction);
+begin
+  if (FAction = AValue) then
+    Exit;
+  if Assigned(FAction) then
+  begin
+    FAction.RemoveFreeNotification(Self);
+    FAction.UnregisterClient(Self);
+  end;
+  FAction := AValue;
+  if Assigned(FAction) then
+  begin
+    FAction.RegisterClient(Self, @ActionUpdate);
+    FAction.FreeNotification(Self);
+    ActionUpdate(FAction);
+  end;
+end;
+
+procedure TMenuItem.ActionUpdate(Sender: TObject);
+begin
+  if (not Assigned(FAction)) then
+    Exit;
+  FCaption := FAction.Caption;
+  FEnabled := FAction.Enabled;
+  FVisible := FAction.Visible;
+  FChecked := FAction.Checked;
+  MenuChanged;
 end;
 
 function TMenuItem.IsSeparator: Boolean;
@@ -519,6 +565,11 @@ procedure TMenuItem.Click;
 begin
   if (not FEnabled) then
     Exit;
+  if Assigned(FAction) then
+  begin
+    FAction.Execute;
+    Exit;
+  end;
   if FAutoCheck then
     Checked := not Checked
   else if FRadioItem then
