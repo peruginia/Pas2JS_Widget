@@ -45926,6 +45926,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
   this.$rtti.$MethodVar("TOnHeaderClick",{procsig: rtl.newTIProcSig([["ASender",pas.System.$rtti["TObject"]],["ACol",rtl.nativeint]]), methodkind: 0});
   this.$rtti.$MethodVar("TOnDrawColumnCell",{procsig: rtl.newTIProcSig([["ASender",pas.System.$rtti["TObject"]],["ColumnName",rtl.string],["Cell",pas.Web.$rtti["TJSHTMLTableCellElement"],1]]), methodkind: 0});
   this.$rtti.$MethodVar("TOnAddSeparator",{procsig: rtl.newTIProcSig([["ASender",pas.System.$rtti["TObject"]],["data",rtl.string,1]]), methodkind: 0});
+  this.$rtti.$MethodVar("TDataGridEvent",{procsig: rtl.newTIProcSig([["AEvent",pas.weborworker.$rtti["TJSEvent"]]],rtl.boolean), methodkind: 1});
   rtl.createClass(this,"TCustomDataGrid",pas.Controls.TCustomControl,function () {
     this.$init = function () {
       pas.Controls.TCustomControl.$init.call(this);
@@ -45977,6 +45978,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       this.FGroupCollapsed = null;
       this.FScopeId = "";
       this.FStyleElement = null;
+      this.FHandleWindowResize = null;
       this.FActiveCell = null;
       this.Body = null;
     };
@@ -45999,6 +46001,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       this.FLastClickCell = undefined;
       this.FGroupCollapsed = undefined;
       this.FStyleElement = undefined;
+      this.FHandleWindowResize = undefined;
       this.FActiveCell = undefined;
       this.Body = undefined;
       pas.Controls.TCustomControl.$final.call(this);
@@ -46749,6 +46752,11 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
         Result = '[data-dg="' + $Self.FScopeId + '"] ' + ARule;
         return Result;
       };
+      function ScopedChild(ARule) {
+        var Result = "";
+        Result = '[data-dg="' + $Self.FScopeId + '"] > ' + ARule;
+        return Result;
+      };
       var VColumn = null;
       var VColumnIndex = 0;
       var VCss = "";
@@ -46763,7 +46771,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       if (this.FFilterBox) VHeadHeight = VHeight * 2;
       VCss = "";
       if (!(this.FResponsiveMode && (this.FResponsiveBreakpoint === 0))) {
-        VCss = Scoped("thead") + "," + Scoped("tbody") + "{display: block;position: absolute;}" + Scoped("thead{overflow: hidden;width: calc(100% - " + pas.SysUtils.IntToStr(pas.Controls.ScrollbarWidth()) + "px);" + "height: auto;}") + Scoped("tbody{overflow: scroll;top: " + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeadHeight,0)) + "px;" + "width: 100%;height: calc(100% - " + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeadHeight,0)) + "px);}");
+        VCss = ScopedChild("thead") + "," + ScopedChild("tbody") + "{display: block;position: absolute;}" + ScopedChild("thead{overflow: hidden;width: calc(100% - " + pas.SysUtils.IntToStr(pas.Controls.ScrollbarWidth()) + "px);" + "height: auto;}") + ScopedChild("tbody{overflow: scroll;top: " + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeadHeight,0)) + "px;" + "width: 100%;height: calc(100% - " + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeadHeight,0)) + "px);}");
       };
       VVisibleIndex = 0;
       for (var $l = 0, $end = this.FColumns.GetCount() - 1; $l <= $end; $l++) {
@@ -46772,18 +46780,18 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
         if ((VColumn != null) && this.IsColumnVisibleAtWidth(VColumn,VViewportWidth)) {
           VWidth = pas.Controls.IfThen$2(VColumn.FWidth <= 0,this.FDefColWidth,VColumn.FWidth);
           VVisibleIndex += 1;
-          if (!(this.FResponsiveMode && (this.FResponsiveBreakpoint === 0))) VCss = VCss + Scoped("thead th:nth-child(" + pas.SysUtils.IntToStr(VVisibleIndex) + "){" + "height:" + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeight,0)) + "px;min-width:" + pas.SysUtils.IntToStr(VWidth) + "px;max-width:" + pas.SysUtils.IntToStr(VWidth) + "px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background:#dddada;font:" + pas.Graphics.JSFont(VColumn.FTitleFont) + ";font-family:" + pas.Graphics.JSFontFamily(VColumn.FTitleFont) + ";text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}");
-          if (!(this.FResponsiveMode && (this.FResponsiveBreakpoint === 0))) VCss = VCss + Scoped("tbody td:nth-child(" + pas.SysUtils.IntToStr(VVisibleIndex) + "){" + "height:" + pas.SysUtils.IntToStr(VHeight) + "px;min-width:" + pas.SysUtils.IntToStr(VWidth) + "px;max-width:" + pas.SysUtils.IntToStr(VWidth) + "px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background-color:" + pas.Graphics.JSColor(VColumn.FColor) + ";font:" + pas.Graphics.JSFont(VColumn.FFont) + ";text-align:" + JSAlign(VColumn.FAlignment) + ";text-overflow:clip;white-space:nowrap;}");
+          if (!(this.FResponsiveMode && (this.FResponsiveBreakpoint === 0))) VCss = VCss + ScopedChild("thead th:nth-child(" + pas.SysUtils.IntToStr(VVisibleIndex) + "){" + "height:" + pas.SysUtils.IntToStr(pas.Controls.IfThen$2(this.FShowHeader,VHeight,0)) + "px;min-width:" + pas.SysUtils.IntToStr(VWidth) + "px;max-width:" + pas.SysUtils.IntToStr(VWidth) + "px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background:#dddada;font:" + pas.Graphics.JSFont(VColumn.FTitleFont) + ";font-family:" + pas.Graphics.JSFontFamily(VColumn.FTitleFont) + ";text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}");
+          if (!(this.FResponsiveMode && (this.FResponsiveBreakpoint === 0))) VCss = VCss + ScopedChild("tbody td:nth-child(" + pas.SysUtils.IntToStr(VVisibleIndex) + "){" + "height:" + pas.SysUtils.IntToStr(VHeight) + "px;min-width:" + pas.SysUtils.IntToStr(VWidth) + "px;max-width:" + pas.SysUtils.IntToStr(VWidth) + "px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background-color:" + pas.Graphics.JSColor(VColumn.FColor) + ";font:" + pas.Graphics.JSFont(VColumn.FFont) + ";text-align:" + JSAlign(VColumn.FAlignment) + ";text-overflow:clip;white-space:nowrap;}");
         };
       };
       if (this.FResponsiveMode) {
         if ((this.FResponsiveBreakpoint > 0) && !this.FIsCardVisible) {
           VCss = VCss + "@media (max-width: " + pas.SysUtils.IntToStr(this.FResponsiveBreakpoint) + "px){";
         };
-        VCss = VCss + Scoped(".dg-card-container{width:100%;height:100%;overflow-y:auto;}") + Scoped(".dg-card{margin:0 0 2px 0;border:1px solid #ccc;border-radius:4px;overflow:hidden;}") + Scoped(".dg-card.dg-active{border-color:dodgerblue;box-shadow:0 0 0 1px dodgerblue;}") + Scoped(".dg-card div[dg-cell]{display:block;padding:1px 6px;border-bottom:1px solid #eee;text-align:left;}") + Scoped(".dg-card div[dg-cell]:last-child{border-bottom:none;}") + Scoped(".dg-label{display:inline;font-weight:bold;color:#555;margin-right:4px;cursor:pointer;}") + Scoped('.dg-label::after{content:":";}') + Scoped(".dg-value{display:inline;word-break:break-word;}");
+        VCss = VCss + Scoped(".dg-card-container{width:100%;height:100%;overflow-y:auto;}") + Scoped(".dg-card{margin:0 0 2px 0;border:1px solid #ccc;border-radius:4px;overflow:hidden;}") + Scoped(".dg-card.dg-active{border-color:dodgerblue;box-shadow:0 0 0 1px dodgerblue;}") + Scoped(".dg-card div[dg-cell]{display:block;padding:1px 6px;border-bottom:1px solid #eee;text-align:left;}") + Scoped(".dg-card div[dg-cell]:last-child{border-bottom:none;}") + Scoped(".dg-label{display:inline;font-weight:bold;color:#555;margin-right:4px;cursor:pointer;}") + Scoped('.dg-label::after{content:":";}') + Scoped(".dg-value{display:inline;word-break:break-word;}") + Scoped(".dg-separator{margin:2px 0;}") + Scoped(".dg-separator-table{width:100%;border-collapse:collapse;}");
         if ((this.FResponsiveBreakpoint > 0) && !this.FIsCardVisible) VCss = VCss + "}";
       };
-      VCss = VCss + Scoped("thead .dg-filter-input{width:98%;box-sizing:border-box;padding:2px 4px;border:1px solid #ccc;border-radius:3px;margin:2px 0;}") + Scoped(".dg-filter-card input{width:100%;box-sizing:border-box;padding:4px 8px;border:1px solid #ccc;border-radius:4px;}");
+      VCss = VCss + ScopedChild("thead .dg-filter-input{width:98%;box-sizing:border-box;padding:2px 4px;border:1px solid #ccc;border-radius:3px;margin:2px 0;}") + Scoped(".dg-filter-card input{width:100%;box-sizing:border-box;padding:4px 8px;border:1px solid #ccc;border-radius:4px;}");
       if ((this.FStyleElement != null) && (this.FStyleElement.parentElement === this.FHandleElement)) this.FHandleElement.removeChild(this.FStyleElement);
       this.FStyleElement = this.FHandleElement.appendChild(document.createElement("style"));
       this.FStyleElement.innerHTML = VCss;
@@ -47008,6 +47016,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       var VJSValue = undefined;
       var position = pas.DB.TBookmark.$new();
       var VContainer = null;
+      var VSeparator = "";
       var VViewportWidth = 0;
       VViewportWidth = this.GetViewportWidth();
       VContainer = this.FHandleElement.querySelector(".dg-card-container");
@@ -47019,6 +47028,15 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
           if (pas.System.Assigned(VJSValue) && rtl.isObject(VJSValue)) {
             VObject = VJSValue;
             if ((this.FFilterText !== "") && !this.FilterMatchesRow(VObject)) continue;
+            if (this.fOnAddSeparator != null) {
+              VSeparator = "";
+              this.fOnAddSeparator(this,{get: function () {
+                  return VSeparator;
+                }, set: function (v) {
+                  VSeparator = v;
+                }});
+              this.AppendCardSeparator(VContainer,VSeparator);
+            };
             VCard = document.createElement("div");
             VCard.setAttribute("class","dg-card");
             VCard.addEventListener("click",rtl.createCallback(this,"HandleCardClick"));
@@ -47080,108 +47098,81 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
             VColumn = this.FColumns.GetColumn(VColumnIndex);
             VObject[VColumn.FName] = this.FDataJSon.FieldByName(VColumn.FName).GetAsString();
           };
-          if (this.FFilterText !== "") {
-            if (!this.FilterMatchesRow(VObject)) {
-              this.FDataJSon.Next();
-              continue;
-            };
-            VCard = document.createElement("div");
-            VCard.setAttribute("class","dg-card");
-            VCard.addEventListener("click",rtl.createCallback(this,"HandleCardClick"));
-            if ((VDisplayRow % 2) === 0) VCard.style.setProperty("background-color",pas.Graphics.JSColor(this.FAlternateRowColor));
-            VCard.setAttribute("data-row",pas.SysUtils.TNativeIntHelper.ToString$1.call({get: function () {
+          if ((this.FFilterText !== "") && !this.FilterMatchesRow(VObject)) {
+            this.FDataJSon.Next();
+            continue;
+          };
+          if (this.fOnAddSeparator != null) {
+            VSeparator = "";
+            this.fOnAddSeparator(this,{get: function () {
+                return VSeparator;
+              }, set: function (v) {
+                VSeparator = v;
+              }});
+            this.AppendCardSeparator(VContainer,VSeparator);
+          };
+          VCard = document.createElement("div");
+          VCard.setAttribute("class","dg-card");
+          VCard.addEventListener("click",rtl.createCallback(this,"HandleCardClick"));
+          if ((VDisplayRow % 2) === 0) VCard.style.setProperty("background-color",pas.Graphics.JSColor(this.FAlternateRowColor));
+          VCard.setAttribute("data-row",pas.SysUtils.TNativeIntHelper.ToString$1.call({get: function () {
+              return VDisplayRow;
+            }, set: function (v) {
+              VDisplayRow = v;
+            }}));
+          for (var $l3 = 0, $end3 = this.FColumns.GetCount() - 1; $l3 <= $end3; $l3++) {
+            VColumnIndex = $l3;
+            VColumn = this.FColumns.GetColumn(VColumnIndex);
+            if (!this.IsColumnVisibleAtWidth(VColumn,VViewportWidth)) continue;
+            VCell = document.createElement("div");
+            VCell.setAttribute("dg-cell","");
+            VCell.setAttribute("data-row",pas.SysUtils.TNativeIntHelper.ToString$1.call({get: function () {
                 return VDisplayRow;
               }, set: function (v) {
                 VDisplayRow = v;
               }}));
-            for (var $l3 = 0, $end3 = this.FColumns.GetCount() - 1; $l3 <= $end3; $l3++) {
-              VColumnIndex = $l3;
-              VColumn = this.FColumns.GetColumn(VColumnIndex);
-              if (!this.IsColumnVisibleAtWidth(VColumn,VViewportWidth)) continue;
-              VCell = document.createElement("div");
-              VCell.setAttribute("dg-cell","");
-              VCell.setAttribute("data-row",pas.SysUtils.TNativeIntHelper.ToString$1.call({get: function () {
-                  return VDisplayRow;
+            VCell.setAttribute("data-col",pas.SysUtils.TNativeIntHelper.ToString$1.call({get: function () {
+                return VColumnIndex;
+              }, set: function (v) {
+                VColumnIndex = v;
+              }}));
+            VLabel = document.createElement("span");
+            VLabel.setAttribute("class","dg-label");
+            if (VColumnIndex === this.FSortColumn) {
+              VLabel.innerHTML = pas.Controls.IfThen$3(this.FSortOrder === $mod.TSortOrder.soAscending,"↓ ","↑ ") + pas.Controls.IfThen$3(VColumn.FTitle !== "",VColumn.FTitle,VColumn.FName)}
+             else VLabel.innerHTML = pas.Controls.IfThen$3(VColumn.FTitle !== "",VColumn.FTitle,VColumn.FName);
+            VCell.appendChild(VLabel);
+            VValue = document.createElement("span");
+            VValue.setAttribute("class","dg-value");
+            VValue.innerHTML = this.RenderTableCell(VColumn,VObject);
+            VCell.appendChild(VValue);
+            VCard.appendChild(VCell);
+            if (this.fOnDrawColumnCell != null) {
+              this.fOnDrawColumnCell(this,VColumn.FName,{get: function () {
+                  return VCell;
                 }, set: function (v) {
-                  VDisplayRow = v;
-                }}));
-              VCell.setAttribute("data-col",pas.SysUtils.TNativeIntHelper.ToString$1.call({get: function () {
-                  return VColumnIndex;
-                }, set: function (v) {
-                  VColumnIndex = v;
-                }}));
-              VLabel = document.createElement("span");
-              VLabel.setAttribute("class","dg-label");
-              if (VColumnIndex === this.FSortColumn) {
-                VLabel.innerHTML = pas.Controls.IfThen$3(this.FSortOrder === $mod.TSortOrder.soAscending,"↓ ","↑ ") + pas.Controls.IfThen$3(VColumn.FTitle !== "",VColumn.FTitle,VColumn.FName)}
-               else VLabel.innerHTML = pas.Controls.IfThen$3(VColumn.FTitle !== "",VColumn.FTitle,VColumn.FName);
-              VCell.appendChild(VLabel);
-              VValue = document.createElement("span");
-              VValue.setAttribute("class","dg-value");
-              VValue.innerHTML = this.RenderTableCell(VColumn,VObject);
-              VCell.appendChild(VValue);
-              VCard.appendChild(VCell);
-              if (this.fOnDrawColumnCell != null) {
-                this.fOnDrawColumnCell(this,VColumn.FName,{get: function () {
-                    return VCell;
-                  }, set: function (v) {
-                    VCell = v;
-                  }});
-                if (!VCell.querySelector('.dg-label'))
-                VCell.insertBefore(VLabel, VCell.firstChild);
-              };
+                  VCell = v;
+                }});
+              if (!VCell.querySelector('.dg-label'))
+              VCell.insertBefore(VLabel, VCell.firstChild);
             };
-            VContainer.appendChild(VCard);
-            VDisplayRow += 1;
-          } else {
-            VCard = document.createElement("div");
-            VCard.setAttribute("class","dg-card");
-            VCard.addEventListener("click",rtl.createCallback(this,"HandleCardClick"));
-            if ((VDisplayRow % 2) === 0) VCard.style.setProperty("background-color",pas.Graphics.JSColor(this.FAlternateRowColor));
-            for (var $l4 = 0, $end4 = this.FColumns.GetCount() - 1; $l4 <= $end4; $l4++) {
-              VColumnIndex = $l4;
-              VColumn = this.FColumns.GetColumn(VColumnIndex);
-              if (!this.IsColumnVisibleAtWidth(VColumn,VViewportWidth)) continue;
-              VCell = document.createElement("div");
-              VCell.setAttribute("dg-cell","");
-              VCell.setAttribute("data-row",pas.SysUtils.TNativeIntHelper.ToString$1.call({get: function () {
-                  return VDisplayRow;
-                }, set: function (v) {
-                  VDisplayRow = v;
-                }}));
-              VCell.setAttribute("data-col",pas.SysUtils.TNativeIntHelper.ToString$1.call({get: function () {
-                  return VColumnIndex;
-                }, set: function (v) {
-                  VColumnIndex = v;
-                }}));
-              VLabel = document.createElement("span");
-              VLabel.setAttribute("class","dg-label");
-              if (VColumnIndex === this.FSortColumn) {
-                VLabel.innerHTML = pas.Controls.IfThen$3(this.FSortOrder === $mod.TSortOrder.soAscending,"↓ ","↑ ") + pas.Controls.IfThen$3(VColumn.FTitle !== "",VColumn.FTitle,VColumn.FName)}
-               else VLabel.innerHTML = pas.Controls.IfThen$3(VColumn.FTitle !== "",VColumn.FTitle,VColumn.FName);
-              VCell.appendChild(VLabel);
-              VValue = document.createElement("span");
-              VValue.setAttribute("class","dg-value");
-              VValue.innerHTML = this.FormatCellValue(VColumn,this.FDataJSon.FieldByName(VColumn.FName).GetAsString());
-              VCell.appendChild(VValue);
-              VCard.appendChild(VCell);
-              if (this.fOnDrawColumnCell != null) {
-                this.fOnDrawColumnCell(this,VColumn.FName,{get: function () {
-                    return VCell;
-                  }, set: function (v) {
-                    VCell = v;
-                  }});
-                if (!VCell.querySelector('.dg-label'))
-                VCell.insertBefore(VLabel, VCell.firstChild);
-              };
-            };
-            VContainer.appendChild(VCard);
-            VDisplayRow += 1;
           };
+          VContainer.appendChild(VCard);
+          VDisplayRow += 1;
           this.FDataJSon.Next();
         };
         this.FDataJSon.GotoBookmark(position);
       };
+    };
+    this.AppendCardSeparator = function (AContainer, AHtml) {
+      var VSeparator = null;
+      if ((AHtml === "") || !(AContainer != null)) return;
+      VSeparator = document.createElement("div");
+      VSeparator.setAttribute("class","dg-separator");
+      if (pas.System.Pos("<td",pas.SysUtils.LowerCase(AHtml)) > 0) {
+        VSeparator.innerHTML = '<table class="dg-separator-table"><tbody><tr>' + AHtml + "</tr></tbody></table>"}
+       else VSeparator.innerHTML = AHtml;
+      AContainer.appendChild(VSeparator);
     };
     this.RenderTableCell = function (AColumn, AObject) {
       var Result = "";
@@ -47375,6 +47366,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       $impl._DataGridSeq += 1;
       this.FScopeId = "dg" + pas.SysUtils.IntToStr($impl._DataGridSeq);
       this.FHandleElement.setAttribute("data-dg",this.FScopeId);
+      this.FHandleWindowResize = rtl.createCallback(this,"HandleWindowResize");
       this.FColumns = $mod.TDataColumns.$create("Create$2",[this]);
       this.FActiveCell = null;
       this.fSelRow = -1;

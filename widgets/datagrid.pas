@@ -139,6 +139,8 @@ type
   TOnHeaderClick = procedure(ASender: TObject; ACol: NativeInt) of object;
   TOnDrawColumnCell = procedure(ASender: TObject; ColumnName: String; var Cell : TJSHTMLTableCellElement ) of object;
   TOnAddSeparator = procedure(ASender: TObject; var data : String ) of object;
+  /// Method pointer used for the window resize listener.
+  TDataGridEvent = function(AEvent: TJSEvent): boolean of object;
 
   { TCustomDataGrid }
 
@@ -194,6 +196,8 @@ type
     FScopeId: string;
     /// The single <style> element holding the scoped rules.
     FStyleElement: TJSHTMLElement;
+    /// Window resize listener (responsive breakpoint).
+    FHandleWindowResize: TDataGridEvent;
      function GetColCount: NativeInt;
     function GetRowCount: NativeInt;
     procedure SetColumnClickSorts(AValue: boolean);
@@ -243,6 +247,9 @@ type
     procedure RenderTableHead; virtual;
     procedure RenderTableBody; virtual;
     procedure RenderCardBody; virtual;
+    /// Inserts the OnAddSeparator markup before a card (card view).
+    procedure AppendCardSeparator(const AContainer: TJSHTMLElement;
+      const AHtml: string); virtual;
     function RenderTableCell(const AColumn: TDataColumn; const AObject: TJSObject): string; virtual;
     function FormatCellValue(const AColumn: TDataColumn; const AValue: JSValue): string; virtual;
     function RenderTableHeadCell(const AColumn: TDataColumn; const AIndex: NativeInt): string; virtual;
@@ -1058,6 +1065,25 @@ begin
    Result := True;
 end;
 
+procedure TCustomDataGrid.AppendCardSeparator(const AContainer: TJSHTMLElement;
+  const AHtml: string);
+var
+  VSeparator: TJSHTMLElement;
+begin
+  if (AHtml = '') or (not Assigned(AContainer)) then
+    Exit;
+  VSeparator := TJSHTMLElement(Document.CreateElement('div'));
+  VSeparator.setAttribute('class', 'dg-separator');
+  /// Handlers written for the table view return <td ...>: give the cell a
+  /// table/row to live in, so the markup and its inline styles keep working.
+  if (Pos('<td', LowerCase(AHtml)) > 0) then
+    VSeparator.InnerHTML :=
+      '<table class="dg-separator-table"><tbody><tr>' + AHtml + '</tr></tbody></table>'
+  else
+    VSeparator.InnerHTML := AHtml;
+  AContainer.AppendChild(VSeparator);
+end;
+
 procedure TCustomDataGrid.RenderCardBody;
 var
   VColumn: TDataColumn;
@@ -1067,6 +1093,7 @@ var
   VJSValue: JSValue;
   position: TBookmark;
   VContainer: TJSHTMLElement;
+  VSeparator: String;
   VViewportWidth: Integer;
 begin
    VViewportWidth := GetViewportWidth;
@@ -1079,6 +1106,11 @@ begin
          if (Assigned(VJSValue)) and (IsObject(VJSValue)) then begin
             VObject := TJSObject(VJSValue);
             if (FFilterText <> '') and not FilterMatchesRow(VObject) then continue;
+            if Assigned(fOnAddSeparator) then begin
+               VSeparator := '';
+               fOnAddSeparator(Self, VSeparator);
+               AppendCardSeparator(VContainer, VSeparator);
+            end;
             VCard := TJSHTMLElement(Document.CreateElement('div'));
             VCard.setAttribute('class', 'dg-card');
             VCard.AddEventListener('click', @HandleCardClick);
@@ -1126,83 +1158,53 @@ begin
             VColumn := FColumns[VColumnIndex];
             VObject[VColumn.Name] := FDataJSon.FieldByName(VColumn.name).AsString;
           end;
-          if FFilterText <> '' then begin
-            if not FilterMatchesRow(VObject) then begin
-             FDataJSon.Next;
-             continue;
-           end;
-           VCard := TJSHTMLElement(Document.CreateElement('div'));
-           VCard.setAttribute('class', 'dg-card');
-           VCard.AddEventListener('click', @HandleCardClick);
-           if (VDisplayRow mod 2)=0 then
-              VCard.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
-           VCard.setAttribute('data-row', VDisplayRow.ToString);
-           for VColumnIndex := 0 to (FColumns.Count - 1) do begin
-              VColumn := FColumns[VColumnIndex];
-              if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
-              VCell := TJSHTMLElement(Document.CreateElement('div'));
-              VCell.setAttribute('dg-cell', '');
-              VCell.setAttribute('data-row', VDisplayRow.ToString);
-              VCell.setAttribute('data-col', VColumnIndex.ToString);
-              VLabel := TJSHTMLElement(Document.CreateElement('span'));
-              VLabel.setAttribute('class', 'dg-label');
-              if (VColumnIndex = FSortColumn) then
-                VLabel.InnerHTML := IfThen(FSortOrder = soAscending, '↓ ', '↑ ') + IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name)
-              else
-                VLabel.InnerHTML := IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name);
-              VCell.AppendChild(VLabel);
-              VValue := TJSHTMLElement(Document.CreateElement('span'));
-              VValue.setAttribute('class', 'dg-value');
-              VValue.InnerHTML := RenderTableCell(VColumn, VObject);
-              VCell.AppendChild(VValue);
-              VCard.AppendChild(VCell);
-              if Assigned(fOnDrawColumnCell) then begin
-                 fOnDrawColumnCell(self, VColumn.Name, TJSHTMLTableCellElement(VCell));
-                 asm
-                   if (!VCell.querySelector('.dg-label'))
-                     VCell.insertBefore(VLabel, VCell.firstChild);
-                 end;
-              end;
-           end;
-           VContainer.AppendChild(VCard);
-           Inc(VDisplayRow);
-         end else begin
-           VCard := TJSHTMLElement(Document.CreateElement('div'));
-           VCard.setAttribute('class', 'dg-card');
-           VCard.AddEventListener('click', @HandleCardClick);
-           if (VDisplayRow mod 2)=0 then
-              VCard.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
-           for VColumnIndex := 0 to (FColumns.Count - 1) do begin
-              VColumn := FColumns[VColumnIndex];
-              if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
-              VCell := TJSHTMLElement(Document.CreateElement('div'));
-              VCell.setAttribute('dg-cell', '');
-              VCell.setAttribute('data-row', VDisplayRow.ToString);
-              VCell.setAttribute('data-col', VColumnIndex.ToString);
-              VLabel := TJSHTMLElement(Document.CreateElement('span'));
-              VLabel.setAttribute('class', 'dg-label');
-              if (VColumnIndex = FSortColumn) then
-                VLabel.InnerHTML := IfThen(FSortOrder = soAscending, '↓ ', '↑ ') + IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name)
-              else
-                VLabel.InnerHTML := IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name);
-              VCell.AppendChild(VLabel);
-              VValue := TJSHTMLElement(Document.CreateElement('span'));
-              VValue.setAttribute('class', 'dg-value');
-              VValue.InnerHTML := FormatCellValue(VColumn, FDataJSon.FieldByName(VColumn.name).AsString);
-              VCell.AppendChild(VValue);
-              VCard.AppendChild(VCell);
-              if Assigned(fOnDrawColumnCell) then begin
-                 fOnDrawColumnCell(self, VColumn.Name, TJSHTMLTableCellElement(VCell));
-                 asm
-                   if (!VCell.querySelector('.dg-label'))
-                     VCell.insertBefore(VLabel, VCell.firstChild);
-                 end;
-              end;
-           end;
-           VContainer.AppendChild(VCard);
-           Inc(VDisplayRow);
-         end;
-         FDataJSon.Next;
+          if (FFilterText <> '') and not FilterMatchesRow(VObject) then begin
+            FDataJSon.Next;
+            continue;
+          end;
+
+          if Assigned(fOnAddSeparator) then begin
+             VSeparator := '';
+             fOnAddSeparator(Self, VSeparator);
+             AppendCardSeparator(VContainer, VSeparator);
+          end;
+
+          VCard := TJSHTMLElement(Document.CreateElement('div'));
+          VCard.setAttribute('class', 'dg-card');
+          VCard.AddEventListener('click', @HandleCardClick);
+          if (VDisplayRow mod 2)=0 then
+             VCard.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
+          VCard.setAttribute('data-row', VDisplayRow.ToString);
+          for VColumnIndex := 0 to (FColumns.Count - 1) do begin
+             VColumn := FColumns[VColumnIndex];
+             if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
+             VCell := TJSHTMLElement(Document.CreateElement('div'));
+             VCell.setAttribute('dg-cell', '');
+             VCell.setAttribute('data-row', VDisplayRow.ToString);
+             VCell.setAttribute('data-col', VColumnIndex.ToString);
+             VLabel := TJSHTMLElement(Document.CreateElement('span'));
+             VLabel.setAttribute('class', 'dg-label');
+             if (VColumnIndex = FSortColumn) then
+               VLabel.InnerHTML := IfThen(FSortOrder = soAscending, '↓ ', '↑ ') + IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name)
+             else
+               VLabel.InnerHTML := IfThen(VColumn.Title <> '', VColumn.Title, VColumn.Name);
+             VCell.AppendChild(VLabel);
+             VValue := TJSHTMLElement(Document.CreateElement('span'));
+             VValue.setAttribute('class', 'dg-value');
+             VValue.InnerHTML := RenderTableCell(VColumn, VObject);
+             VCell.AppendChild(VValue);
+             VCard.AppendChild(VCell);
+             if Assigned(fOnDrawColumnCell) then begin
+                fOnDrawColumnCell(self, VColumn.Name, TJSHTMLTableCellElement(VCell));
+                asm
+                  if (!VCell.querySelector('.dg-label'))
+                    VCell.insertBefore(VLabel, VCell.firstChild);
+                end;
+             end;
+          end;
+          VContainer.AppendChild(VCard);
+          Inc(VDisplayRow);
+          FDataJSon.Next;
       end;
       FDataJSon.GotoBookmark(position);
    end;
@@ -1215,6 +1217,7 @@ begin
    Inc(_DataGridSeq);
    FScopeId := 'dg' + IntToStr(_DataGridSeq);
    HandleElement.setAttribute('data-dg', FScopeId);
+   FHandleWindowResize := @HandleWindowResize;
    FColumns := TDataColumns.Create(Self);
     FActiveCell := nil;
     fSelRow := -1;
@@ -2127,6 +2130,13 @@ procedure TCustomDataGrid.RenderTableStyle;
   begin
     Result := '[data-dg="' + FScopeId + '"] ' + ARule;
   end;
+
+  /// For the main table sections only: nested tables (e.g. separator rows)
+  /// must keep their normal table layout.
+  function ScopedChild(const ARule: string): string;
+  begin
+    Result := '[data-dg="' + FScopeId + '"] > ' + ARule;
+  end;
 var
   VColumn: TDataColumn;
   VColumnIndex: NativeInt;
@@ -2145,10 +2155,10 @@ begin
   VCss := '';
   if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then begin
     VCss :=
-      Scoped('thead') + ',' + Scoped('tbody') + '{display: block;position: absolute;}' +
-      Scoped('thead{overflow: hidden;width: calc(100% - ' + IntToStr(ScrollbarWidth) + 'px);' +
+      ScopedChild('thead') + ',' + ScopedChild('tbody') + '{display: block;position: absolute;}' +
+      ScopedChild('thead{overflow: hidden;width: calc(100% - ' + IntToStr(ScrollbarWidth) + 'px);' +
       'height: auto;}') +
-      Scoped('tbody{overflow: scroll;top: ' + IntToStr(IfThen(FShowHeader, VHeadHeight, 0)) + 'px;' +
+      ScopedChild('tbody{overflow: scroll;top: ' + IntToStr(IfThen(FShowHeader, VHeadHeight, 0)) + 'px;' +
       'width: 100%;height: calc(100% - ' + IntToStr(IfThen(FShowHeader, VHeadHeight, 0)) + 'px);}');
   end;
   VVisibleIndex := 0;
@@ -2159,12 +2169,12 @@ begin
       Inc(VVisibleIndex);
       if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then
         VCss := VCss +
-          Scoped('thead th:nth-child(' + IntToStr(VVisibleIndex) + '){' +
+          ScopedChild('thead th:nth-child(' + IntToStr(VVisibleIndex) + '){' +
           'height:'+IntToStr(IfThen(FShowHeader, VHeight, 0))+'px;min-width:'+IntToStr(VWidth)+'px;max-width:'+IntToStr(VWidth)+'px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background:#dddada;font:'+JSFont(VColumn.TitleFont)+';font-family:'+JSFontFamily(VColumn.TitleFont)+';text-align:center;text-overflow:clip;white-space:nowrap;cursor:pointer;}');
       // Skip tbody td:nth-child when responsive without breakpoint (card layout)
       if not (FResponsiveMode and (FResponsiveBreakpoint = 0)) then
         VCss := VCss +
-          Scoped('tbody td:nth-child(' + IntToStr(VVisibleIndex) + '){' +
+          ScopedChild('tbody td:nth-child(' + IntToStr(VVisibleIndex) + '){' +
           'height:'+IntToStr(VHeight)+'px;min-width:'+IntToStr(VWidth)+'px;max-width:'+IntToStr(VWidth)+'px;visibility:visible;padding:0;overflow:hidden;border:1px solid #ccc;background-color:'+JSColor(VColumn.Color)+';font:'+JSFont(VColumn.Font)+';text-align:'+JSAlign(VColumn.Alignment)+';text-overflow:clip;white-space:nowrap;}');
     end;
   end;
@@ -2182,12 +2192,14 @@ begin
       Scoped('.dg-card div[dg-cell]:last-child{border-bottom:none;}') +
       Scoped('.dg-label{display:inline;font-weight:bold;color:#555;margin-right:4px;cursor:pointer;}') +
       Scoped('.dg-label::after{content:":";}') +
-      Scoped('.dg-value{display:inline;word-break:break-word;}');
+      Scoped('.dg-value{display:inline;word-break:break-word;}') +
+      Scoped('.dg-separator{margin:2px 0;}') +
+      Scoped('.dg-separator-table{width:100%;border-collapse:collapse;}');
     if (FResponsiveBreakpoint > 0) and not FIsCardVisible then
       VCss := VCss + '}';
   end;
   VCss := VCss +
-    Scoped('thead .dg-filter-input{width:98%;box-sizing:border-box;padding:2px 4px;border:1px solid #ccc;border-radius:3px;margin:2px 0;}') +
+    ScopedChild('thead .dg-filter-input{width:98%;box-sizing:border-box;padding:2px 4px;border:1px solid #ccc;border-radius:3px;margin:2px 0;}') +
     Scoped('.dg-filter-card input{width:100%;box-sizing:border-box;padding:4px 8px;border:1px solid #ccc;border-radius:4px;}');
   /// A full render may have cleared the grid content: drop the stale element
   /// and append a fresh one so the scoped rules are always in the document.

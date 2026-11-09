@@ -177,6 +177,8 @@ begin
 end;
 ```
 
+The same markup also works in the responsive card layout: the separator is inserted before the card, and table-oriented HTML (`<td ...>`) is wrapped in a small table so its colspan and inline styles are preserved. A plain `<div>` or text works too.
+
 Three things to keep in mind:
 
 * the event carries **no row index** — the only way to know which record is being drawn is the dataset cursor, so separators work with `DataTable`/`DataJSon`, not with a plain `Data` array;
