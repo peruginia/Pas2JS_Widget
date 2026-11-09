@@ -379,6 +379,7 @@ begin
   /// form, the IDE adds the WCL package (and the extra units it needs).
   RegisterComponentRequirements([TWComboBox, TWListBox, TWEdit, TWMemo, TWButton,
     TWCheckbox, TWRadioButton, TWLabel, TWImage, TWPanel, TWTimer, TWPageControl,
+    TWTreeView,
     TWFloatEdit, TWIntegerEdit, TWDateEditBox, TWTimeEditBox, TWDateTimePicker,
     TWFileButton, TWDataGrid, TWPagination, TWStringGrid, TWWebSocketClient,
     TWGroupBox, TWScrollBox, TWProgressBar, TWTrackBar, TWColorPicker, TWSplitter,

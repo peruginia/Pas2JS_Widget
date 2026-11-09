@@ -42,6 +42,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWFileButton** | `<input type="file">` | File selection |
 | **TWDataGrid** | `<table>` / cards | Sorting, `FilterBox`, `DataJSon`/`Data`/`DataTable`, column formatting, responsive cards, `ExportToCSV`, `InfiniteScroll`, keyboard navigation (arrows, PageUp/Down, Home/End) |
 | **TWStringGrid** | `<table>` | Editable string grid: `Cells`, `Options` (`goEditing`, `goTabs`), inline editor, `OnSelectCell`/`OnGetEditText`/`OnSetEditText`/`OnDrawCell` |
+| **TWTreeView** | nested `<ul>`/`<li>` | Tree: `Items` (`Add`/`AddChild`/`Insert`), `Selected`, `ShowLines`/`ShowRoot`/`ShowButtons`, `Indent`, `RowHeight`, expand/collapse, `FullExpand`/`FullCollapse`, `AlphaSort`, `OnChange`/`OnExpanding`/`OnExpanded`/`OnCollapsing`/`OnCollapsed` |
 | **TWPagination** | page nav | Page navigation with `CurrentPage` |
 | **TWTrackBar** | `<input type="range">` | Slider with `Min`/`Max`/`Position`/`Frequency`/`Orientation` |
 | **TWProgressBar** | `<progress>` | Progress bar with `Min`/`Max`/`Value` |
@@ -261,6 +262,43 @@ end;
 
 The editor is an `<input>` placed inside the cell, so it scrolls with the grid and follows the cell size. `EditorMode` reflects the editing state and can also start or stop it from code. `OnDrawCell` receives the DOM cell element, like `OnDrawColumnCell` on `TWDataGrid`; the handler can change styles or content, while the cell text is provided by `Cells`.
 
+### TreeView
+
+`TWTreeView` renders a tree with nested `<ul>`/`<li>` elements. Nodes are created in code; `Add` follows LCL (a new node is the last sibling of the given node, or a root when it is `nil`), while `AddChild` appends a child:
+
+```pascal
+var
+  VNode, VChild: TTreeNode;
+begin
+  VNode := TreeView1.Items.Add('Documents');
+  VChild := TreeView1.Items.AddChild(VNode, 'Reports');
+  TreeView1.Items.AddChild(VChild, '2025');
+  TreeView1.Items.AddChild(VChild, '2026');
+  VNode.Expanded := True;
+
+  VNode := TreeView1.Items.Add('Images');
+  VChild := TreeView1.Items.AddChild(VNode, 'Vacation');
+  VChild.ImageUrl := 'photo.png';
+
+  TreeView1.OnChange := @TreeSelectionChanged;
+  TreeView1.Selected := VNode;
+end;
+```
+
+`TTreeNode` exposes `Text`, `ImageUrl`, `Data`, `Level`, `Index`, `AbsoluteIndex`, `Parent`, `Count`/`Item[]`, `FirstChild`/`LastChild`, `NextSibling`/`PrevSibling`, `Next`/`Prev`, `HasChildren`, `Expanded`, `Selected`, `Expand`/`Collapse`/`ToggleExpanded`, `MakeVisible` and `Delete`. `Items` is the flat collection (`Count`, `Item[]`, `RootCount`, `Roots[]`, `GetFirstNode`, `IndexOf`, `Delete`, `Clear`, `AlphaSort`).
+
+`ShowLines` draws the dotted child guides, `ShowRoot` hides the top-level rows (their children become the first level), `ShowButtons` controls the expander glyphs, and `Indent` sets the child indentation. `RowHeight` overrides the default row height; touch devices use 36 px rows automatically. Selecting a node raises `OnChange`; expanding and collapsing raise `OnExpanding`/`OnExpanded` and `OnCollapsing`/`OnCollapsed`, and `OnExpanding`/`OnCollapsing` can veto the change with `AllowExpansion := False` / `AllowCollapse := False`.
+
+| Key | Action |
+|---|---|
+| ↑ / ↓ | Previous/next visible node |
+| → | Expand the node, or move to its first child |
+| ← | Collapse the node, or move to its parent |
+| Home / End | First/last visible node |
+| Enter / Space | Toggle the selected node |
+
+Clicking a row selects it, clicking the expander (or double-clicking the row) toggles it. The tree can be designed in the IDE and the node data saved by the LCL tree editor (`Items.Data`) is accepted and ignored: build the nodes in code, as shown above.
+
 ---
 
 ### Infrastructure
@@ -319,7 +357,7 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
-The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
+The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Tree** tab has a `TWTreeView` with folders built in code plus Expand/Collapse/Add child/Sort buttons, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
 
 The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
 

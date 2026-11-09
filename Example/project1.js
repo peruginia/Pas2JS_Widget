@@ -2229,6 +2229,7 @@ rtl.module("System",[],function () {
   this.$rtti.$DynArray("TArray<Controls.TBasicActionClient>",{});
   this.$rtti.$DynArray("TArray<ActnList.TAction>",{});
   this.$rtti.$DynArray("TArray<Menus.TMenuItem>",{});
+  this.$rtti.$DynArray("TArray<ComCtrls.TTreeNode>",{});
   $mod.$implcode = function () {
     $mod.$rtti.$ExtClass("TJSObj",{jsclass: "Object"});
     $mod.$rtti.$ExtClass("TJSArray",{jsclass: "Array"});
@@ -21058,6 +21059,9 @@ rtl.module("Generics.Defaults",["System"],function () {
   $mod.$rtti.$Interface("IComparer<Menus.TMenuItem>");
   $mod.$rtti.$Interface("IEnumerator<Menus.TMenuItem>");
   $mod.$rtti.$Interface("IEnumerable<Menus.TMenuItem>");
+  $mod.$rtti.$Interface("IComparer<ComCtrls.TTreeNode>");
+  $mod.$rtti.$Interface("IEnumerator<ComCtrls.TTreeNode>");
+  $mod.$rtti.$Interface("IEnumerable<ComCtrls.TTreeNode>");
   rtl.createInterface(this,"IComparer$G18","{505778ED-F783-4456-9691-32F419CC5E18}",["Compare"],pas.System.IUnknown,function () {
     var $r = this.$rtti;
     $r.addMethod("Compare",1,[["Left",rtl.longint,2],["Right",rtl.longint,2]],rtl.longint);
@@ -21136,6 +21140,27 @@ rtl.module("Generics.Defaults",["System"],function () {
       $r.addMethod("GetEnumerator",1,[],$mod.$rtti["IEnumerator<Menus.TMenuItem>"]);
     };
   },"IEnumerable<Menus.TMenuItem>");
+  rtl.createInterface(this,"IComparer$G22","{505778ED-F783-4456-9691-32F419CC5E18}",["Compare"],pas.System.IUnknown,function () {
+    this.$initSpec = function () {
+      var $r = this.$rtti;
+      $r.addMethod("Compare",1,[["Left",pas.ComCtrls.$rtti["TTreeNode"],2],["Right",pas.ComCtrls.$rtti["TTreeNode"],2]],rtl.longint);
+    };
+  },"IComparer<ComCtrls.TTreeNode>");
+  rtl.createInterface(this,"IEnumerator$G9","{1592971B-A4D5-3C08-B26C-ED12B363D768}",["GetCurrent","MoveNext","Reset"],pas.System.IUnknown,function () {
+    this.$initSpec = function () {
+      var $r = this.$rtti;
+      $r.addMethod("GetCurrent",1,[],pas.ComCtrls.$rtti["TTreeNode"]);
+      $r.addMethod("MoveNext",1,[],rtl.boolean);
+      $r.addMethod("Reset",0,[]);
+      $r.addProperty("Current",1,pas.ComCtrls.$rtti["TTreeNode"],"GetCurrent","");
+    };
+  },"IEnumerator<ComCtrls.TTreeNode>");
+  rtl.createInterface(this,"IEnumerable$G8","{274CAD32-0210-3C07-A1AE-7972CE35F904}",["GetEnumerator"],pas.System.IUnknown,function () {
+    this.$initSpec = function () {
+      var $r = this.$rtti;
+      $r.addMethod("GetEnumerator",1,[],$mod.$rtti["IEnumerator<ComCtrls.TTreeNode>"]);
+    };
+  },"IEnumerable<ComCtrls.TTreeNode>");
 });
 rtl.module("Generics.Collections",["System","Classes","SysUtils","RTLConsts","Types","JS","Generics.Strings","Generics.Defaults"],function () {
   "use strict";
@@ -21173,6 +21198,13 @@ rtl.module("Generics.Collections",["System","Classes","SysUtils","RTLConsts","Ty
   $mod.$rtti.$Class("TCustomList<Menus.TMenuItem>");
   $mod.$rtti.$Class("TCustomListEnumerator<Menus.TMenuItem>");
   $mod.$rtti.$Class("TList<Menus.TMenuItem>");
+  $mod.$rtti.$Class("TEnumerator<ComCtrls.TTreeNode>");
+  $mod.$rtti.$Class("TEnumerable<ComCtrls.TTreeNode>");
+  $mod.$rtti.$Class("TCustomArrayHelper<ComCtrls.TTreeNode>");
+  $mod.$rtti.$Class("TArrayHelper<ComCtrls.TTreeNode>");
+  $mod.$rtti.$Class("TCustomList<ComCtrls.TTreeNode>");
+  $mod.$rtti.$Class("TCustomListEnumerator<ComCtrls.TTreeNode>");
+  $mod.$rtti.$Class("TList<ComCtrls.TTreeNode>");
   this.TCollectionNotification = {"0": "cnAdded", cnAdded: 0, "1": "cnRemoved", cnRemoved: 1, "2": "cnExtracted", cnExtracted: 2};
   this.$rtti.$Enum("TCollectionNotification",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TCollectionNotification});
   rtl.recNewT(this,"TBinarySearchResult",function () {
@@ -23568,6 +23600,589 @@ rtl.module("Generics.Collections",["System","Classes","SysUtils","RTLConsts","Ty
       return Result;
     };
   },"TList<Menus.TMenuItem>");
+  rtl.createClass(this,"TEnumerator$G22",pas.System.TObject,function () {
+    this.$initSpec = function () {
+    };
+    this.MoveNext = function () {
+      var Result = false;
+      Result = this.DoMoveNext();
+      return Result;
+    };
+  },"TEnumerator<ComCtrls.TTreeNode>");
+  rtl.createClass(this,"TEnumerable$G21",pas.System.TObject,function () {
+    this.$initSpec = function () {
+    };
+    this.GetEnumerator = function () {
+      var Result = null;
+      Result = this.DoGetEnumerator();
+      return Result;
+    };
+    this.ToArray = function () {
+      var Result = [];
+      var LEnumerator = null;
+      Result = [];
+      LEnumerator = this.GetEnumerator();
+      try {
+        while (LEnumerator.MoveNext()) Result.push(LEnumerator.DoGetCurrent());
+      } finally {
+        LEnumerator = rtl.freeLoc(LEnumerator);
+      };
+      return Result;
+    };
+  },"TEnumerable<ComCtrls.TTreeNode>");
+  this.$rtti.$MethodVar("TCollectionNotifyEvent<ComCtrls.TTreeNode>",{init: function () {
+      this.procsig = rtl.newTIProcSig([["ASender",pas.System.$rtti["TObject"]],["AItem",pas.ComCtrls.$rtti["TTreeNode"],2],["AAction",$mod.$rtti["TCollectionNotification"]]]);
+    }, methodkind: 0});
+  rtl.createClass(this,"TCustomArrayHelper$G16",pas.System.TObject,function () {
+    this.$initSpec = function () {
+    };
+    this.Sort = function (AValues, AComparer) {
+      this.Sort$1(AValues,AComparer,0,rtl.length(AValues.get()));
+    };
+    this.Sort$1 = function (AValues, AComparer, AIndex, ACount) {
+      if (ACount <= 1) return;
+      this.QuickSort(AValues,AIndex,(AIndex + ACount) - 1,AComparer);
+    };
+    this.BinarySearch$2 = function (AValues, AItem, AFoundIndex, AComparer) {
+      var Result = false;
+      Result = this.BinarySearch$1(AValues,AItem,AFoundIndex,AComparer,0,rtl.length(AValues));
+      return Result;
+    };
+    this.BinarySearch$3 = function (AValues, AItem, ASearchResult, AComparer) {
+      var Result = false;
+      Result = this.BinarySearch(AValues,AItem,ASearchResult,AComparer,0,rtl.length(AValues));
+      return Result;
+    };
+  },"TCustomArrayHelper<ComCtrls.TTreeNode>");
+  rtl.createClass(this,"TArrayHelper$G15",this.TCustomArrayHelper$G16,function () {
+    this.$initSpec = function () {
+    };
+    this.QuickSort = function (AValues, ALeft, ARight, AComparer) {
+      var I = 0;
+      var J = 0;
+      var P = null;
+      var Q = null;
+      if (((ARight - ALeft) <= 0) || (rtl.length(AValues.get()) === 0)) return;
+      do {
+        I = ALeft;
+        J = ARight;
+        P = AValues.get()[ALeft + Math.floor((ARight - ALeft) / 2)];
+        do {
+          while (AComparer.Compare(AValues.get()[I],P) < 0) I += 1;
+          while (AComparer.Compare(AValues.get()[J],P) > 0) J -= 1;
+          if (I <= J) {
+            if (I !== J) {
+              Q = AValues.get()[I];
+              AValues.get()[I] = AValues.get()[J];
+              AValues.get()[J] = Q;
+            };
+            I += 1;
+            J -= 1;
+          };
+        } while (!(I > J));
+        if ((J - ALeft) < (ARight - I)) {
+          if (ALeft < J) this.QuickSort(AValues,ALeft,J,AComparer);
+          ALeft = I;
+        } else {
+          if (I < ARight) this.QuickSort(AValues,I,ARight,AComparer);
+          ARight = J;
+        };
+      } while (!(ALeft >= ARight));
+    };
+    this.BinarySearch = function (AValues, AItem, ASearchResult, AComparer, AIndex, ACount) {
+      var Result = false;
+      var imin = 0;
+      var imax = 0;
+      var imid = 0;
+      var ilo = 0;
+      imin = AIndex;
+      imax = (AIndex + ACount) - 1;
+      ilo = imid * imid;
+      imid = ilo * imid;
+      while (imin < imax) {
+        imid = rtl.trunc((imax + imin) / 2);
+        ASearchResult.CompareResult = AComparer.Compare(AValues[imid],AItem);
+        if (ASearchResult.CompareResult < 0) {
+          imin = imid + 1}
+         else {
+          if (ASearchResult.CompareResult === 0) {
+            ASearchResult.FoundIndex = imid;
+            ASearchResult.CandidateIndex = imid;
+            return true;
+          };
+          imax = imid;
+        };
+      };
+      Result = imax === imin;
+      if (Result) {
+        ASearchResult.CompareResult = AComparer.Compare(AValues[imin],AItem);
+        ASearchResult.CandidateIndex = imin;
+        Result = ASearchResult.CompareResult === 0;
+        if (Result) {
+          ASearchResult.FoundIndex = imin}
+         else ASearchResult.FoundIndex = -1;
+      } else {
+        ASearchResult.CompareResult = 0;
+        ASearchResult.FoundIndex = -1;
+        ASearchResult.CandidateIndex = -1;
+      };
+      return Result;
+    };
+    this.BinarySearch$1 = function (AValues, AItem, AFoundIndex, AComparer, AIndex, ACount) {
+      var Result = false;
+      var imin = 0;
+      var imax = 0;
+      var imid = 0;
+      var LCompare = 0;
+      imin = AIndex;
+      imax = (AIndex + ACount) - 1;
+      while (imin < imax) {
+        imid = rtl.trunc((imin + imax) / 2);
+        LCompare = AComparer.Compare(AValues[imid],AItem);
+        if (LCompare < 0) {
+          imin = imid + 1}
+         else {
+          if (LCompare === 0) {
+            AFoundIndex.set(imid);
+            return true;
+          };
+          imax = imid;
+        };
+      };
+      LCompare = AComparer.Compare(AValues[imin],AItem);
+      Result = (imax === imin) && (LCompare === 0);
+      if (Result) {
+        AFoundIndex.set(imin)}
+       else AFoundIndex.set(-1);
+      return Result;
+    };
+  },"TArrayHelper<ComCtrls.TTreeNode>");
+  rtl.createClass(this,"TCustomList$G14",this.TEnumerable$G21,function () {
+    this.$initSpec = function () {
+      var $r = this.$rtti;
+      $mod.$rtti.$DynArray("TCustomList<ComCtrls.TTreeNode>.FItems$a",{eltype: pas.ComCtrls.$rtti["TTreeNode"]});
+    };
+    this.$init = function () {
+      $mod.TEnumerable$G21.$init.call(this);
+      this.FOnNotify = null;
+      this.FLength = 0;
+      this.FItems = [];
+    };
+    this.$final = function () {
+      this.FOnNotify = undefined;
+      this.FItems = undefined;
+      $mod.TEnumerable$G21.$final.call(this);
+    };
+    this.GetCapacity = function () {
+      var Result = 0;
+      Result = rtl.length(this.FItems);
+      return Result;
+    };
+    this.PrepareAddingItem = function () {
+      var Result = 0;
+      if (this.FLength === rtl.length(this.FItems)) this.FItems.push(null);
+      Result = this.FLength;
+      this.FLength += 1;
+      return Result;
+    };
+    this.PrepareAddingRange = function (ACount) {
+      var Result = 0;
+      var l = 0;
+      if (ACount < 0) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      if (ACount === 0) return this.FLength - 1;
+      for (var $l = rtl.length(this.FItems) + 1, $end = this.FLength + ACount; $l <= $end; $l++) {
+        l = $l;
+        this.FItems.push(null);
+      };
+      Result = this.FLength;
+      this.FLength += ACount;
+      return Result;
+    };
+    this.Notify = function (AValue, ACollectionNotification) {
+      if (this.FOnNotify != null) this.FOnNotify(this,AValue,ACollectionNotification);
+    };
+    this.DoRemove = function (AIndex, ACollectionNotification) {
+      var Result = null;
+      if ((AIndex < 0) || (AIndex >= this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      Result = this.FItems[AIndex];
+      this.FLength -= 1;
+      this.FItems[AIndex] = null;
+      this.FItems.splice(AIndex,1);
+      this.Notify(Result,ACollectionNotification);
+      return Result;
+    };
+    this.GetCount = function () {
+      var Result = 0;
+      Result = this.FLength;
+      return Result;
+    };
+  },"TCustomList<ComCtrls.TTreeNode>");
+  rtl.createClass(this,"TCustomListEnumerator$G12",this.TEnumerator$G22,function () {
+    this.$initSpec = function () {
+    };
+    this.$init = function () {
+      $mod.TEnumerator$G22.$init.call(this);
+      this.FList = null;
+      this.FIndex = 0;
+    };
+    this.$final = function () {
+      this.FList = undefined;
+      $mod.TEnumerator$G22.$final.call(this);
+    };
+    this.DoMoveNext = function () {
+      var Result = false;
+      this.FIndex += 1;
+      Result = (this.FList.FLength > 0) && (this.FIndex < this.FList.FLength);
+      return Result;
+    };
+    this.DoGetCurrent = function () {
+      var Result = null;
+      Result = this.GetCurrent();
+      return Result;
+    };
+    this.GetCurrent = function () {
+      var Result = null;
+      Result = this.FList.FItems[this.FIndex];
+      return Result;
+    };
+    this.Create$1 = function (AList) {
+      pas.System.TObject.Create.call(this);
+      this.FIndex = -1;
+      this.FList = AList;
+      return this;
+    };
+  },"TCustomListEnumerator<ComCtrls.TTreeNode>");
+  rtl.createClass(this,"TList$G7",this.TCustomList$G14,function () {
+    this.$initSpec = function () {
+      rtl.createClass(this,"TEnumerator",$mod.TCustomListEnumerator$G12,function () {
+      },"TList<ComCtrls.TTreeNode>.TEnumerator");
+    };
+    this.$init = function () {
+      $mod.TCustomList$G14.$init.call(this);
+      this.FComparer = null;
+    };
+    this.$final = function () {
+      rtl.setIntfP(this,"FComparer",null);
+      $mod.TCustomList$G14.$final.call(this);
+    };
+    this.SameValue = function (Left, Right) {
+      var Result = false;
+      if (this.FComparer != null) {
+        Result = this.FComparer.Compare(Left,Right) === 0}
+       else Result = Left === Right;
+      return Result;
+    };
+    this.SetCapacity = function (AValue) {
+      if (AValue < this.FLength) this.SetCount(AValue);
+      this.FItems = rtl.arraySetLength(this.FItems,null,AValue);
+    };
+    this.SetCount = function (AValue) {
+      if (AValue < 0) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      if (AValue > this.GetCapacity()) {
+        this.SetCapacity(AValue)}
+       else if (AValue < this.FLength) this.DeleteRange(AValue,this.FLength - AValue);
+      this.FLength = AValue;
+    };
+    this.InitializeList = function () {
+    };
+    this.InternalInsert = function (AIndex, AValue) {
+      if ((AIndex < 0) || (AIndex > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      this.FItems.splice(AIndex,0,AValue);
+      this.FLength += 1;
+      this.FItems[AIndex] = AValue;
+      this.Notify(AValue,$mod.TCollectionNotification.cnAdded);
+    };
+    this.DoGetEnumerator = function () {
+      var Result = null;
+      Result = this.GetEnumerator$1();
+      return Result;
+    };
+    this.GetItem = function (AIndex) {
+      var Result = null;
+      if ((AIndex < 0) || (AIndex >= this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      Result = this.FItems[AIndex];
+      return Result;
+    };
+    this.SetItem = function (AIndex, AValue) {
+      if ((AIndex < 0) || (AIndex >= this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      this.Notify(this.FItems[AIndex],$mod.TCollectionNotification.cnRemoved);
+      this.FItems[AIndex] = AValue;
+      this.Notify(AValue,$mod.TCollectionNotification.cnAdded);
+    };
+    this.GetEnumerator$1 = function () {
+      var Result = null;
+      Result = this.TEnumerator.$create("Create$1",[this]);
+      return Result;
+    };
+    this.Create$1 = function () {
+      this.InitializeList();
+      return this;
+    };
+    this.Create$2 = function (AComparer) {
+      this.InitializeList();
+      rtl.setIntfP(this,"FComparer",AComparer);
+      return this;
+    };
+    this.Create$3 = function (ACollection) {
+      var LItem = null;
+      this.Create$1();
+      var $in = ACollection.GetEnumerator();
+      try {
+        while ($in.MoveNext()) {
+          LItem = $in.DoGetCurrent();
+          this.Add(LItem);
+        }
+      } finally {
+        $in = rtl.freeLoc($in)
+      };
+      return this;
+    };
+    this.Destroy = function () {
+      this.SetCapacity(0);
+    };
+    this.Add = function (AValue) {
+      var Result = 0;
+      Result = this.PrepareAddingItem();
+      this.FItems[Result] = AValue;
+      this.Notify(AValue,$mod.TCollectionNotification.cnAdded);
+      return Result;
+    };
+    this.AddRange = function (AValues) {
+      this.InsertRange(this.FLength,AValues);
+    };
+    this.AddRange$1 = function (AEnumerable) {
+      var LValue = null;
+      var $in = AEnumerable.GetEnumerator();
+      try {
+        while ($in.MoveNext()) {
+          LValue = $in.GetCurrent();
+          this.Add(LValue);
+        }
+      } finally {
+        rtl._Release($in)
+      };
+    };
+    this.AddRange$2 = function (AEnumerable) {
+      var LValue = null;
+      var $in = AEnumerable.GetEnumerator();
+      try {
+        while ($in.MoveNext()) {
+          LValue = $in.DoGetCurrent();
+          this.Add(LValue);
+        }
+      } finally {
+        $in = rtl.freeLoc($in)
+      };
+    };
+    this.Insert = function (AIndex, AValue) {
+      if ((AIndex < 0) || (AIndex > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      this.InternalInsert(AIndex,AValue);
+    };
+    this.InsertRange = function (AIndex, AValues) {
+      var LLength = 0;
+      var i = 0;
+      var LValue = null;
+      if ((AIndex < 0) || (AIndex > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      LLength = rtl.length(AValues);
+      if (LLength === 0) return;
+      if (AIndex !== this.PrepareAddingRange(LLength)) {
+        for (var $l = AIndex, $end = this.FLength - LLength - 1; $l <= $end; $l++) {
+          i = $l;
+          this.FItems[i + LLength] = this.FItems[i];
+        };
+        for (var $l1 = 0, $end1 = LLength - 1; $l1 <= $end1; $l1++) {
+          i = $l1;
+          this.FItems[AIndex + i] = null;
+        };
+      };
+      for (var $l2 = 0, $end2 = LLength - 1; $l2 <= $end2; $l2++) {
+        i = $l2;
+        LValue = AValues[i];
+        this.FItems[i + AIndex] = LValue;
+        this.Notify(LValue,$mod.TCollectionNotification.cnAdded);
+      };
+    };
+    this.InsertRange$1 = function (AIndex, AEnumerable) {
+      var LValue = null;
+      var i = 0;
+      if ((AIndex < 0) || (AIndex > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      i = 0;
+      var $in = AEnumerable.GetEnumerator();
+      try {
+        while ($in.MoveNext()) {
+          LValue = $in.GetCurrent();
+          this.InternalInsert(AIndex + i,LValue);
+          i += 1;
+        }
+      } finally {
+        rtl._Release($in)
+      };
+    };
+    this.InsertRange$2 = function (AIndex, AEnumerable) {
+      var LValue = null;
+      var i = 0;
+      if ((AIndex < 0) || (AIndex > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      i = 0;
+      var $in = AEnumerable.GetEnumerator();
+      try {
+        while ($in.MoveNext()) {
+          LValue = $in.DoGetCurrent();
+          this.InternalInsert(AIndex + i,LValue);
+          i += 1;
+        }
+      } finally {
+        $in = rtl.freeLoc($in)
+      };
+    };
+    this.Remove = function (AValue) {
+      var Result = 0;
+      Result = this.IndexOf(AValue);
+      if (Result >= 0) this.DoRemove(Result,$mod.TCollectionNotification.cnRemoved);
+      return Result;
+    };
+    this.RemoveItem = function (AValue, Direction) {
+      var Result = 0;
+      if (Direction === $mod.TDirection.fromEnd) {
+        Result = this.LastIndexOf(AValue)}
+       else Result = this.IndexOf(AValue);
+      if (Result >= 0) this.DoRemove(Result,$mod.TCollectionNotification.cnRemoved);
+      return Result;
+    };
+    this.Delete = function (AIndex) {
+      this.DoRemove(AIndex,$mod.TCollectionNotification.cnRemoved);
+    };
+    this.DeleteRange = function (AIndex, ACount) {
+      var LDeleted = [];
+      var i = 0;
+      if (ACount === 0) return;
+      if ((ACount < 0) || (AIndex < 0) || ((AIndex + ACount) > this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      LDeleted = this.FItems.splice(AIndex,this.FLength);
+      this.FLength -= ACount;
+      for (var $l = 0, $end = rtl.length(LDeleted) - 1; $l <= $end; $l++) {
+        i = $l;
+        this.Notify(LDeleted[i],$mod.TCollectionNotification.cnRemoved);
+      };
+    };
+    this.ExtractIndex = function (AIndex) {
+      var Result = null;
+      Result = this.DoRemove(AIndex,$mod.TCollectionNotification.cnExtracted);
+      return Result;
+    };
+    this.Extract = function (AValue) {
+      var Result = null;
+      var LIndex = 0;
+      LIndex = this.IndexOf(AValue);
+      if (LIndex < 0) {
+        Result = null}
+       else Result = this.DoRemove(LIndex,$mod.TCollectionNotification.cnExtracted);
+      return Result;
+    };
+    this.Exchange = function (AIndex1, AIndex2) {
+      var LTemp = null;
+      LTemp = this.FItems[AIndex1];
+      this.FItems[AIndex1] = this.FItems[AIndex2];
+      this.FItems[AIndex2] = LTemp;
+    };
+    this.Move = function (AIndex, ANewIndex) {
+      var Arr = null;
+      var LTemp = undefined;
+      var i = 0;
+      if (ANewIndex === AIndex) return;
+      if ((ANewIndex < 0) || (ANewIndex >= this.FLength)) throw pas.SysUtils.EArgumentOutOfRangeException.$create("Create$1",[rtl.getResStr(pas["Generics.Strings"],"SArgumentOutOfRange")]);
+      Arr = this.FItems;
+      LTemp = Arr[AIndex];
+      if (AIndex < ANewIndex) {
+        for (var $l = AIndex, $end = ANewIndex - 1; $l <= $end; $l++) {
+          i = $l;
+          Arr[i] = Arr[i + 1];
+        }}
+       else for (var $l1 = AIndex, $end1 = ANewIndex + 1; $l1 >= $end1; $l1--) {
+        i = $l1;
+        Arr[i] = Arr[i - 1];
+      };
+      Arr[ANewIndex] = LTemp;
+    };
+    this.First = function () {
+      var Result = null;
+      Result = this.GetItem(0);
+      return Result;
+    };
+    this.Last = function () {
+      var Result = null;
+      Result = this.GetItem(this.FLength - 1);
+      return Result;
+    };
+    this.Clear = function () {
+      this.SetCount(0);
+      this.SetCapacity(0);
+    };
+    this.Contains = function (AValue) {
+      var Result = false;
+      Result = this.IndexOf(AValue) >= 0;
+      return Result;
+    };
+    this.IndexOf = function (AValue) {
+      var Result = 0;
+      var i = 0;
+      for (var $l = 0, $end = this.FLength - 1; $l <= $end; $l++) {
+        i = $l;
+        if (this.SameValue(AValue,this.FItems[i])) return i;
+      };
+      Result = -1;
+      return Result;
+    };
+    this.LastIndexOf = function (AValue) {
+      var Result = 0;
+      var i = 0;
+      for (var $l = this.FLength - 1; $l >= 0; $l--) {
+        i = $l;
+        if (this.SameValue(AValue,this.FItems[i])) return i;
+      };
+      Result = -1;
+      return Result;
+    };
+    this.Reverse = function () {
+      var a = 0;
+      var b = 0;
+      var LTemp = null;
+      a = 0;
+      b = this.FLength - 1;
+      while (a < b) {
+        LTemp = this.FItems[a];
+        this.FItems[a] = this.FItems[b];
+        this.FItems[b] = LTemp;
+        a += 1;
+        b -= 1;
+      };
+    };
+    this.TrimExcess = function () {
+      this.SetCapacity(this.FLength);
+    };
+    this.Sort = function () {
+      $mod.TArrayHelper$G15.Sort$1({p: this, get: function () {
+          return this.p.FItems;
+        }, set: function (v) {
+          this.p.FItems = v;
+        }},this.FComparer,0,this.FLength);
+    };
+    this.Sort$1 = function (AComparer) {
+      $mod.TArrayHelper$G15.Sort$1({p: this, get: function () {
+          return this.p.FItems;
+        }, set: function (v) {
+          this.p.FItems = v;
+        }},AComparer,0,this.FLength);
+    };
+    this.BinarySearch = function (AItem, AIndex) {
+      var Result = false;
+      Result = $mod.TArrayHelper$G15.BinarySearch$1(this.FItems,AItem,AIndex,this.FComparer,0,this.FLength);
+      return Result;
+    };
+    this.BinarySearch$1 = function (AItem, AIndex, AComparer) {
+      var Result = false;
+      Result = $mod.TArrayHelper$G15.BinarySearch$1(this.FItems,AItem,AIndex,AComparer,0,this.FLength);
+      return Result;
+    };
+  },"TList<ComCtrls.TTreeNode>");
   $mod.$implcode = function () {
     $mod.$resourcestrings = {SErrDictKeyNotFound: {org: "Key value not found"}, SErrDictDuplicateKey: {org: "Duplicate key value"}};
   };
@@ -30260,9 +30875,10 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
     };
   };
 },["WCLStrConsts"]);
-rtl.module("ComCtrls",["System","Classes","SysUtils","Types","JS","Web","Graphics","Controls"],function () {
+rtl.module("ComCtrls",["System","Classes","SysUtils","Types","JS","Web","Graphics","Controls","Generics.Collections"],function () {
   "use strict";
   var $mod = this;
+  var $impl = $mod.$impl;
   this.$rtti.$Class("TCustomPageControl");
   this.TTabPosition = {"0": "tpTop", tpTop: 0, "1": "tpBottom", tpBottom: 1, "2": "tpLeft", tpLeft: 2, "3": "tpRight", tpRight: 3};
   this.$rtti.$Enum("TTabPosition",{minvalue: 0, maxvalue: 3, ordtype: 1, enumtype: this.TTabPosition});
@@ -30763,6 +31379,950 @@ rtl.module("ComCtrls",["System","Classes","SysUtils","Types","JS","Web","Graphic
     var $r = this.$rtti;
     $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
   });
+  this.$rtti.$Class("TTreeNodes");
+  this.$rtti.$Class("TTreeNode");
+  this.$rtti.$Class("TCustomTreeView");
+  this.$rtti.$MethodVar("TTreeViewExpandingEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Node",this.$rtti["TTreeNode"]],["AllowExpansion",rtl.boolean,1]]), methodkind: 0});
+  this.$rtti.$MethodVar("TTreeViewCollapsingEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Node",this.$rtti["TTreeNode"]],["AllowCollapse",rtl.boolean,1]]), methodkind: 0});
+  this.$rtti.$MethodVar("TTreeViewExpandedEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Node",this.$rtti["TTreeNode"]]]), methodkind: 0});
+  rtl.createClass(this,"TTreeNode",pas.Classes.TPersistent,function () {
+    this.$init = function () {
+      pas.Classes.TPersistent.$init.call(this);
+      this.FChildren = null;
+      this.FData = null;
+      this.FExpanded = false;
+      this.FImageUrl = "";
+      this.FNodes = null;
+      this.FParent = null;
+      this.FText = "";
+    };
+    this.$final = function () {
+      this.FChildren = undefined;
+      this.FData = undefined;
+      this.FNodes = undefined;
+      this.FParent = undefined;
+      pas.Classes.TPersistent.$final.call(this);
+    };
+    this.GetAbsoluteIndex = function () {
+      var Result = 0;
+      if (this.FNodes != null) {
+        Result = this.FNodes.IndexOf(this)}
+       else Result = -1;
+      return Result;
+    };
+    this.GetCount = function () {
+      var Result = 0;
+      Result = this.FChildren.FLength;
+      return Result;
+    };
+    this.GetExpanded = function () {
+      var Result = false;
+      Result = this.FExpanded;
+      return Result;
+    };
+    this.GetFirstChild = function () {
+      var Result = null;
+      if (this.FChildren.FLength > 0) {
+        Result = this.FChildren.GetItem(0)}
+       else Result = null;
+      return Result;
+    };
+    this.GetHasChildren = function () {
+      var Result = false;
+      Result = this.FChildren.FLength > 0;
+      return Result;
+    };
+    this.GetIndex = function () {
+      var Result = 0;
+      if (this.FParent != null) {
+        Result = this.FParent.FChildren.IndexOf(this)}
+       else if (this.FNodes != null) {
+        Result = this.FNodes.FRoots.IndexOf(this)}
+       else Result = -1;
+      return Result;
+    };
+    this.GetItem = function (AIndex) {
+      var Result = null;
+      if ((AIndex >= 0) && (AIndex < this.FChildren.FLength)) {
+        Result = this.FChildren.GetItem(AIndex)}
+       else Result = null;
+      return Result;
+    };
+    this.GetLastChild = function () {
+      var Result = null;
+      if (this.FChildren.FLength > 0) {
+        Result = this.FChildren.GetItem(this.FChildren.FLength - 1)}
+       else Result = null;
+      return Result;
+    };
+    this.GetLevel = function () {
+      var Result = 0;
+      var VNode = null;
+      Result = 0;
+      VNode = this.FParent;
+      while (VNode != null) {
+        Result += 1;
+        VNode = VNode.FParent;
+      };
+      return Result;
+    };
+    this.GetNext = function () {
+      var Result = null;
+      var VIndex = 0;
+      Result = null;
+      if (!(this.FNodes != null)) return Result;
+      VIndex = this.GetAbsoluteIndex();
+      if ((VIndex >= 0) && (VIndex < (this.FNodes.GetCount() - 1))) Result = this.FNodes.GetItem(VIndex + 1);
+      return Result;
+    };
+    this.GetNextSibling = function () {
+      var Result = null;
+      var VIndex = 0;
+      Result = null;
+      if (this.FParent != null) {
+        VIndex = this.FParent.FChildren.IndexOf(this);
+        if ((VIndex >= 0) && (VIndex < (this.FParent.FChildren.FLength - 1))) Result = this.FParent.FChildren.GetItem(VIndex + 1);
+      } else if (this.FNodes != null) {
+        VIndex = this.FNodes.FRoots.IndexOf(this);
+        if ((VIndex >= 0) && (VIndex < (this.FNodes.FRoots.FLength - 1))) Result = this.FNodes.FRoots.GetItem(VIndex + 1);
+      };
+      return Result;
+    };
+    this.GetPrev = function () {
+      var Result = null;
+      var VIndex = 0;
+      Result = null;
+      if (!(this.FNodes != null)) return Result;
+      VIndex = this.GetAbsoluteIndex();
+      if (VIndex > 0) Result = this.FNodes.GetItem(VIndex - 1);
+      return Result;
+    };
+    this.GetPrevSibling = function () {
+      var Result = null;
+      var VIndex = 0;
+      Result = null;
+      if (this.FParent != null) {
+        VIndex = this.FParent.FChildren.IndexOf(this);
+        if (VIndex > 0) Result = this.FParent.FChildren.GetItem(VIndex - 1);
+      } else if (this.FNodes != null) {
+        VIndex = this.FNodes.FRoots.IndexOf(this);
+        if (VIndex > 0) Result = this.FNodes.FRoots.GetItem(VIndex - 1);
+      };
+      return Result;
+    };
+    this.GetSelected = function () {
+      var Result = false;
+      Result = (this.FNodes != null) && (this.FNodes.FTree != null) && (this.FNodes.FTree.FSelected === this);
+      return Result;
+    };
+    this.SetExpanded = function (AValue) {
+      if (this.FExpanded === AValue) return;
+      if (AValue) {
+        this.Expand(false)}
+       else this.Collapse(false);
+    };
+    this.SetImageUrl = function (AValue) {
+      if (this.FImageUrl !== AValue) {
+        this.FImageUrl = AValue;
+        this.TreeChanged();
+      };
+    };
+    this.SetSelected = function (AValue) {
+      if (!(this.FNodes != null) || !(this.FNodes.FTree != null)) return;
+      if (AValue) {
+        this.FNodes.FTree.SetSelected(this)}
+       else if (this.FNodes.FTree.FSelected === this) this.FNodes.FTree.SetSelected(null);
+    };
+    this.SetText = function (AValue) {
+      if (this.FText !== AValue) {
+        this.FText = AValue;
+        this.TreeChanged();
+      };
+    };
+    this.TreeChanged = function () {
+      if ((this.FNodes != null) && (this.FNodes.FTree != null)) this.FNodes.FTree.Changed();
+    };
+    this.Create$1 = function (ANodes, AParent) {
+      pas.System.TObject.Create.call(this);
+      this.FChildren = pas["Generics.Collections"].TList$G7.$create("Create$1");
+      this.FData = null;
+      this.FExpanded = false;
+      this.FImageUrl = "";
+      this.FNodes = ANodes;
+      this.FParent = AParent;
+      this.FText = "";
+      return this;
+    };
+    this.Destroy = function () {
+      rtl.free(this,"FChildren");
+      this.FChildren = null;
+      pas.System.TObject.Destroy.call(this);
+    };
+    this.Collapse = function (ARecurse) {
+      var VIndex = 0;
+      var VTree = null;
+      if (!this.GetHasChildren()) return;
+      VTree = null;
+      if (this.FNodes != null) VTree = this.FNodes.FTree;
+      if (!this.FExpanded) {
+        if (ARecurse) for (var $l = 0, $end = this.FChildren.FLength - 1; $l <= $end; $l++) {
+          VIndex = $l;
+          this.FChildren.GetItem(VIndex).Collapse(true);
+        };
+        return;
+      };
+      if ((VTree != null) && !VTree.DoCollapsing(this)) return;
+      if (VTree != null) VTree.BeginUpdate();
+      try {
+        if (ARecurse) for (var $l1 = 0, $end1 = this.FChildren.FLength - 1; $l1 <= $end1; $l1++) {
+          VIndex = $l1;
+          this.FChildren.GetItem(VIndex).Collapse(true);
+        };
+        this.FExpanded = false;
+      } finally {
+        if (VTree != null) VTree.EndUpdate();
+      };
+      if (VTree != null) VTree.DoCollapsed(this);
+    };
+    this.Delete = function () {
+      if (this.FNodes != null) this.FNodes.Delete(this);
+    };
+    this.DeleteChildren = function () {
+      var VIndex = 0;
+      if (!(this.FNodes != null)) return;
+      for (var $l = this.FChildren.FLength - 1; $l >= 0; $l--) {
+        VIndex = $l;
+        this.FNodes.Delete(this.FChildren.GetItem(VIndex));
+      };
+    };
+    this.Expand = function (ARecurse) {
+      var VIndex = 0;
+      var VTree = null;
+      if (!this.GetHasChildren()) return;
+      VTree = null;
+      if (this.FNodes != null) VTree = this.FNodes.FTree;
+      if (this.FExpanded) {
+        if (ARecurse) for (var $l = 0, $end = this.FChildren.FLength - 1; $l <= $end; $l++) {
+          VIndex = $l;
+          this.FChildren.GetItem(VIndex).Expand(true);
+        };
+        return;
+      };
+      if ((VTree != null) && !VTree.DoExpanding(this)) return;
+      if (VTree != null) VTree.BeginUpdate();
+      try {
+        this.FExpanded = true;
+        if (ARecurse) for (var $l1 = 0, $end1 = this.FChildren.FLength - 1; $l1 <= $end1; $l1++) {
+          VIndex = $l1;
+          this.FChildren.GetItem(VIndex).Expand(true);
+        };
+      } finally {
+        if (VTree != null) VTree.EndUpdate();
+      };
+      if (VTree != null) VTree.DoExpanded(this);
+    };
+    this.MakeVisible = function () {
+      var VNode = null;
+      VNode = this.FParent;
+      while (VNode != null) {
+        VNode.FExpanded = true;
+        VNode = VNode.FParent;
+      };
+      if ((this.FNodes != null) && (this.FNodes.FTree != null)) {
+        this.FNodes.FTree.Changed();
+        this.FNodes.FTree.ScrollToNode(this);
+      };
+    };
+    this.ToggleExpanded = function () {
+      this.SetExpanded(!this.FExpanded);
+    };
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["ANodes",$mod.$rtti["TTreeNodes"]],["AParent",$r]]);
+  });
+  rtl.createClass(this,"TTreeNodes",pas.Classes.TPersistent,function () {
+    this.$init = function () {
+      pas.Classes.TPersistent.$init.call(this);
+      this.FAll = null;
+      this.FRoots = null;
+      this.FTree = null;
+    };
+    this.$final = function () {
+      this.FAll = undefined;
+      this.FRoots = undefined;
+      this.FTree = undefined;
+      pas.Classes.TPersistent.$final.call(this);
+    };
+    this.GetCount = function () {
+      var Result = 0;
+      Result = this.FAll.FLength;
+      return Result;
+    };
+    this.GetItem = function (AIndex) {
+      var Result = null;
+      if ((AIndex >= 0) && (AIndex < this.FAll.FLength)) {
+        Result = this.FAll.GetItem(AIndex)}
+       else Result = null;
+      return Result;
+    };
+    this.GetRoot = function (AIndex) {
+      var Result = null;
+      if ((AIndex >= 0) && (AIndex < this.FRoots.FLength)) {
+        Result = this.FRoots.GetItem(AIndex)}
+       else Result = null;
+      return Result;
+    };
+    this.GetRootCount = function () {
+      var Result = 0;
+      Result = this.FRoots.FLength;
+      return Result;
+    };
+    this.ReadData = function (Stream) {
+      if (Stream != null) Stream.SetPosition(Stream.GetSize());
+    };
+    this.WriteData = function (Stream) {
+    };
+    this.AddNode = function (AParent, AIndex, AText) {
+      var Result = null;
+      if (this.FTree != null) this.FTree.BeginUpdate();
+      try {
+        Result = $mod.TTreeNode.$create("Create$1",[this,AParent]);
+        Result.FText = AText;
+        this.FAll.Add(Result);
+        if (AParent != null) {
+          if ((AIndex < 0) || (AIndex > AParent.FChildren.FLength)) {
+            AParent.FChildren.Add(Result)}
+           else AParent.FChildren.Insert(AIndex,Result);
+        } else {
+          if ((AIndex < 0) || (AIndex > this.FRoots.FLength)) {
+            this.FRoots.Add(Result)}
+           else this.FRoots.Insert(AIndex,Result);
+        };
+      } finally {
+        if (this.FTree != null) this.FTree.EndUpdate();
+      };
+      return Result;
+    };
+    this.DefineProperties = function (Filer) {
+      pas.Classes.TPersistent.DefineProperties.call(this,Filer);
+      Filer.DefineBinaryProperty("Data",rtl.createCallback(this,"ReadData"),rtl.createCallback(this,"WriteData"),false);
+    };
+    this.RemoveSubtree = function (ANode) {
+      var VIndex = 0;
+      if (!(ANode != null)) return;
+      for (var $l = ANode.FChildren.FLength - 1; $l >= 0; $l--) {
+        VIndex = $l;
+        this.RemoveSubtree(ANode.FChildren.GetItem(VIndex));
+      };
+      if (ANode.FParent != null) {
+        ANode.FParent.FChildren.Remove(ANode)}
+       else this.FRoots.Remove(ANode);
+      this.FAll.Remove(ANode);
+      if ((this.FTree != null) && (this.FTree.FSelected === ANode)) this.FTree.FSelected = null;
+      ANode = rtl.freeLoc(ANode);
+    };
+    this.Create$1 = function (ATree) {
+      pas.System.TObject.Create.call(this);
+      this.FTree = ATree;
+      this.FAll = pas["Generics.Collections"].TList$G7.$create("Create$1");
+      this.FRoots = pas["Generics.Collections"].TList$G7.$create("Create$1");
+      return this;
+    };
+    this.Destroy = function () {
+      var VIndex = 0;
+      var VNode = null;
+      if (this.FAll != null) {
+        for (var $l = this.FAll.FLength - 1; $l >= 0; $l--) {
+          VIndex = $l;
+          VNode = this.FAll.GetItem(VIndex);
+          VNode = rtl.freeLoc(VNode);
+        };
+        rtl.free(this,"FAll");
+        this.FAll = null;
+      };
+      rtl.free(this,"FRoots");
+      this.FRoots = null;
+      pas.System.TObject.Destroy.call(this);
+    };
+    this.Add = function (AParent, AText) {
+      var Result = null;
+      if (AParent != null) {
+        Result = this.AddNode(AParent.FParent,-1,AText)}
+       else Result = this.AddNode(null,-1,AText);
+      return Result;
+    };
+    this.Add$1 = function (AText) {
+      var Result = null;
+      Result = this.AddNode(null,-1,AText);
+      return Result;
+    };
+    this.AddChild = function (AParent, AText) {
+      var Result = null;
+      Result = this.AddNode(AParent,-1,AText);
+      return Result;
+    };
+    this.Insert = function (AParent, AIndex, AText) {
+      var Result = null;
+      Result = this.AddNode(AParent,AIndex,AText);
+      return Result;
+    };
+    this.AlphaSort = function () {
+      var $Self = this;
+      var VTree = null;
+      function SortList(AList) {
+        var I = 0;
+        var J = 0;
+        var VTemp = null;
+        for (var $l = 0, $end = AList.FLength - 2; $l <= $end; $l++) {
+          I = $l;
+          for (var $l1 = I + 1, $end1 = AList.FLength - 1; $l1 <= $end1; $l1++) {
+            J = $l1;
+            if (pas.SysUtils.CompareText(AList.GetItem(I).FText,AList.GetItem(J).FText) > 0) {
+              VTemp = AList.GetItem(I);
+              AList.SetItem(I,AList.GetItem(J));
+              AList.SetItem(J,VTemp);
+            };
+          };
+        };
+        for (var $l2 = 0, $end2 = AList.FLength - 1; $l2 <= $end2; $l2++) {
+          I = $l2;
+          SortList(AList.GetItem(I).FChildren);
+        };
+      };
+      VTree = this.FTree;
+      if (VTree != null) VTree.BeginUpdate();
+      try {
+        SortList(this.FRoots);
+      } finally {
+        if (VTree != null) VTree.EndUpdate();
+      };
+    };
+    this.Clear = function () {
+      var VIndex = 0;
+      var VNode = null;
+      if (this.FTree != null) this.FTree.BeginUpdate();
+      try {
+        if (this.FTree != null) this.FTree.FSelected = null;
+        for (var $l = this.FAll.FLength - 1; $l >= 0; $l--) {
+          VIndex = $l;
+          VNode = this.FAll.GetItem(VIndex);
+          VNode = rtl.freeLoc(VNode);
+        };
+        this.FAll.Clear();
+        this.FRoots.Clear();
+      } finally {
+        if (this.FTree != null) this.FTree.EndUpdate();
+      };
+    };
+    this.Delete = function (ANode) {
+      if (!(ANode != null) || (this.FAll.IndexOf(ANode) < 0)) return;
+      if (this.FTree != null) this.FTree.BeginUpdate();
+      try {
+        this.RemoveSubtree(ANode);
+      } finally {
+        if (this.FTree != null) this.FTree.EndUpdate();
+      };
+    };
+    this.GetFirstNode = function () {
+      var Result = null;
+      if (this.FRoots.FLength > 0) {
+        Result = this.FRoots.GetItem(0)}
+       else Result = null;
+      return Result;
+    };
+    this.IndexOf = function (ANode) {
+      var Result = 0;
+      Result = this.FAll.IndexOf(ANode);
+      return Result;
+    };
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["ATree",$mod.$rtti["TCustomTreeView"]]]);
+  });
+  rtl.createClass(this,"TCustomTreeView",pas.Controls.TWinControl,function () {
+    this.$init = function () {
+      pas.Controls.TWinControl.$init.call(this);
+      this.FIndent = 0;
+      this.FItems = null;
+      this.FOnChange = null;
+      this.FOnCollapsed = null;
+      this.FOnCollapsing = null;
+      this.FOnExpanded = null;
+      this.FOnExpanding = null;
+      this.FRowHeight = 0;
+      this.FSelected = null;
+      this.FShowButtons = false;
+      this.FShowLines = false;
+      this.FShowRoot = false;
+    };
+    this.$final = function () {
+      this.FItems = undefined;
+      this.FOnChange = undefined;
+      this.FOnCollapsed = undefined;
+      this.FOnCollapsing = undefined;
+      this.FOnExpanded = undefined;
+      this.FOnExpanding = undefined;
+      this.FSelected = undefined;
+      pas.Controls.TWinControl.$final.call(this);
+    };
+    this.SetIndent = function (AValue) {
+      if (AValue < 0) AValue = 0;
+      if (this.FIndent !== AValue) {
+        this.FIndent = AValue;
+        this.Changed();
+      };
+    };
+    this.SetRowHeight = function (AValue) {
+      if (AValue < 0) AValue = 0;
+      if (this.FRowHeight !== AValue) {
+        this.FRowHeight = AValue;
+        this.Changed();
+      };
+    };
+    this.SetSelected = function (AValue) {
+      if (this.FSelected === AValue) return;
+      if ((AValue != null) && (AValue.FNodes !== this.FItems)) return;
+      this.FSelected = AValue;
+      this.Changed();
+      this.DoChange();
+    };
+    this.SetShowButtons = function (AValue) {
+      if (this.FShowButtons !== AValue) {
+        this.FShowButtons = AValue;
+        this.Changed();
+      };
+    };
+    this.SetShowLines = function (AValue) {
+      if (this.FShowLines !== AValue) {
+        this.FShowLines = AValue;
+        this.Changed();
+      };
+    };
+    this.SetShowRoot = function (AValue) {
+      if (this.FShowRoot !== AValue) {
+        this.FShowRoot = AValue;
+        this.Changed();
+      };
+    };
+    this.Changed = function () {
+      pas.Controls.TControl.Changed.call(this);
+      if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) this.RenderTree();
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("div");
+      return Result;
+    };
+    this.CollectVisible = function (AList) {
+      var $Self = this;
+      function AddNode(ANode) {
+        var I = 0;
+        if (!(ANode != null)) return;
+        AList.Add(ANode);
+        if (ANode.GetExpanded()) for (var $l = 0, $end = ANode.GetCount() - 1; $l <= $end; $l++) {
+          I = $l;
+          AddNode(ANode.GetItem(I));
+        };
+      };
+      var I = 0;
+      var J = 0;
+      var VRoot = null;
+      for (var $l = 0, $end = this.FItems.GetRootCount() - 1; $l <= $end; $l++) {
+        I = $l;
+        VRoot = this.FItems.GetRoot(I);
+        if (this.FShowRoot) {
+          AddNode(VRoot)}
+         else for (var $l1 = 0, $end1 = VRoot.GetCount() - 1; $l1 <= $end1; $l1++) {
+          J = $l1;
+          AddNode(VRoot.GetItem(J));
+        };
+      };
+    };
+    this.DoChange = function () {
+      if (this.FOnChange != null) this.FOnChange(this);
+    };
+    this.DoCollapsed = function (ANode) {
+      if (this.FOnCollapsed != null) this.FOnCollapsed(this,ANode);
+    };
+    this.DoCollapsing = function (ANode) {
+      var Result = false;
+      Result = true;
+      if (this.FOnCollapsing != null) this.FOnCollapsing(this,ANode,{get: function () {
+          return Result;
+        }, set: function (v) {
+          Result = v;
+        }});
+      return Result;
+    };
+    this.DoExpanded = function (ANode) {
+      if (this.FOnExpanded != null) this.FOnExpanded(this,ANode);
+    };
+    this.DoExpanding = function (ANode) {
+      var Result = false;
+      Result = true;
+      if (this.FOnExpanding != null) this.FOnExpanding(this,ANode,{get: function () {
+          return Result;
+        }, set: function (v) {
+          Result = v;
+        }});
+      return Result;
+    };
+    this.FindNodeElement = function (ANode) {
+      var Result = null;
+      Result = null;
+      if (!(ANode != null) || !(this.FHandleElement != null)) return Result;
+      Result = this.FHandleElement.querySelector('[data-wcl-node="' + pas.SysUtils.IntToStr(ANode.GetAbsoluteIndex()) + '"]');
+      return Result;
+    };
+    this.NodeFromEvent = function (AEvent) {
+      var Result = null;
+      var VElement = null;
+      var VIndex = 0;
+      Result = null;
+      if (!(AEvent != null)) return Result;
+      VElement = pas.Web.TJSEventHelper.GetCurrentTargetElement.call(AEvent);
+      if (!(VElement != null)) return Result;
+      if (!VElement.hasAttribute("data-wcl-node")) return Result;
+      VIndex = pas.SysUtils.StrToIntDef(VElement.getAttribute("data-wcl-node"),-1);
+      if ((VIndex >= 0) && (VIndex < this.FItems.GetCount())) Result = this.FItems.GetItem(VIndex);
+      return Result;
+    };
+    this.RenderNode = function (AUl, ANode) {
+      var VLi = null;
+      var VRow = null;
+      var VToggle = null;
+      var VIcon = null;
+      var VText = null;
+      var VChildUl = null;
+      var I = 0;
+      if (!(ANode != null)) return;
+      VLi = document.createElement("li");
+      VLi.classList.add("wcl-tree-node");
+      if (ANode.GetSelected()) VLi.classList.add("wcl-tree-selected");
+      VLi.setAttribute("data-wcl-node",pas.SysUtils.IntToStr(ANode.GetAbsoluteIndex()));
+      VRow = document.createElement("div");
+      VRow.classList.add("wcl-tree-row");
+      VRow.setAttribute("data-wcl-node",pas.SysUtils.IntToStr(ANode.GetAbsoluteIndex()));
+      if (this.FRowHeight > 0) VRow.style.setProperty("min-height",pas.SysUtils.IntToStr(this.FRowHeight) + "px");
+      VToggle = document.createElement("span");
+      VToggle.classList.add("wcl-tree-toggle");
+      VToggle.setAttribute("data-wcl-node",pas.SysUtils.IntToStr(ANode.GetAbsoluteIndex()));
+      if (this.FShowButtons && ANode.GetHasChildren()) {
+        if (ANode.GetExpanded()) {
+          VToggle.textContent = "▾"}
+         else VToggle.textContent = "▸";
+        VToggle.addEventListener("click",rtl.createCallback(this,"NodeToggleClick"));
+      };
+      VRow.appendChild(VToggle);
+      if (ANode.FImageUrl !== "") {
+        VIcon = document.createElement("img");
+        VIcon.classList.add("wcl-tree-icon");
+        VIcon.setAttribute("src",ANode.FImageUrl);
+        VIcon.setAttribute("alt","");
+        VRow.appendChild(VIcon);
+      };
+      VText = document.createElement("span");
+      VText.classList.add("wcl-tree-text");
+      VText.textContent = ANode.FText;
+      VRow.appendChild(VText);
+      VRow.addEventListener("click",rtl.createCallback(this,"NodeClick"));
+      VRow.addEventListener("dblclick",rtl.createCallback(this,"NodeDblClick"));
+      VLi.appendChild(VRow);
+      if (ANode.GetHasChildren() && ANode.GetExpanded()) {
+        VChildUl = document.createElement("ul");
+        VChildUl.classList.add("wcl-tree-children");
+        if (this.FIndent > 0) VChildUl.style.setProperty("padding-left",pas.SysUtils.IntToStr(this.FIndent) + "px");
+        for (var $l = 0, $end = ANode.GetCount() - 1; $l <= $end; $l++) {
+          I = $l;
+          this.RenderNode(VChildUl,ANode.GetItem(I));
+        };
+        VLi.appendChild(VChildUl);
+      };
+      AUl.appendChild(VLi);
+    };
+    this.RenderTree = function () {
+      var VRoot = null;
+      var VNode = null;
+      var I = 0;
+      var J = 0;
+      var VScrollTop = 0;
+      if (!(this.FItems != null) || !(this.FHandleElement != null)) return;
+      VScrollTop = this.FHandleElement.scrollTop;
+      this.FHandleElement.innerHTML = "";
+      this.FHandleElement.style.setProperty("overflow","auto");
+      this.FHandleElement.classList.add("wcl-tree");
+      if (this.FShowLines) {
+        this.FHandleElement.classList.add("wcl-tree-lines")}
+       else this.FHandleElement.classList.remove("wcl-tree-lines");
+      VRoot = document.createElement("ul");
+      VRoot.classList.add("wcl-tree-root");
+      for (var $l = 0, $end = this.FItems.GetRootCount() - 1; $l <= $end; $l++) {
+        I = $l;
+        VNode = this.FItems.GetRoot(I);
+        if (this.FShowRoot) {
+          this.RenderNode(VRoot,VNode)}
+         else for (var $l1 = 0, $end1 = VNode.GetCount() - 1; $l1 <= $end1; $l1++) {
+          J = $l1;
+          this.RenderNode(VRoot,VNode.GetItem(J));
+        };
+      };
+      this.FHandleElement.appendChild(VRoot);
+      this.FHandleElement.scrollTop = VScrollTop;
+    };
+    this.ScrollToNode = function (ANode) {
+      var VElement = null;
+      VElement = this.FindNodeElement(ANode);
+      if (VElement != null) VElement.scrollIntoView({ block: 'nearest' });
+    };
+    this.SelectNode = function (ANode, AFocus) {
+      if (!(ANode != null)) return;
+      if (this.FSelected !== ANode) this.SetSelected(ANode);
+      if (AFocus) this.ScrollToNode(ANode);
+    };
+    this.UpdateVisibleSelection = function (ADelta) {
+      var VList = null;
+      var VIndex = 0;
+      VList = pas["Generics.Collections"].TList$G7.$create("Create$1");
+      try {
+        this.CollectVisible(VList);
+        if (VList.FLength === 0) return;
+        if (this.FSelected != null) {
+          VIndex = VList.IndexOf(this.FSelected)}
+         else VIndex = -1;
+        if (VIndex < 0) {
+          if (ADelta >= 0) {
+            VIndex = 0}
+           else VIndex = VList.FLength - 1;
+        } else {
+          VIndex = VIndex + ADelta;
+          if (VIndex < 0) VIndex = 0;
+          if (VIndex > (VList.FLength - 1)) VIndex = VList.FLength - 1;
+        };
+        this.SelectNode(VList.GetItem(VIndex),true);
+      } finally {
+        VList = rtl.freeLoc(VList);
+      };
+    };
+    this.ExpandSelected = function () {
+      if (!(this.FSelected != null)) return;
+      if (this.FSelected.GetHasChildren()) {
+        if (!this.FSelected.GetExpanded()) {
+          this.FSelected.Expand(false)}
+         else this.SelectNode(this.FSelected.GetItem(0),true);
+      };
+    };
+    this.CollapseSelected = function () {
+      if (!(this.FSelected != null)) return;
+      if (this.FSelected.GetHasChildren() && this.FSelected.GetExpanded()) {
+        this.FSelected.Collapse(false)}
+       else if (this.FSelected.FParent != null) this.SelectNode(this.FSelected.FParent,true);
+    };
+    this.SelectFirst = function () {
+      var VList = null;
+      VList = pas["Generics.Collections"].TList$G7.$create("Create$1");
+      try {
+        this.CollectVisible(VList);
+        if (VList.FLength > 0) this.SelectNode(VList.GetItem(0),true);
+      } finally {
+        VList = rtl.freeLoc(VList);
+      };
+    };
+    this.SelectLast = function () {
+      var VList = null;
+      VList = pas["Generics.Collections"].TList$G7.$create("Create$1");
+      try {
+        this.CollectVisible(VList);
+        if (VList.FLength > 0) this.SelectNode(VList.GetItem(VList.FLength - 1),true);
+      } finally {
+        VList = rtl.freeLoc(VList);
+      };
+    };
+    this.NodeClick = function (AEvent) {
+      var Result = false;
+      var VNode = null;
+      Result = true;
+      VNode = this.NodeFromEvent(AEvent);
+      if (VNode != null) {
+        this.SetFocus();
+        this.SetSelected(VNode);
+      };
+      return Result;
+    };
+    this.NodeDblClick = function (AEvent) {
+      var Result = false;
+      var VNode = null;
+      AEvent.stopPropagation();
+      AEvent.preventDefault();
+      VNode = this.NodeFromEvent(AEvent);
+      if (VNode != null) {
+        this.SetFocus();
+        this.SetSelected(VNode);
+        if (VNode.GetHasChildren()) VNode.ToggleExpanded();
+      };
+      this.DblClick();
+      Result = true;
+      return Result;
+    };
+    this.NodeToggleClick = function (AEvent) {
+      var Result = false;
+      var VNode = null;
+      AEvent.stopPropagation();
+      AEvent.preventDefault();
+      VNode = this.NodeFromEvent(AEvent);
+      if ((VNode != null) && VNode.GetHasChildren()) {
+        this.SetFocus();
+        VNode.ToggleExpanded();
+      };
+      Result = true;
+      return Result;
+    };
+    this.CheckChildClassAllowed = function (AChildClass) {
+      var Result = false;
+      Result = false;
+      return Result;
+    };
+    this.KeyDown = function (Key, Shift) {
+      pas.Controls.TWinControl.KeyDown.call(this,Key,rtl.refSet(Shift));
+      var $tmp = Key.get();
+      if ($tmp === 38) {
+        this.UpdateVisibleSelection(-1);
+        Key.set(0);
+      } else if ($tmp === 40) {
+        this.UpdateVisibleSelection(1);
+        Key.set(0);
+      } else if ($tmp === 37) {
+        this.CollapseSelected();
+        Key.set(0);
+      } else if ($tmp === 39) {
+        this.ExpandSelected();
+        Key.set(0);
+      } else if ($tmp === 36) {
+        this.SelectFirst();
+        Key.set(0);
+      } else if ($tmp === 35) {
+        this.SelectLast();
+        Key.set(0);
+      } else if (($tmp === 13) || ($tmp === 32)) {
+        if (this.FSelected != null) this.FSelected.ToggleExpanded();
+        Key.set(0);
+      };
+    };
+    this.GetControlClassDefaultSize = function () {
+      var Result = pas.Types.TSize.$new();
+      Result.cx = 200;
+      Result.cy = 200;
+      return Result;
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      $impl._RegisterWCLTreeRules();
+      this.FItems = $mod.TTreeNodes.$create("Create$1",[this]);
+      this.FSelected = null;
+      this.FIndent = 18;
+      this.FRowHeight = 0;
+      this.FShowButtons = true;
+      this.FShowLines = true;
+      this.FShowRoot = true;
+      this.BeginUpdate();
+      try {
+        this.SetTabStop(true);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
+      } finally {
+        this.EndUpdate();
+      };
+      return this;
+    };
+    this.Destroy = function () {
+      this.FSelected = null;
+      rtl.free(this,"FItems");
+      this.FItems = null;
+      pas.Controls.TControl.Destroy.call(this);
+    };
+    this.AlphaSort = function () {
+      this.FItems.AlphaSort();
+    };
+    this.FullCollapse = function () {
+      var VIndex = 0;
+      this.BeginUpdate();
+      try {
+        for (var $l = 0, $end = this.FItems.GetCount() - 1; $l <= $end; $l++) {
+          VIndex = $l;
+          this.FItems.GetItem(VIndex).FExpanded = false;
+        };
+      } finally {
+        this.EndUpdate();
+      };
+    };
+    this.FullExpand = function () {
+      var VIndex = 0;
+      this.BeginUpdate();
+      try {
+        for (var $l = 0, $end = this.FItems.GetCount() - 1; $l <= $end; $l++) {
+          VIndex = $l;
+          if (this.FItems.GetItem(VIndex).GetHasChildren()) this.FItems.GetItem(VIndex).FExpanded = true;
+        };
+      } finally {
+        this.EndUpdate();
+      };
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+  });
+  rtl.createClass(this,"TTreeView",this.TCustomTreeView,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
+    $r.addProperty("Anchors",14,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors",{stored: "IsAnchorsStored", Default: rtl.createSet(pas.Controls.TAnchorKind.akLeft,pas.Controls.TAnchorKind.akTop)});
+    $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
+    $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
+    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
+    $r.addProperty("Font",2,pas.Graphics.$rtti["TFont"],"FFont","SetFont");
+    $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
+    $r.addProperty("HandleId",2,rtl.string,"FHandleId","SetHandleId");
+    $r.addProperty("Height",2,rtl.nativeint,"FHeight","SetHeight");
+    $r.addProperty("Indent",2,rtl.nativeint,"FIndent","SetIndent",{Default: 18});
+    $r.addProperty("Items",0,$mod.$rtti["TTreeNodes"],"FItems","");
+    $r.addProperty("Left",2,rtl.nativeint,"FLeft","SetLeft");
+    $r.addProperty("ParentFont",2,rtl.boolean,"FParentFont","SetParentFont");
+    $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
+    $r.addProperty("PopupMenu",2,pas.Controls.$rtti["TCustomPopupMenu"],"FPopupMenu","SetPopupMenu");
+    $r.addProperty("RowHeight",2,rtl.nativeint,"FRowHeight","SetRowHeight",{Default: 0});
+    $r.addProperty("ShowButtons",2,rtl.boolean,"FShowButtons","SetShowButtons",{Default: true});
+    $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
+    $r.addProperty("ShowLines",2,rtl.boolean,"FShowLines","SetShowLines",{Default: true});
+    $r.addProperty("ShowRoot",2,rtl.boolean,"FShowRoot","SetShowRoot",{Default: true});
+    $r.addProperty("TabOrder",2,rtl.nativeint,"FTabOrder","SetTabOrder");
+    $r.addProperty("TabStop",2,rtl.boolean,"FTabStop","SetTabStop");
+    $r.addProperty("Top",2,rtl.nativeint,"FTop","SetTop");
+    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
+    $r.addProperty("Width",2,rtl.nativeint,"FWidth","SetWidth");
+    $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
+    $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
+    $r.addProperty("OnCollapsed",0,$mod.$rtti["TTreeViewExpandedEvent"],"FOnCollapsed","FOnCollapsed");
+    $r.addProperty("OnCollapsing",0,$mod.$rtti["TTreeViewCollapsingEvent"],"FOnCollapsing","FOnCollapsing");
+    $r.addProperty("OnDblClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnDblClick","FOnDblClick");
+    $r.addProperty("OnEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnEnter","FOnEnter");
+    $r.addProperty("OnExit",0,pas.Classes.$rtti["TNotifyEvent"],"FOnExit","FOnExit");
+    $r.addProperty("OnExpanded",0,$mod.$rtti["TTreeViewExpandedEvent"],"FOnExpanded","FOnExpanded");
+    $r.addProperty("OnExpanding",0,$mod.$rtti["TTreeViewExpandingEvent"],"FOnExpanding","FOnExpanding");
+    $r.addProperty("OnKeyDown",0,pas.Controls.$rtti["TKeyEvent"],"FOnKeyDown","FOnKeyDown");
+    $r.addProperty("OnKeyPress",0,pas.Controls.$rtti["TKeyPressEvent"],"FOnKeyPress","FOnKeyPress");
+    $r.addProperty("OnKeyUp",0,pas.Controls.$rtti["TKeyEvent"],"FOnKeyUp","FOnKeyUp");
+    $r.addProperty("OnMouseDown",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseDown","FOnMouseDown");
+    $r.addProperty("OnMouseEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseEnter","FOnMouseEnter");
+    $r.addProperty("OnMouseLeave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseLeave","FOnMouseLeave");
+    $r.addProperty("OnMouseMove",0,pas.Controls.$rtti["TMouseMoveEvent"],"FOnMouseMove","FOnMouseMove");
+    $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
+    $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
+  });
+  $mod.$implcode = function () {
+    $impl._WCLTreeRulesRegistered = false;
+    $impl._RegisterWCLTreeRules = function () {
+      if ($impl._WCLTreeRulesRegistered) return;
+      pas.Controls.RegisterWCLStyle(".wcl-tree{" + "overflow:auto;" + "background:#fff;" + "border:1px solid #c9c3ba;" + "border-radius:4px;" + "box-sizing:border-box;" + "outline:none;" + "user-select:none;" + "-webkit-user-select:none;" + "-webkit-tap-highlight-color:transparent;}" + ".wcl-tree ul{" + "list-style:none;" + "margin:0;" + "padding:0;}" + ".wcl-tree-row{" + "display:flex;" + "align-items:center;" + "gap:4px;" + "min-height:24px;" + "padding:2px 6px;" + "cursor:pointer;" + "white-space:nowrap;" + "border-radius:3px;" + "color:#333;}" + "@media(hover:hover){" + ".wcl-tree-row:hover{background:#eef3fb;}" + "}" + ".wcl-tree-node.wcl-tree-selected>.wcl-tree-row{" + "background:#4A90D9;" + "color:#fff;}" + ".wcl-tree-toggle{" + "display:inline-flex;" + "align-items:center;" + "justify-content:center;" + "width:16px;" + "min-width:16px;" + "height:16px;" + "font-size:10px;" + "line-height:1;" + "color:#666;}" + ".wcl-tree-node.wcl-tree-selected>.wcl-tree-row .wcl-tree-toggle{" + "color:#fff;}" + ".wcl-tree-icon{" + "width:16px;" + "height:16px;" + "object-fit:contain;}" + ".wcl-tree-text{" + "overflow:hidden;" + "text-overflow:ellipsis;}" + ".wcl-tree.wcl-tree-lines ul.wcl-tree-children{" + "border-left:1px dotted #c9c3ba;" + "margin-left:7px;" + "padding-left:10px;}" + "@media(pointer:coarse){" + ".wcl-tree-row{min-height:36px;font-size:16px;}" + ".wcl-tree-toggle{width:20px;min-width:20px;height:20px;font-size:12px;}" + "}");
+      $impl._WCLTreeRulesRegistered = true;
+    };
+  };
 },["Forms"]);
 rtl.module("NumCtrls",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","Web"],function () {
   "use strict";
@@ -50961,6 +52521,9 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
     $r.addProperty("OnShowPage",0,pas.Classes.$rtti["TNotifyEvent"],"FOnShowPage","FOnShowPage");
   });
+  rtl.createClass(this,"TWTreeView",pas.ComCtrls.TTreeView,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+  });
   rtl.createClass(this,"TWGroupBox",pas.ExtCtrls.TCustomGroupBox,function () {
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;
@@ -54253,6 +55816,8 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FLayoutInfo = null;
       this.FLayoutLeft = null;
       this.FLayoutTop = null;
+      this.FTree = null;
+      this.FTreeInfo = null;
     };
     this.$final = function () {
       this.btnAggiornaApp = undefined;
@@ -54323,6 +55888,8 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FLayoutInfo = undefined;
       this.FLayoutLeft = undefined;
       this.FLayoutTop = undefined;
+      this.FTree = undefined;
+      this.FTreeInfo = undefined;
       pas.Forms.TWForm.$final.call(this);
     };
     this.btnAggiornaAppClick = function (Sender) {
@@ -54395,6 +55962,81 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
     };
     this.WTopBarUserClick = function (Sender) {
       this.WUserPannel.SetVisible(!this.WUserPannel.FVisible);
+    };
+    this.BuildTreeTab = function () {
+      var $Self = this;
+      var VSheet = null;
+      var VNode = null;
+      var VChild = null;
+      function AddButton(ACaption, ATop, AHandler) {
+        var Result = null;
+        Result = pas.WebCtrls.TWButton.$create("Create$1",[$Self]);
+        Result.SetParent(VSheet);
+        Result.SetBounds(392,ATop,140,31);
+        Result.SetText(ACaption);
+        Result.FOnClick = AHandler;
+        return Result;
+      };
+      VSheet = this.WPageControl1.AddTabSheet();
+      VSheet.SetText("Tree");
+      VSheet.SetBounds(0,0,this.WPageControl1.FWidth,this.WPageControl1.FHeight);
+      this.FTree = pas.WebCtrls.TWTreeView.$create("Create$1",[$Self]);
+      this.FTree.SetParent(VSheet);
+      this.FTree.SetBounds(16,16,360,300);
+      this.FTree.FOnChange = rtl.createCallback($Self,"TreeSelectionChanged");
+      VNode = this.FTree.FItems.Add$1("Documents");
+      VChild = this.FTree.FItems.AddChild(VNode,"Reports");
+      this.FTree.FItems.AddChild(VChild,"2025");
+      this.FTree.FItems.AddChild(VChild,"2026");
+      this.FTree.FItems.AddChild(VNode,"Letters");
+      VNode.SetExpanded(true);
+      VChild.SetExpanded(true);
+      VNode = this.FTree.FItems.Add$1("Images");
+      this.FTree.FItems.AddChild(VNode,"Vacation");
+      this.FTree.FItems.AddChild(VNode,"Screenshots");
+      VNode.SetExpanded(true);
+      VNode = this.FTree.FItems.Add$1("Music");
+      VChild = this.FTree.FItems.AddChild(VNode,"Albums");
+      this.FTree.FItems.AddChild(VChild,"Live");
+      this.FTree.FItems.AddChild(VChild,"Studio");
+      VNode = this.FTree.FItems.Add$1("Files");
+      VChild = this.FTree.FItems.AddChild(VNode,"readme.txt");
+      VChild.SetImageUrl("menu_new.png");
+      this.FTreeInfo = pas.WebCtrls.TWLabel.$create("Create$1",[$Self]);
+      this.FTreeInfo.SetParent(VSheet);
+      this.FTreeInfo.SetBounds(392,200,170,90);
+      this.FTreeInfo.SetText("Select a node.");
+      AddButton("Expand all",16,rtl.createCallback($Self,"TreeExpandAll"));
+      AddButton("Collapse all",54,rtl.createCallback($Self,"TreeCollapseAll"));
+      AddButton("Add child",92,rtl.createCallback($Self,"TreeAddChild"));
+      AddButton("Sort A-Z",130,rtl.createCallback($Self,"TreeSort"));
+      this.FTree.SetSelected(this.FTree.FItems.GetFirstNode());
+    };
+    this.TreeSelectionChanged = function (Sender) {
+      if (!(this.FTree != null) || !(this.FTreeInfo != null)) return;
+      if (this.FTree.FSelected != null) {
+        this.FTreeInfo.SetText("Selected: " + this.FTree.FSelected.FText + "\n" + "Level: " + pas.SysUtils.IntToStr(this.FTree.FSelected.GetLevel()) + "   Index: " + pas.SysUtils.IntToStr(this.FTree.FSelected.GetIndex()))}
+       else this.FTreeInfo.SetText("No selection");
+    };
+    this.TreeExpandAll = function (Sender) {
+      this.FTree.FullExpand();
+    };
+    this.TreeCollapseAll = function (Sender) {
+      this.FTree.FullCollapse();
+    };
+    this.TreeAddChild = function (Sender) {
+      var VParent = null;
+      var VNode = null;
+      VParent = this.FTree.FSelected;
+      if (VParent != null) {
+        VNode = this.FTree.FItems.AddChild(VParent,"New child " + pas.SysUtils.IntToStr(VParent.GetCount()));
+        VParent.SetExpanded(true);
+      } else VNode = this.FTree.FItems.Add$1("New root " + pas.SysUtils.IntToStr(this.FTree.FItems.GetRootCount() + 1));
+      this.FTree.SetSelected(VNode);
+      VNode.MakeVisible();
+    };
+    this.TreeSort = function (Sender) {
+      this.FTree.AlphaSort();
     };
     this.BuildGridModesTab = function () {
       var VSheet = null;
@@ -54979,6 +56621,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.BuildGridModesTab();
       this.BuildSplitterTab();
       this.BuildCanvasTab();
+      this.BuildTreeTab();
       this.SetupStringGrid();
       this.SetupMenu();
       this.SetupActions();
@@ -55102,6 +56745,18 @@ rtl.module("program",["System","Interfaces","Forms","Unit1","uLogin"],function (
     pas["Generics.Defaults"].IEnumerator$G8.$initSpec();
     pas["Generics.Defaults"].IEnumerable$G7.$initSpec();
     pas["Generics.Collections"].TList$G6.$initSpec();
+    pas["Generics.Collections"].TEnumerator$G22.$initSpec();
+    pas.System.$rtti["TArray<ComCtrls.TTreeNode>"].eltype = pas.ComCtrls.$rtti["TTreeNode"];
+    pas["Generics.Collections"].TEnumerable$G21.$initSpec();
+    pas["Generics.Collections"].$rtti["TCollectionNotifyEvent<ComCtrls.TTreeNode>"].init();
+    pas["Generics.Defaults"].IComparer$G22.$initSpec();
+    pas["Generics.Collections"].TCustomArrayHelper$G16.$initSpec();
+    pas["Generics.Collections"].TArrayHelper$G15.$initSpec();
+    pas["Generics.Collections"].TCustomList$G14.$initSpec();
+    pas["Generics.Collections"].TCustomListEnumerator$G12.$initSpec();
+    pas["Generics.Defaults"].IEnumerator$G9.$initSpec();
+    pas["Generics.Defaults"].IEnumerable$G8.$initSpec();
+    pas["Generics.Collections"].TList$G7.$initSpec();
   };
   $mod.$main = function () {
     pas.Forms.Application().Initialize();

@@ -544,6 +544,11 @@ type
     property OnShowPage;
   end;
 
+  { TWTreeView }
+
+  TWTreeView = class(TTreeView)
+  end;
+
   { TWGroupBox }
 
   TWGroupBox = class(TCustomGroupBox)

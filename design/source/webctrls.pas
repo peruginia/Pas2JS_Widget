@@ -806,6 +806,18 @@ type
     property HandleId: string read FHandleId write FHandleId;
   end;
 
+  { TWTreeView }
+
+  TWTreeView = class(TTreeView)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property Constraints;
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
   { TWGroupBox }
 
   TWGroupBox = class(TCustomGroupBox)
@@ -1316,6 +1328,7 @@ begin
     TWPanel,
     TWTimer,
     TWPageControl,
+    TWTreeView,
     TWFloatEdit,
     TWIntegerEdit,
     TWDateEditBox,

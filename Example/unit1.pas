@@ -95,6 +95,14 @@ type
     FLayoutInfo: TWLabel;
     FLayoutLeft: TWPanel;
     FLayoutTop: TWPanel;
+    FTree: TWTreeView;
+    FTreeInfo: TWLabel;
+    procedure BuildTreeTab;
+    procedure TreeSelectionChanged(Sender: TObject);
+    procedure TreeExpandAll(Sender: TObject);
+    procedure TreeCollapseAll(Sender: TObject);
+    procedure TreeAddChild(Sender: TObject);
+    procedure TreeSort(Sender: TObject);
     procedure BuildGridModesTab;
     procedure BuildGridPopup;
     procedure BuildSplitterTab;
@@ -196,6 +204,7 @@ begin
   BuildGridModesTab;
   BuildSplitterTab;
   BuildCanvasTab;
+  BuildTreeTab;
   SetupStringGrid;
   SetupMenu;
   SetupActions;
@@ -832,6 +841,112 @@ begin
   AddShape(stEllipse, 'Ellipse', clAqua);
   AddShape(stTriangle, 'Triangle', clFuchsia);
   AddShape(stSquaredTriangle, 'SquaredTri', clLime);
+end;
+
+{ --- TTreeView demo: folders built in code, selection and expand/collapse --- }
+
+procedure TWForm1.BuildTreeTab;
+var
+  VSheet: TCustomTabSheet;
+  VNode, VChild: TTreeNode;
+
+  function AddButton(const ACaption: string; ATop: NativeInt;
+    AHandler: TNotifyEvent): TWButton;
+  begin
+    Result := TWButton.Create(Self);
+    Result.Parent := VSheet;
+    Result.SetBounds(392, ATop, 140, 31);
+    Result.Caption := ACaption;
+    Result.OnClick := AHandler;
+  end;
+
+begin
+  VSheet := WPageControl1.AddTabSheet;
+  VSheet.Caption := 'Tree';
+  VSheet.SetBounds(0, 0, WPageControl1.Width, WPageControl1.Height);
+
+  FTree := TWTreeView.Create(Self);
+  FTree.Parent := VSheet;
+  FTree.SetBounds(16, 16, 360, 300);
+  FTree.OnChange := @TreeSelectionChanged;
+
+  VNode := FTree.Items.Add('Documents');
+  VChild := FTree.Items.AddChild(VNode, 'Reports');
+  FTree.Items.AddChild(VChild, '2025');
+  FTree.Items.AddChild(VChild, '2026');
+  FTree.Items.AddChild(VNode, 'Letters');
+  VNode.Expanded := True;
+  VChild.Expanded := True;
+
+  VNode := FTree.Items.Add('Images');
+  FTree.Items.AddChild(VNode, 'Vacation');
+  FTree.Items.AddChild(VNode, 'Screenshots');
+  VNode.Expanded := True;
+
+  VNode := FTree.Items.Add('Music');
+  VChild := FTree.Items.AddChild(VNode, 'Albums');
+  FTree.Items.AddChild(VChild, 'Live');
+  FTree.Items.AddChild(VChild, 'Studio');
+
+  /// ImageUrl accepts any URL; here one of the demo images.
+  VNode := FTree.Items.Add('Files');
+  VChild := FTree.Items.AddChild(VNode, 'readme.txt');
+  VChild.ImageUrl := 'menu_new.png';
+
+  FTreeInfo := TWLabel.Create(Self);
+  FTreeInfo.Parent := VSheet;
+  FTreeInfo.SetBounds(392, 200, 170, 90);
+  FTreeInfo.Caption := 'Select a node.';
+
+  AddButton('Expand all', 16, @TreeExpandAll);
+  AddButton('Collapse all', 54, @TreeCollapseAll);
+  AddButton('Add child', 92, @TreeAddChild);
+  AddButton('Sort A-Z', 130, @TreeSort);
+
+  FTree.Selected := FTree.Items.GetFirstNode;
+end;
+
+procedure TWForm1.TreeSelectionChanged(Sender: TObject);
+begin
+  if (not Assigned(FTree)) or (not Assigned(FTreeInfo)) then
+    Exit;
+  if Assigned(FTree.Selected) then
+    FTreeInfo.Caption := 'Selected: ' + FTree.Selected.Text + #10 +
+      'Level: ' + IntToStr(FTree.Selected.Level) + '   Index: ' +
+      IntToStr(FTree.Selected.Index)
+  else
+    FTreeInfo.Caption := 'No selection';
+end;
+
+procedure TWForm1.TreeExpandAll(Sender: TObject);
+begin
+  FTree.FullExpand;
+end;
+
+procedure TWForm1.TreeCollapseAll(Sender: TObject);
+begin
+  FTree.FullCollapse;
+end;
+
+procedure TWForm1.TreeAddChild(Sender: TObject);
+var
+  VParent, VNode: TTreeNode;
+begin
+  VParent := FTree.Selected;
+  if Assigned(VParent) then
+  begin
+    VNode := FTree.Items.AddChild(VParent, 'New child ' + IntToStr(VParent.Count));
+    VParent.Expanded := True;
+  end
+  else
+    VNode := FTree.Items.Add('New root ' + IntToStr(FTree.Items.RootCount + 1));
+  FTree.Selected := VNode;
+  VNode.MakeVisible;
+end;
+
+procedure TWForm1.TreeSort(Sender: TObject);
+begin
+  FTree.AlphaSort;
 end;
 
 { --- TStringGrid demo: inline editing, events and keyboard navigation --- }

@@ -35,10 +35,16 @@ registered for the reader).
 
 ## 4. TTreeView and TListView
 
-The two data controls still missing. `TTreeView` (nested `<ul>`/`<li>` with
-expand/collapse, selection, `OnChange`, `OnExpanding`) and `TListView` (columns,
-`ViewStyle` vs/icons/details, selection, `OnSelectItem`). Both should reuse the
-existing CSS theme and support touch scrolling.
+`TTreeView` is done: `TTreeNode`/`TTreeNodes` and `TCustomTreeView` live in
+`widgets/comctrls.pas` (published as `TWTreeView`), rendering nested
+`<ul>`/`<li>` rows with selection, expand/collapse, keyboard navigation,
+`ShowLines`/`ShowRoot`/`ShowButtons`, `Indent`/`RowHeight`, `FullExpand`/
+`FullCollapse`, `AlphaSort` and the LCL events. Nodes are built in code; the
+binary `Items.Data` saved by the IDE tree editor is accepted and ignored.
+
+`TListView` is still missing (columns, `ViewStyle` vs/icons/details, selection,
+`OnSelectItem`). It should reuse the existing CSS theme and support touch
+scrolling.
 
 ## 5. Drag and drop between controls
 
