@@ -189,6 +189,7 @@ type
     FStopOnException: boolean;
     FTerminated: boolean;
     FTitle: string;
+    FViewportFit: Boolean;
     FViewportMode: TViewportMode;
     FOnResize: TNotifyEvent;
     FOnUnload: TNotifyEvent;
@@ -234,6 +235,7 @@ type
     property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor;
     property DesignWidth: Integer read FDesignWidth write FDesignWidth default 0;
     property ViewportMode: TViewportMode read FViewportMode write FViewportMode default vmResponsive;
+    property ViewportFit: Boolean read FViewportFit write FViewportFit default False;
     property StopOnException: boolean read FStopOnException write FStopOnException;
     property Terminated: boolean read FTerminated;
     property Title: string read GetTitle write SetTitle;
@@ -331,6 +333,10 @@ type
 
   TScreen = class(TComponent)
   private
+    FSafeAreaBottom: Integer;
+    FSafeAreaLeft: Integer;
+    FSafeAreaRight: Integer;
+    FSafeAreaTop: Integer;
     function GetClientHeight: Integer;
     function GetClientWidth: Integer;
     function GetHeight: Integer;
@@ -341,6 +347,8 @@ type
     function GetWorkAreaHeight: Integer;
     function GetWorkAreaWidth: Integer;
   public
+    /// Measures env(safe-area-inset-*) once; called on show and resize.
+    procedure UpdateSafeArea;
     property ClientHeight: Integer read GetClientHeight;
     property ClientWidth: Integer read GetClientWidth;
     property Height: Integer read GetHeight;
@@ -349,6 +357,10 @@ type
     /// True when the physical screen is phone-sized (<= 600 CSS px).
     property IsMobile: Boolean read GetIsMobile;
     property PixelsPerInch: Integer read GetPixelsPerInch;
+    property SafeAreaBottom: Integer read FSafeAreaBottom;
+    property SafeAreaLeft: Integer read FSafeAreaLeft;
+    property SafeAreaRight: Integer read FSafeAreaRight;
+    property SafeAreaTop: Integer read FSafeAreaTop;
     property Width: Integer read GetWidth;
     property WorkAreaHeight: Integer read GetWorkAreaHeight;
     property WorkAreaWidth: Integer read GetWorkAreaWidth;
@@ -441,6 +453,33 @@ end;
 function TScreen.GetWorkAreaWidth: Integer;
 begin
   asm Result = window.screen.availWidth; end;
+end;
+
+procedure TScreen.UpdateSafeArea;
+begin
+  /// A hidden probe with env() paddings: getComputedStyle resolves the
+  /// CSS environment variables to pixels (0 when unsupported).
+  asm
+    var probe = document.createElement('div');
+    probe.style.position = 'fixed';
+    probe.style.top = '0';
+    probe.style.left = '0';
+    probe.style.width = '0';
+    probe.style.height = '0';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+    probe.style.paddingTop = 'env(safe-area-inset-top, 0px)';
+    probe.style.paddingRight = 'env(safe-area-inset-right, 0px)';
+    probe.style.paddingBottom = 'env(safe-area-inset-bottom, 0px)';
+    probe.style.paddingLeft = 'env(safe-area-inset-left, 0px)';
+    document.body.appendChild(probe);
+    var cs = window.getComputedStyle(probe);
+    this.FSafeAreaTop = Math.round(parseFloat(cs.paddingTop) || 0);
+    this.FSafeAreaRight = Math.round(parseFloat(cs.paddingRight) || 0);
+    this.FSafeAreaBottom = Math.round(parseFloat(cs.paddingBottom) || 0);
+    this.FSafeAreaLeft = Math.round(parseFloat(cs.paddingLeft) || 0);
+    document.body.removeChild(probe);
+  end;
 end;
 
 type
@@ -985,21 +1024,36 @@ var
   VWidth: NativeInt;
   VWindowHeight: NativeInt;
   VWindowWidth: NativeInt;
+  VSafeLeft, VSafeTop, VSafeRight, VSafeBottom: NativeInt;
 begin
+  /// Refresh the notch insets before laying the form out.
+  Screen.UpdateSafeArea;
   VWindowWidth := Window.InnerWidth;
   VWindowHeight := Window.InnerHeight;
+  VSafeLeft := Screen.SafeAreaLeft;
+  VSafeTop := Screen.SafeAreaTop;
+  VSafeRight := Screen.SafeAreaRight;
+  VSafeBottom := Screen.SafeAreaBottom;
   case FFormType of
     ftModalForm:
     begin
       VWidth := Width;
       VHeight := Height;
-      VLeft := (VWindowWidth - VWidth) div 2;
-      VTop := (VWindowHeight - VHeight) div 2;
+      VLeft := VSafeLeft + ((VWindowWidth - VSafeLeft - VSafeRight) - VWidth) div 2;
+      VTop := VSafeTop + ((VWindowHeight - VSafeTop - VSafeBottom) - VHeight) div 2;
       SetBounds(VLeft, VTop, VWidth, VHeight);
     end;
     ftWindow:
     begin
-      SetBounds(0, 0, VWindowWidth, VWindowHeight);
+      VLeft := VSafeLeft;
+      VTop := VSafeTop;
+      VWidth := VWindowWidth - VSafeLeft - VSafeRight;
+      VHeight := VWindowHeight - VSafeTop - VSafeBottom;
+      if VWidth < 0 then
+        VWidth := 0;
+      if VHeight < 0 then
+        VHeight := 0;
+      SetBounds(VLeft, VTop, VWidth, VHeight);
     end;
   end;
   DoResize;
@@ -1139,7 +1193,8 @@ var
     asm
       var parts = (AOld || '').split(',').map(function(s) { return s.trim(); })
         .filter(function(s) {
-          return s && s.indexOf('width=') !== 0 && s.indexOf('initial-scale=') !== 0;
+          return s && s.indexOf('width=') !== 0 && s.indexOf('initial-scale=') !== 0 &&
+            s.indexOf('viewport-fit=') !== 0;
         });
       if (parts.length) Result = ABase + ', ' + parts.join(', ');
     end;
@@ -1154,6 +1209,8 @@ begin
     VContent := 'width=' + IntToStr(VWidth) + ', initial-scale=1'
   else
     VContent := 'width=device-width, initial-scale=1';
+  if FViewportFit then
+    VContent := VContent + ', viewport-fit=cover';
 
   VMeta := TJSHTMLElement(Document.QuerySelector('meta[name="viewport"]'));
   if not Assigned(VMeta) then
@@ -1165,6 +1222,7 @@ begin
   else
     VContent := KeepExtra(VMeta.getAttribute('content'), VContent);
   VMeta.setAttribute('content', VContent);
+  Screen.UpdateSafeArea;
 end;
 
 procedure TApplication.ApplyBackground;
@@ -1289,6 +1347,7 @@ begin
   FStopOnException := True;
   FTerminated := False;
   FTitle := '';
+  FViewportFit := False;
   FViewportMode := vmResponsive;
 end;
 

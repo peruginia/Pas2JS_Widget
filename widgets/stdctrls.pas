@@ -688,7 +688,8 @@ begin
     /// Add new items
     for VIndex := 0 to (FItems.Count - 1) do
     begin
-      VValue := FItems.Names[VIndex];
+      /// Names[] would be empty without a '=' separator (pas2js TStrings).
+      VValue := FItems[VIndex];
       VOptionElement := TJSHTMLOptionElement(Document.CreateElement('option'));
       VOptionElement.Value := VValue;
       VOptionElement.Text := VValue;

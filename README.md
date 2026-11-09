@@ -4,6 +4,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 
 ### Live Demo
 🔗 [**peruginia.github.io/Pas2JS_Widget/project1.html**](https://peruginia.github.io/Pas2JS_Widget/project1.html) — all components demo (DataGrid with progressive loading, filtering, sorting)
+🔗 [**peruginia.github.io/Pas2JS_Widget/MobileDemo/mobile.html**](https://peruginia.github.io/Pas2JS_Widget/MobileDemo/mobile.html) — mobile/PWA demo (responsive layout, touch sizes, safe area, installable)
 
 ### Requirements
 - Lazarus 2.1+
@@ -264,9 +265,9 @@ The editor is an `<input>` placed inside the cell, so it scrolls with the grid a
 
 | Feature | Description |
 |---|---|
-| **Screen** | Global singleton: `Width`, `Height`, `PixelsPerInch`, `WorkArea`, `ClientWidth`/`ClientHeight` (browser window), `IsTouch`, `IsMobile` |
+| **Screen** | Global singleton: `Width`, `Height`, `PixelsPerInch`, `WorkArea`, `ClientWidth`/`ClientHeight` (browser window), `IsTouch`, `IsMobile`, `SafeAreaTop/Right/Bottom/Left` |
 | **Application** | App lifecycle: `Initialize`, `Run`, `Terminate`, `MainForm`, `ActiveForm`, `BackgroundColor` |
-| **Viewport** | `Application.ViewportMode` (`vmResponsive` / `vmFitDesign`), `DesignWidth`, `ApplyViewport` |
+| **Viewport** | `Application.ViewportMode` (`vmResponsive` / `vmFitDesign`), `DesignWidth`, `ViewportFit`, `ApplyViewport` |
 | **Constraints** | `MinWidth`/`MaxWidth`/`MinHeight`/`MaxHeight` on every control, enforced in `SetBounds` |
 | **Selection** | `SelStart`/`SelLength`/`SelText` on `TWEdit`/`TWMemo` (runtime only, as in LCL) |
 | **Theme** | Shared CSS via `RegisterWCLStyle` — `.wcl-btn`, `.wcl-input`, `.wcl-panel` classes with hover/active/focus |
@@ -284,11 +285,14 @@ The application owns the `<meta name="viewport">` tag. `Application.Run` writes 
 Application.ViewportMode := vmResponsive; // default: width=device-width
 Application.ViewportMode := vmFitDesign;  // width=DesignWidth: the browser scales the layout
 Application.DesignWidth := 1024;          // defaults to MainForm.Width when 0
+Application.ViewportFit := True;          // add viewport-fit=cover, safe area insets
 Application.ApplyViewport;                // re-apply after changing them at runtime
 ```
 
-* **`vmResponsive`** — the layout viewport matches the device. Media queries work; the app must reflow with `Align`/`Anchors`.
-* **`vmFitDesign`** — the layout viewport is `DesignWidth` and the browser scales the whole page to the screen. A fixed LCL layout stays reachable and proportional on a phone, with smaller text. Media queries on width do not fire in this mode, but touch queries (`pointer: coarse`) do.
+* **`vmResponsive`** - the layout viewport matches the device. Media queries work; the app must reflow with `Align`/`Anchors`.
+* **`vmFitDesign`** - the layout viewport is `DesignWidth` and the browser scales the whole page to the screen. A fixed LCL layout stays reachable and proportional on a phone, with smaller text. Media queries on width do not fire in this mode, but touch queries (`pointer: coarse`) do.
+
+`ViewportFit` adds `viewport-fit=cover`, so the page can use the whole screen including a notch. `Screen.UpdateSafeArea` measures `env(safe-area-inset-*)` into `Screen.SafeAreaTop/Right/Bottom/Left`; forms are automatically inset by those values (`ftWindow` fills the safe area, modal forms are centred inside it).
 
 For runtime decisions use `Screen`:
 
@@ -333,14 +337,33 @@ The `api.php` endpoint supports:
 
 > **GitHub Pages note:** the compiled `project1.js` is committed, so the demo can be served statically (see below). `api.php` needs a PHP server, so it is not executed by GitHub Pages — keep it on your own host and point **Load from URL** at it (`api.php` sends `Access-Control-Allow-Origin: *`, so cross-origin calls work). The **Grid Modes** tab needs no backend at all.
 
+### Mobile demo (`MobileDemo/`)
+
+A second, phone-first demo built entirely in code (a plain `TWForm`, no `.lfm`) to show the mobile side of the framework:
+
+* **Form** tab — labels, edits with `InputType` (`itEmail`, `itTel`, `itUrl`), memo, combo, checkbox and trackbar stacked with `Align := alTop` inside a `TWScrollBox`. No fixed coordinates.
+* **Data** tab — `TWDataGrid` in card mode (`ResponsiveMode := True`, `ResponsiveBreakpoint := 0`) with the filter box.
+* **Info** tab — live values of `Screen.ClientWidth/Height`, `IsTouch`, `IsMobile`, the safe-area insets and the viewport mode.
+* A **bottom navigation bar** switches pages (the page control tab strip is hidden with `ShowTabs := False`).
+
+The app enables `Application.ViewportFit := True`: the viewport gets `viewport-fit=cover` and forms are inset by `Screen.SafeArea*`, so controls stay clear of a notch. It is a PWA: `manifest.json` (standalone, theme colour, 192/512 icons) and `sw.js` cache the app shell. Install it from the browser's "Add to Home screen"; the service worker needs HTTPS or localhost.
+
+```bash
+pas2js -dPas2js -O- -Jeutf-8 "-Jirtl.js" -Jc -JRjs \
+  -FuC:/lazarus/pas2js/packages/rtl/src -Fuwidgets -FuMobileDemo \
+  -oMobileDemo/mobile.js MobileDemo/mobile.lpr
+```
+
+When the app assets change, bump `CACHE` in `sw.js` (`wcl-mobile-v2`, …) so installed clients fetch the new build.
+
 ### Hosting the demo on GitHub Pages
 
-The workflow `.github/workflows/pages.yml` publishes the `Example/` folder as-is:
+The workflow `.github/workflows/pages.yml` publishes `Example/` at the site root and copies `MobileDemo/` under `/MobileDemo/`:
 
 1. In the repository, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
-2. Push to `master` (any change under `Example/` triggers a deploy), or run the workflow manually.
+2. Push to `master` (any change under `Example/` or `MobileDemo/` triggers a deploy), or run the workflow manually.
 
-There is no build step in CI, so **`Example/project1.js` must be committed**. After changing the demo, recompile it and commit the result:
+There is no build step in CI, so **`Example/project1.js` and `MobileDemo/mobile.js` must be committed**. After changing a demo, recompile it and commit the result:
 
 ```bash
 pas2js -dPas2js -O- -Jeutf-8 -Jirtl.js -Jc -JRjs \

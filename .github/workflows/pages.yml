@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - 'Example/**'
+      - 'MobileDemo/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -30,14 +31,20 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      # The demo is published as-is: project1.js is committed, so no pas2js
-      # toolchain is needed here. api.php is shipped too but GitHub Pages
-      # does not execute PHP; host it elsewhere and point "Load from URL"
-      # at that server.
+      # The demos are published as-is: project1.js and mobile.js are committed,
+      # so no pas2js toolchain is needed here. api.php is shipped too but
+      # GitHub Pages does not execute PHP; host it elsewhere and point
+      # "Load from URL" at that server.
+      - name: Prepare site
+        run: |
+          mkdir -p site
+          cp -R Example/. site/
+          cp -R MobileDemo site/MobileDemo
+
       - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: Example
+          path: site
 
       - name: Deploy
         id: deployment

@@ -25078,17 +25078,32 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       var VWidth = 0;
       var VWindowHeight = 0;
       var VWindowWidth = 0;
+      var VSafeLeft = 0;
+      var VSafeTop = 0;
+      var VSafeRight = 0;
+      var VSafeBottom = 0;
+      $mod.Screen.UpdateSafeArea();
       VWindowWidth = window.innerWidth;
       VWindowHeight = window.innerHeight;
+      VSafeLeft = $mod.Screen.FSafeAreaLeft;
+      VSafeTop = $mod.Screen.FSafeAreaTop;
+      VSafeRight = $mod.Screen.FSafeAreaRight;
+      VSafeBottom = $mod.Screen.FSafeAreaBottom;
       var $tmp = this.FFormType;
       if ($tmp === $mod.TFormType.ftModalForm) {
         VWidth = this.FWidth;
         VHeight = this.FHeight;
-        VLeft = rtl.trunc((VWindowWidth - VWidth) / 2);
-        VTop = rtl.trunc((VWindowHeight - VHeight) / 2);
+        VLeft = VSafeLeft + rtl.trunc((VWindowWidth - VSafeLeft - VSafeRight - VWidth) / 2);
+        VTop = VSafeTop + rtl.trunc((VWindowHeight - VSafeTop - VSafeBottom - VHeight) / 2);
         this.SetBounds(VLeft,VTop,VWidth,VHeight);
       } else if ($tmp === $mod.TFormType.ftWindow) {
-        this.SetBounds(0,0,VWindowWidth,VWindowHeight);
+        VLeft = VSafeLeft;
+        VTop = VSafeTop;
+        VWidth = VWindowWidth - VSafeLeft - VSafeRight;
+        VHeight = VWindowHeight - VSafeTop - VSafeBottom;
+        if (VWidth < 0) VWidth = 0;
+        if (VHeight < 0) VHeight = 0;
+        this.SetBounds(VLeft,VTop,VWidth,VHeight);
       };
       this.DoResize();
     };
@@ -25148,6 +25163,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       this.FStopOnException = false;
       this.FTerminated = false;
       this.FTitle = "";
+      this.FViewportFit = false;
       this.FViewportMode = 0;
       this.FOnResize = null;
       this.FOnUnload = null;
@@ -25295,6 +25311,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       this.FStopOnException = true;
       this.FTerminated = false;
       this.FTitle = "";
+      this.FViewportFit = false;
       this.FViewportMode = $mod.TViewportMode.vmResponsive;
       return this;
     };
@@ -25353,7 +25370,8 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
         Result = ABase;
         var parts = (AOld || '').split(',').map(function(s) { return s.trim(); })
           .filter(function(s) {
-            return s && s.indexOf('width=') !== 0 && s.indexOf('initial-scale=') !== 0;
+            return s && s.indexOf('width=') !== 0 && s.indexOf('initial-scale=') !== 0 &&
+              s.indexOf('viewport-fit=') !== 0;
           });
         if (parts.length) Result = ABase + ', ' + parts.join(', ');
         return Result;
@@ -25363,6 +25381,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       if ((this.FViewportMode === $mod.TViewportMode.vmFitDesign) && (VWidth > 0)) {
         VContent = "width=" + pas.SysUtils.IntToStr(VWidth) + ", initial-scale=1"}
        else VContent = "width=device-width, initial-scale=1";
+      if (this.FViewportFit) VContent = VContent + ", viewport-fit=cover";
       VMeta = document.querySelector('meta[name="viewport"]');
       if (!(VMeta != null)) {
         VMeta = document.createElement("meta");
@@ -25370,6 +25389,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
         document.head.appendChild(VMeta);
       } else VContent = KeepExtra(VMeta.getAttribute("content"),VContent);
       VMeta.setAttribute("content",VContent);
+      $mod.Screen.UpdateSafeArea();
     };
     this.RegisterModule = function (AModule) {
       if (AModule != null) {
@@ -25479,6 +25499,13 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
   });
   this.$rtti.$ClassRef("TWFrameClass",{instancetype: this.$rtti["TWFrame"]});
   rtl.createClass(this,"TScreen",pas.Classes.TComponent,function () {
+    this.$init = function () {
+      pas.Classes.TComponent.$init.call(this);
+      this.FSafeAreaBottom = 0;
+      this.FSafeAreaLeft = 0;
+      this.FSafeAreaRight = 0;
+      this.FSafeAreaTop = 0;
+    };
     this.GetClientHeight = function () {
       var Result = 0;
       Result = window.innerHeight;
@@ -25525,6 +25552,27 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       var Result = 0;
       Result = window.screen.availWidth;
       return Result;
+    };
+    this.UpdateSafeArea = function () {
+      var probe = document.createElement('div');
+      probe.style.position = 'fixed';
+      probe.style.top = '0';
+      probe.style.left = '0';
+      probe.style.width = '0';
+      probe.style.height = '0';
+      probe.style.visibility = 'hidden';
+      probe.style.pointerEvents = 'none';
+      probe.style.paddingTop = 'env(safe-area-inset-top, 0px)';
+      probe.style.paddingRight = 'env(safe-area-inset-right, 0px)';
+      probe.style.paddingBottom = 'env(safe-area-inset-bottom, 0px)';
+      probe.style.paddingLeft = 'env(safe-area-inset-left, 0px)';
+      document.body.appendChild(probe);
+      var cs = window.getComputedStyle(probe);
+      this.FSafeAreaTop = Math.round(parseFloat(cs.paddingTop) || 0);
+      this.FSafeAreaRight = Math.round(parseFloat(cs.paddingRight) || 0);
+      this.FSafeAreaBottom = Math.round(parseFloat(cs.paddingBottom) || 0);
+      this.FSafeAreaLeft = Math.round(parseFloat(cs.paddingLeft) || 0);
+      document.body.removeChild(probe);
     };
     rtl.addIntf(this,pas.System.IUnknown);
   });
@@ -25683,7 +25731,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
         };
         for (var $l1 = 0, $end = this.FItems.GetCount() - 1; $l1 <= $end; $l1++) {
           VIndex = $l1;
-          VValue = this.FItems.GetName(VIndex);
+          VValue = this.FItems.Get(VIndex);
           VOptionElement = document.createElement("option");
           VOptionElement.value = VValue;
           VOptionElement.text = VValue;
@@ -29147,6 +29195,12 @@ rtl.module("ComCtrls",["System","Classes","SysUtils","Types","JS","Web","Graphic
       var VSumTabsWidth = 0;
       var VMaxTabWidth = 0;
       var VTabsCount = 0;
+      if (!this.FShowTabs) {
+        this.FTabContainerElement.innerHTML = "";
+        this.FTabContainerElement.style.setProperty("display","none");
+        return;
+      };
+      this.FTabContainerElement.style.setProperty("display","block");
       form = FindParentForm();
       VTabHeight = this.CalcTabHeight();
       VSumTabsWidth = this.CalcSumTabsWidth();

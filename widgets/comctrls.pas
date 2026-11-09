@@ -571,6 +571,13 @@ var
   VMaxTabWidth: NativeInt;
   VTabsCount: NativeInt;
 begin
+  if (not FShowTabs) then
+  begin
+    FTabContainerElement.InnerHTML := '';
+    FTabContainerElement.Style.SetProperty('display', 'none');
+    Exit;
+  end;
+  FTabContainerElement.Style.SetProperty('display', 'block');
   form := FindParentForm;
   VTabHeight := CalcTabHeight;
   VSumTabsWidth := CalcSumTabsWidth;
