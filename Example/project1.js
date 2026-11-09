@@ -25344,9 +25344,20 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       };
     };
     this.ApplyViewport = function () {
+      var $Self = this;
       var VMeta = null;
       var VContent = "";
       var VWidth = 0;
+      function KeepExtra(AOld, ABase) {
+        var Result = "";
+        Result = ABase;
+        var parts = (AOld || '').split(',').map(function(s) { return s.trim(); })
+          .filter(function(s) {
+            return s && s.indexOf('width=') !== 0 && s.indexOf('initial-scale=') !== 0;
+          });
+        if (parts.length) Result = ABase + ', ' + parts.join(', ');
+        return Result;
+      };
       VWidth = this.FDesignWidth;
       if ((VWidth <= 0) && (this.FMainForm != null)) VWidth = this.FMainForm.FWidth;
       if ((this.FViewportMode === $mod.TViewportMode.vmFitDesign) && (VWidth > 0)) {
@@ -25357,7 +25368,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
         VMeta = document.createElement("meta");
         VMeta.setAttribute("name","viewport");
         document.head.appendChild(VMeta);
-      };
+      } else VContent = KeepExtra(VMeta.getAttribute("content"),VContent);
       VMeta.setAttribute("content",VContent);
     };
     this.RegisterModule = function (AModule) {

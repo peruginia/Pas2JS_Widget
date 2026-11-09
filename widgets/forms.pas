@@ -1130,6 +1130,21 @@ var
   VMeta: TJSHTMLElement;
   VContent: string;
   VWidth: Integer;
+
+  /// Keeps directives the app may have set (viewport-fit, maximum-scale, ...)
+  /// while the framework owns width and initial-scale.
+  function KeepExtra(const AOld, ABase: string): string;
+  begin
+    Result := ABase;
+    asm
+      var parts = (AOld || '').split(',').map(function(s) { return s.trim(); })
+        .filter(function(s) {
+          return s && s.indexOf('width=') !== 0 && s.indexOf('initial-scale=') !== 0;
+        });
+      if (parts.length) Result = ABase + ', ' + parts.join(', ');
+    end;
+  end;
+
 begin
   VWidth := FDesignWidth;
   if (VWidth <= 0) and Assigned(FMainForm) then
@@ -1146,7 +1161,9 @@ begin
     VMeta := TJSHTMLElement(Document.CreateElement('meta'));
     VMeta.setAttribute('name', 'viewport');
     Document.Head.AppendChild(VMeta);
-  end;
+  end
+  else
+    VContent := KeepExtra(VMeta.getAttribute('content'), VContent);
   VMeta.setAttribute('content', VContent);
 end;
 

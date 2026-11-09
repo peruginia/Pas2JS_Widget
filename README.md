@@ -278,7 +278,7 @@ The editor is an `<input>` placed inside the cell, so it scrolls with the grid a
 
 ### Mobile and viewport
 
-The application owns the `<meta name="viewport">` tag. `Application.Run` writes it from `ViewportMode` and `DesignWidth`, so the app HTML does not need to declare it (an existing tag is updated).
+The application owns the `<meta name="viewport">` tag. `Application.Run` writes it from `ViewportMode` and `DesignWidth`, so the app HTML does not need to declare it. An existing tag is updated and any other directive it contains (for example `viewport-fit=cover`) is preserved.
 
 ```pascal
 Application.ViewportMode := vmResponsive; // default: width=device-width
