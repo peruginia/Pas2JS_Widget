@@ -51,7 +51,7 @@ type
     function GetValue: TDateTime;
     procedure SetValue(AValue: TDateTime);
   protected
-    function InputType: string; override;
+    function GetInputType: string; override;
   public
     property Value: TDateTime read GetValue write SetValue;
   end;
@@ -74,7 +74,7 @@ end;
 
 { TCustomDateTimePicker }
 
-function TCustomDateTimePicker.InputType: string;
+function TCustomDateTimePicker.GetInputType: string;
 begin
   Result := 'datetime-local';
 end;

@@ -40,6 +40,9 @@ uses
 type
   TEditCharCase = (ecNormal, ecUppercase, ecLowerCase);
 
+  /// HTML input type for TWEdit; selects the mobile keyboard and validation.
+  TEditInputType = (itText, itEmail, itTel, itUrl, itSearch);
+
   TScrollStyle = (ssNone, ssHorizontal, ssVertical, ssBoth,
     ssAutoHorizontal, ssAutoVertical, ssAutoBoth);
 
@@ -153,6 +156,7 @@ type
     FAlignment: TAlignment;
     FAutocomplete: string;
     FCharCase: TEditCharCase;
+    FInputType: TEditInputType;
     FMaxLength: NativeInt;
     FModified: boolean;
     FPasswordChar: char;
@@ -170,6 +174,7 @@ type
     procedure SetAlignment(AValue: TAlignment);
     procedure SetAutocomplete(const AValue: string);
     procedure SetCharCase(AValue: TEditCharCase);
+    procedure SetInputType(AValue: TEditInputType);
     procedure SetMaxLength(AValue: NativeInt);
     procedure SetModified(AValue: boolean);
     procedure SetPasswordChar(AValue: char);
@@ -194,7 +199,7 @@ type
     function CheckChildClassAllowed(AChildClass: TClass): boolean; override;
     function RealGetText: string; override;
     procedure RealSetText(const AValue: string); override;
-    function InputType: string; virtual;
+    function GetInputType: string; virtual;
   protected
     class function GetControlClassDefaultSize: TSize; override;
   public
@@ -207,6 +212,8 @@ type
     /// Empty removes the attribute and leaves the browser default.
     property Autocomplete: string read FAutocomplete write SetAutocomplete;
     property CharCase: TEditCharCase read FCharCase write SetCharCase;
+    /// HTML input type: text, email, tel, url or search.
+    property InputType: TEditInputType read FInputType write SetInputType;
     property MaxLength: NativeInt read FMaxLength write SetMaxLength;
     property Modified: boolean read FModified write SetModified;
     property PasswordChar: char read FPasswordChar write SetPasswordChar;
@@ -1167,6 +1174,15 @@ begin
   end;
 end;
 
+procedure TCustomEdit.SetInputType(AValue: TEditInputType);
+begin
+  if (FInputType <> AValue) then
+  begin
+    FInputType := AValue;
+    Changed;
+  end;
+end;
+
 procedure TCustomEdit.SetMaxLength(AValue: NativeInt);
 begin
   if (FMaxLength <> AValue) then
@@ -1360,17 +1376,17 @@ begin
          /// Required
          Required := FRequired;
          /// Selection
-         case InputType of
+         case GetInputType of
             'text',
             'search',
-            'URL',
+            'url',
             'tel',
             'password': begin
                SetSelectionRange(FSelStart, FSelStart + FSelLength);
             end;
          end;
          /// Type
-         _Type := InputType;
+         _Type := GetInputType;
          /// Text
          Value := RealGetText;
          /// Autocomplete: empty means "no hint", i.e. the browser default.
@@ -1424,9 +1440,18 @@ begin
   Changed;
 end;
 
-function TCustomEdit.InputType: string;
+function TCustomEdit.GetInputType: string;
 begin
-  Result := IfThen((FPasswordChar <> #0), 'password', 'text');
+  if (FPasswordChar <> #0) then
+    Result := 'password'
+  else
+    case FInputType of
+      itEmail: Result := 'email';
+      itTel: Result := 'tel';
+      itUrl: Result := 'url';
+      itSearch: Result := 'search';
+      else Result := 'text';
+    end;
 end;
 
 class function TCustomEdit.GetControlClassDefaultSize: TSize;
@@ -1439,6 +1464,7 @@ constructor TCustomEdit.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FAutocomplete := '';
+  FInputType := itText;
   FMaxLength := 0;
   FModified := False;
   FPasswordChar := #0;

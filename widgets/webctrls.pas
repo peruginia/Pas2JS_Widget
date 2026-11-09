@@ -165,6 +165,7 @@ type
     property Font;
     property HandleClass;
     property HandleId;
+    property InputType;
     property MaxLength;
     property ParentColor;
     property ParentFont;
@@ -804,6 +805,7 @@ type
     function GetValue: double;
     procedure SetValue(AValue: double);
   protected
+    function GetInputMode: string; override;
     procedure RealSetText(const AValue: string); override;
   published
     property Align;
@@ -944,7 +946,7 @@ type
     function GetValue: TDate;
     procedure SetValue(AValue: TDate);
   protected
-    function InputType: string; override;
+    function GetInputType: string; override;
     procedure RealSetText(const AValue: string); override;
   published
     property Align;
@@ -994,7 +996,7 @@ type
     function GetValue: TTime;
     procedure SetValue(AValue: TTime);
   protected
-    function InputType: string; override;
+    function GetInputType: string; override;
     procedure RealSetText(const AValue: string); override;
   published
     property Align;
@@ -1229,6 +1231,11 @@ implementation
 
 { TWFloatEdit }
 
+function TWFloatEdit.GetInputMode: string;
+begin
+  Result := 'decimal';
+end;
+
 function TWFloatEdit.GetValue: double;
 begin
   Result := StrToFloatDef(RealGetText, 0);
@@ -1284,7 +1291,7 @@ begin
   RealSetText(DateToStr(AValue));
 end;
 
-function TWDateEditBox.InputType: string;
+function TWDateEditBox.GetInputType: string;
 begin
   Result := 'date';
 end;
@@ -1306,7 +1313,7 @@ begin
   RealSetText(TimeToStr(AValue));
 end;
 
-function TWTimeEditBox.InputType: string;
+function TWTimeEditBox.GetInputType: string;
 begin
   Result := 'time';
 end;

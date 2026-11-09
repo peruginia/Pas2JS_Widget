@@ -22,7 +22,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | Component | HTML element | Description |
 |---|---|---|
 | **TWButton** | `<button>` | Push button with hover/active/disabled CSS, `ModalResult` |
-| **TWEdit** | `<input type="text">` | Single-line text input with `TextHint`, `Autocomplete`, `SelStart`/`SelLength` |
+| **TWEdit** | `<input type="text">` | Single-line text input with `TextHint`, `Autocomplete`, `InputType` (`itEmail`/`itTel`/`itUrl`/`itSearch`), `SelStart`/`SelLength` |
 | **TWMemo** | `<textarea>` | Multi-line text input |
 | **TWComboBox** | `<select>` | Dropdown selector with `Items`, `ItemIndex`, `DropDownCount`, `ItemHeight` |
 | **TWListBox** | `<select multiple>` | Multi-select list, `ItemHeight` |
@@ -303,7 +303,7 @@ if Screen.ClientWidth < 600 then
 
 Forms follow window and viewport changes: `ftWindow` forms fill the window and modal forms re-center, so rotating a phone or toggling the viewport keeps the layout in place.
 
-On touch devices the shared theme also enlarges inputs to 16px (which prevents iOS from zooming on focus), gives buttons and fields a 36px minimum height, disables sticky `:hover` styles and honours `prefers-reduced-motion`. The page control uses a 36px minimum tab height unless `TabHeight` is set.
+On touch devices the shared theme also enlarges inputs to 16px (which prevents iOS from zooming on focus), gives buttons and fields a 36px minimum height, disables sticky `:hover` styles and honours `prefers-reduced-motion`. The page control uses a 36px minimum tab height unless `TabHeight` is set, the menu bar and its entries grow to 36px, and grid rows get a 32px minimum so they can be tapped.
 
 ---
 
@@ -432,6 +432,15 @@ The **Layout** tab in the demo shows a vertical and a horizontal splitter.
 edtUser.Autocomplete := 'username';
 edtPassword.Autocomplete := 'current-password';
 ```
+
+**TWEdit.InputType** — chooses the HTML `type` attribute: `itText` (default), `itEmail`, `itTel`, `itUrl` or `itSearch`. It selects the mobile keyboard layout and enables the browser validation hints; `PasswordChar` still forces `password`:
+
+```pascal
+edtEmail.InputType := itEmail;   // type="email", email keyboard
+edtSite.InputType := itUrl;      // type="url", URL keyboard
+```
+
+Numeric edits set `inputmode` automatically: `numeric` for integers and `decimal` for floats, so the phone shows a number pad with the decimal separator.
 
 **Graphics** — `TCanvas` supports `psSolid`, `psDash`, `psDot`, `psDashDot`, `psDashDotDot` and `psClear`; `TPicture` provides `Clear`, `IsEmpty`, `LoadFromDataURL`, `SaveToDataURL` and `LoadFromBase64`.
 

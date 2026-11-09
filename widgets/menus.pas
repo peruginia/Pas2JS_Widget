@@ -223,6 +223,9 @@ function ShortCutToText(AShortCut: TShortCut): string;
 
 implementation
 
+uses
+  Forms;
+
 const
   MenuRules =
     '.wcl-menubar-items{display:flex;align-items:stretch;height:100%;' +
@@ -244,7 +247,11 @@ const
     '.wcl-menubar-entry .wcl-menubar-drop{left:100%;top:-5px}' +
     '.wcl-menubar-sep{height:1px;background:#ddd;margin:4px 0}' +
     '.wcl-menubar-shortcut{color:#888;font-size:12px}' +
-    '.wcl-menubar-entry:hover .wcl-menubar-shortcut{color:#eee}';
+    '.wcl-menubar-entry:hover .wcl-menubar-shortcut{color:#eee}' +
+    '@media(pointer:coarse){' +
+    '.wcl-menubar-item{padding:0 16px;}' +
+    '.wcl-menubar-entry{min-height:36px;padding:8px 14px;}' +
+    '}';
 
 var
   _MenuRulesRegistered: Boolean = False;
@@ -717,7 +724,7 @@ begin
   BeginUpdate;
   try
     Color := clWhite;
-    Height := 26;
+    Height := IfThen(Screen.IsTouch, 36, 26);
   finally
     EndUpdate;
   end;
@@ -1114,7 +1121,7 @@ begin
     FBar := TMenuBar.Create(Self);
     FBar.Parent := VParent;
     FBar.Align := alTop;
-    FBar.Height := 26;
+    FBar.Height := IfThen(Screen.IsTouch, 36, 26);
     FBar.Menu := Self;
   end;
   if Assigned(FBar) then

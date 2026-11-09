@@ -178,6 +178,7 @@ begin
   WProgressBar1.Value := 50;
   WLabel3.Caption := 'Value: 50';
   WEdit2.TextHint := 'https://jsonplaceholder.typicode.com/users';
+  WEdit2.InputType := itUrl;
   WButton2.OnClick := @WButton2Click;
   WButton3.OnClick := @LoadFromArray;
   WButton4.OnClick := @LoadFromURL;

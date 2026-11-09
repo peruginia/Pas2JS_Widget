@@ -486,7 +486,7 @@ type
 implementation
 
 uses
-  TypInfo, WCLStrConsts;
+  TypInfo, WCLStrConsts, Forms;
 
 { TCustomStringGrid }
 
@@ -1868,6 +1868,9 @@ end;
 function TCustomGrid.GetDefaultRowHeight: Integer;
 begin
   Result := Font.TextHeight('Xy') + 7;
+  /// Rows are also tap targets on touch devices.
+  if Screen.IsTouch and (Result < 32) then
+    Result := 32;
 end;
 
 function TCustomGrid.GetIsCellSelected(aCol, aRow: Integer): Boolean;

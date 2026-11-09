@@ -337,7 +337,8 @@ implementation
 
 uses
   Math,
-  Maskutils;
+  Maskutils,
+  Forms;
 
 const
   DblClickThreshold = 0.000005;
@@ -2409,6 +2410,9 @@ end;
 function TCustomDataGrid.CalcDefaultRowHeight: NativeInt;
 begin
    Result := Font.TextHeight('Fj') + 10;
+   /// Keep rows tappable on touch devices.
+   if Screen.IsTouch and (Result < 32) then
+     Result := 32;
 end;
 
 class function TCustomDataGrid.GetControlClassDefaultSize: TSize;

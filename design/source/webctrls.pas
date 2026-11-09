@@ -50,6 +50,9 @@ uses
 
 type
 
+  /// Must match the runtime ExtCtrls/StdCtrls enum so .lfm values stream.
+  TEditInputType = (itText, itEmail, itTel, itUrl, itSearch);
+
   { TCustomScrollBox }
 
   TCustomScrollBox = class(TCustomControl)
@@ -354,6 +357,7 @@ type
     FAutocomplete: string;
     FHandleClass: string;
     FHandleId: string;
+    FInputType: TEditInputType;
   published
     property Align;
     property Alignment;
@@ -369,6 +373,7 @@ type
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
     property HandleId: string read FHandleId write FHandleId;
+    property InputType: TEditInputType read FInputType write FInputType;
     property MaxLength;
     property ParentColor;
     property ParentFont;

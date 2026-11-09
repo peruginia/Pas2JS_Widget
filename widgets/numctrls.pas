@@ -54,7 +54,9 @@ type
     procedure DoExit; override;
     procedure DoInput(ANewValue: string); override;
   protected
-    function InputType: string; override;
+    function GetInputType: string; override;
+    /// Keyboard hint for the mobile on-screen keyboard.
+    function GetInputMode: string; virtual;
     procedure Changed; override;
   public
     constructor Create(AOwner: TComponent); override;
@@ -116,9 +118,14 @@ begin
    inherited DoInput(ANewValue);
 end;
 
-function TCustomNumericEdit.InputType: string;
+function TCustomNumericEdit.GetInputType: string;
 begin
   Result := 'text';
+end;
+
+function TCustomNumericEdit.GetInputMode: string;
+begin
+  Result := 'numeric';
 end;
 
 procedure TCustomNumericEdit.Changed;
@@ -128,7 +135,7 @@ begin
   begin
     with TJSHTMLInputElement(HandleElement) do
     begin
-      InputMode := 'numeric';
+      InputMode := GetInputMode;
       if FIncrement > 0 then
         asm this.FHandleElement.step = this.FIncrement; end;
       if FMinValue <> 0 then

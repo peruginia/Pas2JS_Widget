@@ -25600,6 +25600,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
   var $impl = $mod.$impl;
   this.TEditCharCase = {"0": "ecNormal", ecNormal: 0, "1": "ecUppercase", ecUppercase: 1, "2": "ecLowerCase", ecLowerCase: 2};
   this.$rtti.$Enum("TEditCharCase",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TEditCharCase});
+  this.TEditInputType = {"0": "itText", itText: 0, "1": "itEmail", itEmail: 1, "2": "itTel", itTel: 2, "3": "itUrl", itUrl: 3, "4": "itSearch", itSearch: 4};
+  this.$rtti.$Enum("TEditInputType",{minvalue: 0, maxvalue: 4, ordtype: 1, enumtype: this.TEditInputType});
   this.TScrollStyle = {"0": "ssNone", ssNone: 0, "1": "ssHorizontal", ssHorizontal: 1, "2": "ssVertical", ssVertical: 2, "3": "ssBoth", ssBoth: 3, "4": "ssAutoHorizontal", ssAutoHorizontal: 4, "5": "ssAutoVertical", ssAutoVertical: 5, "6": "ssAutoBoth", ssAutoBoth: 6};
   this.$rtti.$Enum("TScrollStyle",{minvalue: 0, maxvalue: 6, ordtype: 1, enumtype: this.TScrollStyle});
   rtl.createClass(this,"TCustomComboBox",pas.Controls.TWinControl,function () {
@@ -26048,6 +26050,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FAlignment = 0;
       this.FAutocomplete = "";
       this.FCharCase = 0;
+      this.FInputType = 0;
       this.FMaxLength = 0;
       this.FModified = false;
       this.FPasswordChar = "\x00";
@@ -26102,6 +26105,12 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.SetCharCase = function (AValue) {
       if (this.FCharCase !== AValue) {
         this.FCharCase = AValue;
+        this.Changed();
+      };
+    };
+    this.SetInputType = function (AValue) {
+      if (this.FInputType !== AValue) {
+        this.FInputType = AValue;
         this.Changed();
       };
     };
@@ -26261,11 +26270,11 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
         };
         $with.readOnly = this.FReadOnly;
         $with.required = this.FRequired;
-        var $tmp2 = this.InputType();
-        if (($tmp2 === "text") || ($tmp2 === "search") || ($tmp2 === "URL") || ($tmp2 === "tel") || ($tmp2 === "password")) {
+        var $tmp2 = this.GetInputType();
+        if (($tmp2 === "text") || ($tmp2 === "search") || ($tmp2 === "url") || ($tmp2 === "tel") || ($tmp2 === "password")) {
           $with.setSelectionRange(this.FSelStart,this.FSelStart + this.FSelLength);
         };
-        $with.type = this.InputType();
+        $with.type = this.GetInputType();
         $with.value = this.RealGetText();
         if (this.FAutocomplete !== "") {
           $with.autocomplete = this.FAutocomplete;
@@ -26305,9 +26314,24 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FModified = false;
       this.Changed();
     };
-    this.InputType = function () {
+    this.GetInputType = function () {
       var Result = "";
-      Result = pas.Controls.IfThen$3(this.FPasswordChar !== "\x00","password","text");
+      if (this.FPasswordChar !== "\x00") {
+        Result = "password"}
+       else {
+        var $tmp = this.FInputType;
+        if ($tmp === $mod.TEditInputType.itEmail) {
+          Result = "email"}
+         else if ($tmp === $mod.TEditInputType.itTel) {
+          Result = "tel"}
+         else if ($tmp === $mod.TEditInputType.itUrl) {
+          Result = "url"}
+         else if ($tmp === $mod.TEditInputType.itSearch) {
+          Result = "search"}
+         else {
+          Result = "text";
+        };
+      };
       return Result;
     };
     this.GetControlClassDefaultSize = function () {
@@ -26319,6 +26343,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.Create$1 = function (AOwner) {
       pas.Controls.TControl.Create$1.call(this,AOwner);
       this.FAutocomplete = "";
+      this.FInputType = $mod.TEditInputType.itText;
       this.FMaxLength = 0;
       this.FModified = false;
       this.FPasswordChar = "\x00";
@@ -29333,16 +29358,21 @@ rtl.module("NumCtrls",["System","Classes","SysUtils","Types","Graphics","Control
       };
       pas.StdCtrls.TCustomEdit.DoInput.call(this,ANewValue);
     };
-    this.InputType = function () {
+    this.GetInputType = function () {
       var Result = "";
       Result = "text";
+      return Result;
+    };
+    this.GetInputMode = function () {
+      var Result = "";
+      Result = "numeric";
       return Result;
     };
     this.Changed = function () {
       pas.StdCtrls.TCustomEdit.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         var $with = this.FHandleElement;
-        $with.inputMode = "numeric";
+        $with.inputMode = this.GetInputMode();
         if (this.FIncrement > 0) this.FHandleElement.step = this.FIncrement;
         if (this.FMinValue !== 0) this.FHandleElement.min = this.FMinValue;
         if (this.FMaxValue !== 0) this.FHandleElement.max = this.FMaxValue;
@@ -29406,7 +29436,7 @@ rtl.module("DttCtrls",["System","Classes","SysUtils","Types","Graphics","StdCtrl
         this.RealSetText("")}
        else this.RealSetText(pas.SysUtils.FormatDateTime("yyyy-mm-dd",AValue) + "T" + pas.SysUtils.FormatDateTime("hh:nn",AValue));
     };
-    this.InputType = function () {
+    this.GetInputType = function () {
       var Result = "";
       Result = "datetime-local";
       return Result;
@@ -47419,6 +47449,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
     this.CalcDefaultRowHeight = function () {
       var Result = 0;
       Result = this.FFont.TextHeight("Fj") + 10;
+      if (pas.Forms.Screen.GetIsTouch() && (Result < 32)) Result = 32;
       return Result;
     };
     this.GetControlClassDefaultSize = function () {
@@ -47833,7 +47864,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       return Result;
     };
   };
-},["Math","MaskUtils"]);
+},["Math","MaskUtils","Forms"]);
 rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections","JS","Web","Graphics","Controls"],function () {
   "use strict";
   var $mod = this;
@@ -48312,7 +48343,7 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
       this.BeginUpdate();
       try {
         this.SetColor(16777215);
-        this.SetHeight(26);
+        this.SetHeight(pas.Controls.IfThen$2(pas.Forms.Screen.GetIsTouch(),36,26));
       } finally {
         this.EndUpdate();
       };
@@ -48426,7 +48457,7 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
         this.FBar = $mod.TMenuBar.$create("Create$1",[this]);
         this.FBar.SetParent(VParent);
         this.FBar.SetAlign(pas.Controls.TAlign.alTop);
-        this.FBar.SetHeight(26);
+        this.FBar.SetHeight(pas.Controls.IfThen$2(pas.Forms.Screen.GetIsTouch(),36,26));
         this.FBar.SetMenu(this);
       };
       if (this.FBar != null) this.FBar.Render();
@@ -48709,7 +48740,7 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
     return Result;
   };
   $mod.$implcode = function () {
-    $impl.MenuRules = ".wcl-menubar-items{display:flex;align-items:stretch;height:100%;" + "font:13px system-ui,-apple-system,Segoe UI,sans-serif}" + ".wcl-menubar-item{position:relative;display:flex;align-items:center;" + "padding:0 12px;cursor:pointer;color:#222;user-select:none;white-space:nowrap}" + ".wcl-menubar-item:hover{background:#e8e8e8}" + ".wcl-menubar-item.wcl-open{background:#dcdcdc}" + ".wcl-menubar-drop{position:absolute;top:100%;left:0;min-width:190px;" + "background:#fff;color:#222;border:1px solid #c9c3ba;box-shadow:0 4px 12px rgba(0,0,0,.18);" + "padding:4px 0;z-index:1000}" + ".wcl-menubar-entry{position:relative;display:flex;align-items:center;gap:16px;" + "justify-content:space-between;padding:6px 14px;cursor:pointer;white-space:nowrap}" + ".wcl-menubar-entry:hover{background:#2a7efe;color:#fff}" + ".wcl-menubar-entry.wcl-disabled{color:#aaa;pointer-events:none}" + ".wcl-menubar-icon{width:16px;height:16px;object-fit:contain;margin-right:6px;flex:0 0 auto}" + '.wcl-menubar-entry.wcl-has-sub::after{content:"\\25B8";font-size:10px;color:#888;margin-left:8px}' + ".wcl-menubar-entry:hover.wcl-has-sub::after{color:#fff}" + ".wcl-menubar-entry .wcl-menubar-drop{left:100%;top:-5px}" + ".wcl-menubar-sep{height:1px;background:#ddd;margin:4px 0}" + ".wcl-menubar-shortcut{color:#888;font-size:12px}" + ".wcl-menubar-entry:hover .wcl-menubar-shortcut{color:#eee}";
+    $impl.MenuRules = ".wcl-menubar-items{display:flex;align-items:stretch;height:100%;" + "font:13px system-ui,-apple-system,Segoe UI,sans-serif}" + ".wcl-menubar-item{position:relative;display:flex;align-items:center;" + "padding:0 12px;cursor:pointer;color:#222;user-select:none;white-space:nowrap}" + ".wcl-menubar-item:hover{background:#e8e8e8}" + ".wcl-menubar-item.wcl-open{background:#dcdcdc}" + ".wcl-menubar-drop{position:absolute;top:100%;left:0;min-width:190px;" + "background:#fff;color:#222;border:1px solid #c9c3ba;box-shadow:0 4px 12px rgba(0,0,0,.18);" + "padding:4px 0;z-index:1000}" + ".wcl-menubar-entry{position:relative;display:flex;align-items:center;gap:16px;" + "justify-content:space-between;padding:6px 14px;cursor:pointer;white-space:nowrap}" + ".wcl-menubar-entry:hover{background:#2a7efe;color:#fff}" + ".wcl-menubar-entry.wcl-disabled{color:#aaa;pointer-events:none}" + ".wcl-menubar-icon{width:16px;height:16px;object-fit:contain;margin-right:6px;flex:0 0 auto}" + '.wcl-menubar-entry.wcl-has-sub::after{content:"\\25B8";font-size:10px;color:#888;margin-left:8px}' + ".wcl-menubar-entry:hover.wcl-has-sub::after{color:#fff}" + ".wcl-menubar-entry .wcl-menubar-drop{left:100%;top:-5px}" + ".wcl-menubar-sep{height:1px;background:#ddd;margin:4px 0}" + ".wcl-menubar-shortcut{color:#888;font-size:12px}" + ".wcl-menubar-entry:hover .wcl-menubar-shortcut{color:#eee}" + "@media(pointer:coarse){" + ".wcl-menubar-item{padding:0 16px;}" + ".wcl-menubar-entry{min-height:36px;padding:8px 14px;}" + "}";
     $impl._MenuRulesRegistered = false;
     $impl._RegisterMenuRules = function () {
       if (!$impl._MenuRulesRegistered) {
@@ -48834,7 +48865,7 @@ rtl.module("Menus",["System","Classes","SysUtils","Types","Generics.Collections"
   $mod.$init = function () {
     pas.Classes.RegisterClass($mod.TMenuItem);
   };
-},[]);
+},["Forms"]);
 rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Controls","Forms","StdCtrls","ExtCtrls","ComCtrls","NumCtrls","DttCtrls","BtnCtrls","DataGrid","Menus","WebDB"],function () {
   "use strict";
   var $mod = this;
@@ -48950,6 +48981,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("Font",2,pas.Graphics.$rtti["TFont"],"FFont","SetFont");
     $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
     $r.addProperty("HandleId",2,rtl.string,"FHandleId","SetHandleId");
+    $r.addProperty("InputType",2,pas.StdCtrls.$rtti["TEditInputType"],"FInputType","SetInputType");
     $r.addProperty("MaxLength",2,rtl.nativeint,"FMaxLength","SetMaxLength");
     $r.addProperty("ParentColor",2,rtl.boolean,"FParentColor","SetParentColor");
     $r.addProperty("ParentFont",2,rtl.boolean,"FParentFont","SetParentFont");
@@ -49550,6 +49582,11 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     this.SetValue = function (AValue) {
       this.RealSetText(pas.SysUtils.FloatToStrF(AValue,pas.SysUtils.TFloatFormat.ffFixed,20,this.FDecimals));
     };
+    this.GetInputMode = function () {
+      var Result = "";
+      Result = "decimal";
+      return Result;
+    };
     this.RealSetText = function (AValue) {
       pas.StdCtrls.TCustomEdit.RealSetText.call(this,pas.SysUtils.FloatToStrF(pas.SysUtils.StrToFloatDef(AValue,0),pas.SysUtils.TFloatFormat.ffFixed,20,this.FDecimals));
     };
@@ -49705,7 +49742,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     this.SetValue = function (AValue) {
       this.RealSetText(pas.SysUtils.DateToStr(AValue));
     };
-    this.InputType = function () {
+    this.GetInputType = function () {
       var Result = "";
       Result = "date";
       return Result;
@@ -49763,7 +49800,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     this.SetValue = function (AValue) {
       this.RealSetText(pas.SysUtils.TimeToStr(AValue));
     };
-    this.InputType = function () {
+    this.GetInputType = function () {
       var Result = "";
       Result = "time";
       return Result;
@@ -51487,6 +51524,7 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
     this.GetDefaultRowHeight = function () {
       var Result = 0;
       Result = this.FFont.TextHeight("Xy") + 7;
+      if (pas.Forms.Screen.GetIsTouch() && (Result < 32)) Result = 32;
       return Result;
     };
     this.GetIsCellSelected = function (aCol, aRow) {
@@ -52350,7 +52388,7 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
     $r.addProperty("OnSelection",0,$mod.$rtti["TOnSelectEvent"],"fOnSelection","fOnSelection");
     $r.addProperty("OnSetEditText",0,$mod.$rtti["TOnSetEditTextEvent"],"fOnSetEditText","fOnSetEditText");
   });
-},["TypInfo","WCLStrConsts"]);
+},["TypInfo","WCLStrConsts","Forms"]);
 rtl.module("uLogin",["System","JS","Classes","SysUtils","Graphics","Controls","Forms","Dialogs","WebCtrls"],function () {
   "use strict";
   var $mod = this;
@@ -53253,6 +53291,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.WProgressBar1.SetValue(50);
       this.WLabel3.SetText("Value: 50");
       this.WEdit2.SetTextHint("https://jsonplaceholder.typicode.com/users");
+      this.WEdit2.SetInputType(pas.StdCtrls.TEditInputType.itUrl);
       this.WButton2.FOnClick = rtl.createCallback(this,"WButton2Click");
       this.WButton3.FOnClick = rtl.createCallback(this,"LoadFromArray");
       this.WButton4.FOnClick = rtl.createCallback(this,"LoadFromURL");
