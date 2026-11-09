@@ -33,7 +33,7 @@ and the menu bar handles the shortcut of a linked item. Actions can be added
 in code or designed with the action list editor (nested `TAction` blocks are
 registered for the reader).
 
-## 4. TTreeView and TListView
+## 4. TTreeView and TListView — done
 
 `TTreeView` is done: `TTreeNode`/`TTreeNodes` and `TCustomTreeView` live in
 `widgets/comctrls.pas` (published as `TWTreeView`), rendering nested
@@ -42,9 +42,13 @@ registered for the reader).
 `FullCollapse`, `AlphaSort` and the LCL events. Nodes are built in code; the
 binary `Items.Data` saved by the IDE tree editor is accepted and ignored.
 
-`TListView` is still missing (columns, `ViewStyle` vs/icons/details, selection,
-`OnSelectItem`). It should reuse the existing CSS theme and support touch
-scrolling.
+`TListView` is done too: `TListItem`/`TListItems` and `TListColumn`/
+`TListColumns` back `TCustomListView` (published as `TWListView`). It renders
+`vsReport` as a sortable table, `vsList`/`vsSmallIcon` as rows and `vsIcon` as
+a responsive tile grid, with checkboxes, multi-selection, keyboard navigation,
+`OnSelectItem`/`OnChange`/`OnColumnClick`/`OnItemChecked`, `AlphaSort` and the
+shared touch theme. Items are built in code; `Items.Data`/`Items.LazData` from
+the IDE list editor are accepted and ignored.
 
 ## 5. Drag and drop between controls
 

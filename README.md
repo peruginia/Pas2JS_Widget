@@ -43,6 +43,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWDataGrid** | `<table>` / cards | Sorting, `FilterBox`, `DataJSon`/`Data`/`DataTable`, column formatting, responsive cards, `ExportToCSV`, `InfiniteScroll`, keyboard navigation (arrows, PageUp/Down, Home/End) |
 | **TWStringGrid** | `<table>` | Editable string grid: `Cells`, `Options` (`goEditing`, `goTabs`), inline editor, `OnSelectCell`/`OnGetEditText`/`OnSetEditText`/`OnDrawCell` |
 | **TWTreeView** | nested `<ul>`/`<li>` | Tree: `Items` (`Add`/`AddChild`/`Insert`), `Selected`, `ShowLines`/`ShowRoot`/`ShowButtons`, `Indent`, `RowHeight`, expand/collapse, `FullExpand`/`FullCollapse`, `AlphaSort`, `OnChange`/`OnExpanding`/`OnExpanded`/`OnCollapsing`/`OnCollapsed` |
+| **TWListView** | `<table>` / rows / tiles | `ViewStyle` (`vsReport`/`vsList`/`vsSmallIcon`/`vsIcon`), `Items`, `Columns`, `Selected`, `MultiSelect`, `Checkboxes`, `GridLines`, `SortColumn`/`SortDirection`, `OnSelectItem`/`OnChange`/`OnColumnClick` |
 | **TWPagination** | page nav | Page navigation with `CurrentPage` |
 | **TWTrackBar** | `<input type="range">` | Slider with `Min`/`Max`/`Position`/`Frequency`/`Orientation` |
 | **TWProgressBar** | `<progress>` | Progress bar with `Min`/`Max`/`Value` |
@@ -299,6 +300,55 @@ end;
 
 Clicking a row selects it, clicking the expander (or double-clicking the row) toggles it. The tree can be designed in the IDE and the node data saved by the LCL tree editor (`Items.Data`) is accepted and ignored: build the nodes in code, as shown above.
 
+### ListView
+
+`TWListView` shows a list of items; `ViewStyle` selects the layout:
+
+* `vsReport` — a table with `Columns` and headers; `Caption` fills the first column and `SubItems` the remaining ones.
+* `vsList` — compact rows with the caption only.
+* `vsSmallIcon` — rows with a 16 px `ImageUrl` icon.
+* `vsIcon` — tiles in a responsive grid with a 32 px icon and the first subitem.
+
+```pascal
+var
+  VColumn: TListColumn;
+  VItem: TListItem;
+begin
+  ListView1.ViewStyle := vsReport;
+  ListView1.Checkboxes := True;
+  ListView1.GridLines := True;
+  ListView1.RowHeight := 28;
+  ListView1.OnSelectItem := @ListSelectItem;
+  ListView1.OnChange := @ListChanged;
+  ListView1.OnColumnClick := @ListColumnClick;
+
+  VColumn := ListView1.Columns.Add;
+  VColumn.Caption := 'Name';
+  VColumn.Width := 160;
+
+  VItem := ListView1.Items.Add;
+  VItem.Caption := 'Mario Rossi';
+  VItem.SubItems.Add('Developer');
+  VItem.ImageUrl := 'user.png';
+  VItem.Checked := True;
+end;
+```
+
+`TListItem` exposes `Caption`, `SubItems`, `ImageUrl`, `Data`, `Checked`, `Selected`, `Index`, `ListView`, `Owner`, `Delete` and `MakeVisible`. `Items` supports `Add`, `Insert`, `Delete`, `Clear`, `IndexOf`, `BeginUpdate`/`EndUpdate` and `Item[]`. `Columns` is a collection of `TListColumn` (`Caption`, `Width`, `Alignment`, `Visible`, `MinWidth`, `MaxWidth`, `AutoSize`, `SortIndicator`).
+
+Selection is single by default; `MultiSelect := True` enables Ctrl+click toggling and Shift+click ranges. Use `Selected`, `ItemIndex`, `SelCount`, `ClearSelection` and `SelectAll`. Clicking a row selects it and raises `OnSelectItem`; `OnChange` reports text, image and state changes (including checkbox toggles). `Checkboxes` adds a checkbox column, `ReadOnly` disables toggling from the UI, and `OnItemChecked` fires after a checkbox toggle.
+
+In `vsReport`, clicking a column header sorts the rows when `AutoSort` is True (the default); clicking the same header toggles ascending/descending and the arrow is shown in the header. `AlphaSort` sorts by caption, `SortColumn`/`SortDirection` can be set in code, and `OnColumnClick` fires for every header click. With `SortType` set to `stData`/`stBoth` and `OnCompare` assigned, the comparison comes from the event.
+
+| Key | Action |
+|---|---|
+| ↑ / ↓ | Previous/next item |
+| Home / End | First/last item |
+| Space | Toggle the selected item's checkbox |
+| Ctrl+A | Select all (with `MultiSelect`) |
+
+Items are built in code; the binary `Items.Data`/`Items.LazData` saved by the LCL list editor is accepted and ignored. Default rows grow to 36 px on touch devices, and the list shares the WCL theme.
+
 ---
 
 ### Infrastructure
@@ -357,7 +407,7 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
-The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Tree** tab has a `TWTreeView` with folders built in code plus Expand/Collapse/Add child/Sort buttons, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
+The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Tree** tab has a `TWTreeView` with folders built in code plus Expand/Collapse/Add child/Sort buttons, the **List** tab has a `TWListView` in report mode with columns, checkboxes, multi-select, column sorting and a view-style cycler, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
 
 The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
 

@@ -349,6 +349,7 @@ type
     property Anchors;
     property BorderSpacing;
     property Color;
+    property Constraints;
     property Enabled;
     property Font;
     property HandleClass;
@@ -388,6 +389,322 @@ type
     property OnMouseMove;
     property OnMouseUp;
     property OnMouseWheel;
+  end;
+
+type
+  /// Forward declarations
+  TListItems = class;
+  TListItem = class;
+  TListColumn = class;
+  TListColumns = class;
+  TCustomListView = class;
+
+  TItemChange = (ctText, ctImage, ctState);
+  TViewStyle = (vsIcon, vsSmallIcon, vsList, vsReport);
+  TSortType = (stNone, stData, stText, stBoth);
+  TSortDirection = (sdAscending, sdDescending);
+  TSortIndicator = (siNone, siAscending, siDescending);
+
+  TLVChangeEvent = procedure(Sender: TObject; Item: TListItem;
+    Change: TItemChange) of object;
+  TLVSelectItemEvent = procedure(Sender: TObject; Item: TListItem;
+    Selected: Boolean) of object;
+  TLVColumnClickEvent = procedure(Sender: TObject; Column: TListColumn) of object;
+  TLVCheckedItemEvent = procedure(Sender: TObject; Item: TListItem) of object;
+  TLVCompareEvent = procedure(Sender: TObject; Item1, Item2: TListItem;
+    Data: Integer; var Compare: Integer) of object;
+
+  { TListItem }
+
+  /// One row of a TListView. Caption is the first column (or the only text in
+  /// the non-report views); SubItems fills the remaining columns.
+  TListItem = class(TPersistent)
+  private
+    FCaption: string;
+    FChecked: Boolean;
+    FData: TObject;
+    FImageUrl: string;
+    FOwner: TListItems;
+    FSelected: Boolean;
+    FSubItems: TStringList;
+    function GetIndex: NativeInt;
+    function GetListView: TCustomListView;
+    function GetSubItems: TStrings;
+    procedure SetCaption(const AValue: string);
+    procedure SetChecked(AValue: Boolean);
+    procedure SetImageUrl(const AValue: string);
+    procedure SetSelected(AValue: Boolean);
+    procedure SetSubItems(AValue: TStrings);
+    procedure SubItemsChanged(Sender: TObject);
+    procedure ItemChanged(AChange: TItemChange);
+  public
+    constructor Create(AOwner: TListItems);
+    destructor Destroy; override;
+    procedure Delete;
+    procedure MakeVisible(APartialOK: Boolean = False);
+    property Caption: string read FCaption write SetCaption;
+    property Checked: Boolean read FChecked write SetChecked default False;
+    property Data: TObject read FData write FData;
+    property ImageUrl: string read FImageUrl write SetImageUrl;
+    property Index: NativeInt read GetIndex;
+    property ListView: TCustomListView read GetListView;
+    property Owner: TListItems read FOwner;
+    property Selected: Boolean read FSelected write SetSelected default False;
+    property SubItems: TStrings read GetSubItems write SetSubItems;
+  end;
+
+  { TListItems }
+
+  /// Collection of the rows of a list view. Item[] is the display order, so
+  /// sorting reorders this list.
+  TListItems = class(TPersistent)
+  private
+    FItems: TList<TListItem>;
+    FOwner: TCustomListView;
+    function GetCount: NativeInt;
+    function GetItem(const AIndex: NativeInt): TListItem;
+    procedure ReadData(Stream: TStream);
+    procedure WriteData(Stream: TStream);
+  protected
+    procedure DefineProperties(Filer: TFiler); override;
+  public
+    constructor Create(AOwner: TCustomListView);
+    destructor Destroy; override;
+    function Add: TListItem;
+    function Insert(AIndex: NativeInt): TListItem;
+    procedure Delete(AIndex: NativeInt);
+    procedure Clear;
+    function IndexOf(AItem: TListItem): NativeInt;
+    procedure BeginUpdate;
+    procedure EndUpdate;
+    property Count: NativeInt read GetCount;
+    property Item[const AIndex: NativeInt]: TListItem read GetItem; default;
+    property Owner: TCustomListView read FOwner;
+  end;
+
+  { TListColumn }
+
+  TListColumn = class(TCollectionItem)
+  private
+    FAlignment: TAlignment;
+    FAutoSize: Boolean;
+    FCaption: string;
+    FImageIndex: NativeInt;
+    FMaxWidth: NativeInt;
+    FMinWidth: NativeInt;
+    FSortIndicator: TSortIndicator;
+    FTag: NativeInt;
+    FVisible: Boolean;
+    FWidth: NativeInt;
+    procedure SetAlignment(AValue: TAlignment);
+    procedure SetAutoSize(AValue: Boolean);
+    procedure SetCaption(const AValue: string);
+    procedure SetMaxWidth(AValue: NativeInt);
+    procedure SetMinWidth(AValue: NativeInt);
+    procedure SetSortIndicator(AValue: TSortIndicator);
+    procedure SetVisible(AValue: Boolean);
+    procedure SetWidth(AValue: NativeInt);
+    procedure ColumnChanged;
+  protected
+    function GetDisplayName: string; override;
+  public
+    constructor Create(ACollection: TCollection); override;
+  published
+    property Alignment: TAlignment read FAlignment write SetAlignment default taLeftJustify;
+    property AutoSize: Boolean read FAutoSize write SetAutoSize default False;
+    property Caption: string read FCaption write SetCaption;
+    /// Accepted for .lfm compatibility; use item ImageUrl for icons.
+    property ImageIndex: NativeInt read FImageIndex write FImageIndex default -1;
+    property MaxWidth: NativeInt read FMaxWidth write SetMaxWidth default 0;
+    property MinWidth: NativeInt read FMinWidth write SetMinWidth default 0;
+    property SortIndicator: TSortIndicator read FSortIndicator write SetSortIndicator default siNone;
+    property Tag: NativeInt read FTag write FTag default 0;
+    property Visible: Boolean read FVisible write SetVisible default True;
+    property Width: NativeInt read FWidth write SetWidth default 100;
+  end;
+
+  { TListColumns }
+
+  TListColumns = class(TCollection)
+  private
+    FOwner: TCustomListView;
+    function GetColumn(const AIndex: NativeInt): TListColumn;
+    procedure SetColumn(const AIndex: NativeInt; AValue: TListColumn);
+  protected
+    function GetOwner: TPersistent; override;
+    procedure Update(AItem: TCollectionItem); override;
+  public
+    constructor Create(AOwner: TCustomListView); reintroduce;
+    function Add: TListColumn; reintroduce;
+    property Owner: TCustomListView read FOwner;
+    property Items[const AIndex: NativeInt]: TListColumn read GetColumn write SetColumn; default;
+  end;
+
+  { TCustomListView }
+
+  /// LCL-compatible list view rendered with a table (vsReport) or with rows
+  /// and tiles (vsList, vsSmallIcon, vsIcon). Items are created in code; the
+  /// binary Items.Data/LazData saved by the IDE is accepted and ignored.
+  TCustomListView = class(TWinControl)
+  private
+    FAutoSort: Boolean;
+    FCheckboxes: Boolean;
+    FColumns: TListColumns;
+    FGridLines: Boolean;
+    FItems: TListItems;
+    FMultiSelect: Boolean;
+    FOnChange: TLVChangeEvent;
+    FOnColumnClick: TLVColumnClickEvent;
+    FOnCompare: TLVCompareEvent;
+    FOnItemChecked: TLVCheckedItemEvent;
+    FOnSelectItem: TLVSelectItemEvent;
+    FReadOnly: Boolean;
+    FRowHeight: NativeInt;
+    FRowSelect: Boolean;
+    FShowColumnHeaders: Boolean;
+    FSortColumn: NativeInt;
+    FSortDirection: TSortDirection;
+    FSortType: TSortType;
+    FViewStyle: TViewStyle;
+    FAnchor: TListItem;
+    function GetColumn(const AIndex: NativeInt): TListColumn;
+    function GetColumnCount: NativeInt;
+    function GetItemIndex: NativeInt;
+    function GetSelCount: NativeInt;
+    function GetSelected: TListItem;
+    procedure SetAutoSort(AValue: Boolean);
+    procedure SetCheckboxes(AValue: Boolean);
+    procedure SetGridLines(AValue: Boolean);
+    procedure SetItemIndex(AValue: NativeInt);
+    procedure SetMultiSelect(AValue: Boolean);
+    procedure SetReadOnly(AValue: Boolean);
+    procedure SetRowHeight(AValue: NativeInt);
+    procedure SetRowSelect(AValue: Boolean);
+    procedure SetSelected(AValue: TListItem);
+    procedure SetShowColumnHeaders(AValue: Boolean);
+    procedure SetSortColumn(AValue: NativeInt);
+    procedure SetSortDirection(AValue: TSortDirection);
+    procedure SetSortType(AValue: TSortType);
+    procedure SetViewStyle(AValue: TViewStyle);
+  protected
+    procedure Changed; override;
+    function CreateHandleElement: TJSHTMLElement; override;
+    function CheckChildClassAllowed(AChildClass: TClass): boolean; override;
+    procedure DoItemChange(AItem: TListItem; AChange: TItemChange); virtual;
+    procedure DoItemChecked(AItem: TListItem); virtual;
+    procedure DoSelectItem(AItem: TListItem; ASelected: Boolean); virtual;
+    function FindItemElement(AItem: TListItem): TJSHTMLElement;
+    function ItemFromEvent(AEvent: TJSMouseEvent): TListItem;
+    function ColumnFromEvent(AEvent: TJSMouseEvent): TListColumn;
+    procedure RenderView; virtual;
+    procedure RenderReport; virtual;
+    procedure RenderRows(AWithIcon: Boolean); virtual;
+    procedure RenderIcons; virtual;
+    procedure RenderHeader(ARow: TJSHTMLElement; AColumn: TListColumn); virtual;
+    procedure ScrollToItem(AItem: TListItem);
+    procedure SortItems; virtual;
+    procedure ClearSelection;
+    procedure SelectItem(AItem: TListItem; ASelected: Boolean);
+    procedure SelectRange(AFrom, ATo: TListItem);
+    procedure MoveSelection(ADelta: NativeInt);
+    procedure SelectFirst;
+    procedure SelectLast;
+    function ItemClick(AEvent: TJSMouseEvent): boolean; virtual;
+    function ItemCheckClick(AEvent: TJSMouseEvent): boolean; virtual;
+    function ColumnClickHandler(AEvent: TJSMouseEvent): boolean; virtual;
+    procedure ColumnClick(AColumn: TListColumn); virtual;
+    procedure KeyDown(var Key: NativeInt; Shift: TShiftState); override;
+  protected
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    function AlphaSort: Boolean;
+    procedure Clear;
+    procedure SelectAll;
+    property Columns: TListColumns read FColumns;
+    property Column[const AIndex: NativeInt]: TListColumn read GetColumn;
+    property ColumnCount: NativeInt read GetColumnCount;
+    property ItemIndex: NativeInt read GetItemIndex write SetItemIndex;
+    property Items: TListItems read FItems;
+    property SelCount: NativeInt read GetSelCount;
+    property Selected: TListItem read GetSelected write SetSelected;
+    property AutoSort: Boolean read FAutoSort write SetAutoSort default True;
+    property Checkboxes: Boolean read FCheckboxes write SetCheckboxes default False;
+    property GridLines: Boolean read FGridLines write SetGridLines default False;
+    property MultiSelect: Boolean read FMultiSelect write SetMultiSelect default False;
+    property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
+    property RowHeight: NativeInt read FRowHeight write SetRowHeight default 0;
+    property RowSelect: Boolean read FRowSelect write SetRowSelect default False;
+    property ShowColumnHeaders: Boolean read FShowColumnHeaders write SetShowColumnHeaders default True;
+    property SortColumn: NativeInt read FSortColumn write SetSortColumn default -1;
+    property SortDirection: TSortDirection read FSortDirection write SetSortDirection default sdAscending;
+    property SortType: TSortType read FSortType write SetSortType default stNone;
+    property ViewStyle: TViewStyle read FViewStyle write SetViewStyle default vsList;
+    property OnChange: TLVChangeEvent read FOnChange write FOnChange;
+    property OnColumnClick: TLVColumnClickEvent read FOnColumnClick write FOnColumnClick;
+    property OnCompare: TLVCompareEvent read FOnCompare write FOnCompare;
+    property OnItemChecked: TLVCheckedItemEvent read FOnItemChecked write FOnItemChecked;
+    property OnSelectItem: TLVSelectItemEvent read FOnSelectItem write FOnSelectItem;
+  end;
+
+  { TListView }
+
+  TListView = class(TCustomListView)
+  published
+    property Align;
+    property Anchors;
+    property AutoSort;
+    property BorderSpacing;
+    property BorderStyle;
+    property Checkboxes;
+    property Color;
+    property Columns;
+    property Constraints;
+    property Enabled;
+    property Font;
+    property GridLines;
+    property HandleClass;
+    property HandleId;
+    property Height;
+    property Items;
+    property Left;
+    property MultiSelect;
+    property ParentFont;
+    property ParentShowHint;
+    property PopupMenu;
+    property ReadOnly;
+    property RowHeight;
+    property RowSelect;
+    property ShowColumnHeaders;
+    property ShowHint;
+    property SortColumn;
+    property SortDirection;
+    property SortType;
+    property TabOrder;
+    property TabStop;
+    property Top;
+    property ViewStyle;
+    property Visible;
+    property Width;
+    property OnChange;
+    property OnClick;
+    property OnColumnClick;
+    property OnCompare;
+    property OnDblClick;
+    property OnEnter;
+    property OnExit;
+    property OnItemChecked;
+    property OnKeyDown;
+    property OnKeyPress;
+    property OnKeyUp;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+    property OnSelectItem;
   end;
 
 implementation
@@ -2157,6 +2474,1454 @@ end;
 procedure TCustomTreeView.AlphaSort;
 begin
   FItems.AlphaSort;
+end;
+
+{ TListView styles }
+
+var
+  _WCLListRulesRegistered: Boolean;
+
+procedure _RegisterWCLListRules;
+begin
+  if _WCLListRulesRegistered then
+    Exit;
+  RegisterWCLStyle(
+    '.wcl-lv{' +
+    'overflow:auto;' +
+    'background:#fff;' +
+    'border:1px solid #c9c3ba;' +
+    'border-radius:4px;' +
+    'box-sizing:border-box;' +
+    'outline:none;' +
+    'user-select:none;' +
+    '-webkit-user-select:none;' +
+    '-webkit-tap-highlight-color:transparent;}' +
+    '.wcl-lv-table{' +
+    'width:100%;' +
+    'border-collapse:collapse;' +
+    'table-layout:fixed;}' +
+    '.wcl-lv-table th{' +
+    'position:sticky;' +
+    'top:0;' +
+    'z-index:1;' +
+    'background:#f0f0f0;' +
+    'text-align:left;' +
+    'font-weight:600;' +
+    'padding:6px 8px;' +
+    'border-bottom:1px solid #c9c3ba;' +
+    'white-space:nowrap;' +
+    'overflow:hidden;' +
+    'text-overflow:ellipsis;' +
+    'cursor:pointer;' +
+    'color:#333;}' +
+    '.wcl-lv-table td{' +
+    'padding:5px 8px;' +
+    'border-bottom:1px solid #eee;' +
+    'white-space:nowrap;' +
+    'overflow:hidden;' +
+    'text-overflow:ellipsis;' +
+    'color:#333;}' +
+    '.wcl-lv-table tbody tr{' +
+    'cursor:pointer;}' +
+    '@media(hover:hover){' +
+    '.wcl-lv-table tbody tr:hover{background:#eef3fb;}' +
+    '}' +
+    '.wcl-lv-table tbody tr.wcl-lv-selected{' +
+    'background:#4A90D9;}' +
+    '.wcl-lv-table tbody tr.wcl-lv-selected td{' +
+    'color:#fff;}' +
+    '.wcl-lv-gridlines td,.wcl-lv-gridlines th{' +
+    'border-right:1px solid #eee;}' +
+    '.wcl-lv-checkcell{' +
+    'width:32px;' +
+    'text-align:center;' +
+    'padding:2px 4px!important;}' +
+    '.wcl-lv-checkcell input{' +
+    'width:16px;' +
+    'height:16px;' +
+    'margin:0;' +
+    'cursor:pointer;}' +
+    '.wcl-lv-list{' +
+    'list-style:none;' +
+    'margin:0;' +
+    'padding:0;}' +
+    '.wcl-lv-item{' +
+    'display:flex;' +
+    'align-items:center;' +
+    'gap:6px;' +
+    'min-height:24px;' +
+    'padding:2px 8px;' +
+    'cursor:pointer;' +
+    'border-radius:3px;' +
+    'white-space:nowrap;' +
+    'color:#333;}' +
+    '@media(hover:hover){' +
+    '.wcl-lv-item:hover{background:#eef3fb;}' +
+    '}' +
+    '.wcl-lv-item.wcl-lv-selected{' +
+    'background:#4A90D9;' +
+    'color:#fff;}' +
+    '.wcl-lv-item input[type=checkbox],.wcl-lv-tile input[type=checkbox]{' +
+    'width:16px;' +
+    'height:16px;' +
+    'margin:0;' +
+    'cursor:pointer;}' +
+    '.wcl-lv-icon{' +
+    'width:16px;' +
+    'height:16px;' +
+    'object-fit:contain;}' +
+    '.wcl-lv-text{' +
+    'overflow:hidden;' +
+    'text-overflow:ellipsis;}' +
+    '.wcl-lv-icons{' +
+    'display:grid;' +
+    'grid-template-columns:repeat(auto-fill,minmax(96px,1fr));' +
+    'gap:8px;' +
+    'padding:8px;}' +
+    '.wcl-lv-tile{' +
+    'display:flex;' +
+    'flex-direction:column;' +
+    'align-items:center;' +
+    'gap:4px;' +
+    'padding:8px;' +
+    'border-radius:4px;' +
+    'cursor:pointer;' +
+    'text-align:center;' +
+    'color:#333;}' +
+    '@media(hover:hover){' +
+    '.wcl-lv-tile:hover{background:#eef3fb;}' +
+    '}' +
+    '.wcl-lv-tile.wcl-lv-selected{' +
+    'background:#4A90D9;' +
+    'color:#fff;}' +
+    '.wcl-lv-tile img{' +
+    'width:32px;' +
+    'height:32px;' +
+    'object-fit:contain;}' +
+    '.wcl-lv-sub{' +
+    'font-size:12px;' +
+    'opacity:0.7;' +
+    'overflow:hidden;' +
+    'text-overflow:ellipsis;' +
+    'max-width:100%;}' +
+    '@media(pointer:coarse){' +
+    '.wcl-lv-item{min-height:36px;font-size:16px;}' +
+    '.wcl-lv-table td,.wcl-lv-table th{min-height:36px;font-size:16px;padding:8px;}' +
+    '.wcl-lv-checkcell input{width:20px;height:20px;}' +
+    '}'
+  );
+  _WCLListRulesRegistered := True;
+end;
+
+function ListAlignmentCSS(AValue: TAlignment): string;
+begin
+  case AValue of
+    taCenter:
+      Result := 'center';
+    taRightJustify:
+      Result := 'right';
+  else
+    Result := 'left';
+  end;
+end;
+
+{ TListItem }
+
+constructor TListItem.Create(AOwner: TListItems);
+begin
+  inherited Create;
+  FCaption := '';
+  FChecked := False;
+  FData := nil;
+  FImageUrl := '';
+  FOwner := AOwner;
+  FSelected := False;
+  FSubItems := TStringList.Create;
+  FSubItems.OnChange := @SubItemsChanged;
+end;
+
+destructor TListItem.Destroy;
+begin
+  FSubItems.Free;
+  FSubItems := nil;
+  inherited Destroy;
+end;
+
+function TListItem.GetListView: TCustomListView;
+begin
+  if Assigned(FOwner) then
+    Result := FOwner.Owner
+  else
+    Result := nil;
+end;
+
+function TListItem.GetSubItems: TStrings;
+begin
+  Result := FSubItems;
+end;
+
+function TListItem.GetIndex: NativeInt;
+begin
+  if Assigned(FOwner) then
+    Result := FOwner.IndexOf(Self)
+  else
+    Result := -1;
+end;
+
+procedure TListItem.ItemChanged(AChange: TItemChange);
+var
+  VList: TCustomListView;
+begin
+  VList := GetListView;
+  if Assigned(VList) then
+  begin
+    VList.DoItemChange(Self, AChange);
+    VList.Changed;
+  end;
+end;
+
+procedure TListItem.SetCaption(const AValue: string);
+begin
+  if (FCaption <> AValue) then
+  begin
+    FCaption := AValue;
+    ItemChanged(ctText);
+  end;
+end;
+
+procedure TListItem.SetChecked(AValue: Boolean);
+begin
+  if (FChecked <> AValue) then
+  begin
+    FChecked := AValue;
+    ItemChanged(ctState);
+  end;
+end;
+
+procedure TListItem.SetImageUrl(const AValue: string);
+begin
+  if (FImageUrl <> AValue) then
+  begin
+    FImageUrl := AValue;
+    ItemChanged(ctImage);
+  end;
+end;
+
+procedure TListItem.SetSelected(AValue: Boolean);
+var
+  VList: TCustomListView;
+begin
+  if (FSelected = AValue) then
+    Exit;
+  VList := GetListView;
+  if AValue and Assigned(VList) and (not VList.MultiSelect) then
+    VList.ClearSelection;
+  FSelected := AValue;
+  if Assigned(VList) then
+  begin
+    VList.Changed;
+    VList.DoItemChange(Self, ctState);
+    VList.DoSelectItem(Self, AValue);
+  end;
+end;
+
+procedure TListItem.SetSubItems(AValue: TStrings);
+begin
+  if Assigned(AValue) then
+  begin
+    FSubItems.BeginUpdate;
+    try
+      FSubItems.Assign(AValue);
+    finally
+      FSubItems.EndUpdate;
+    end;
+  end
+  else
+    FSubItems.Clear;
+end;
+
+procedure TListItem.SubItemsChanged(Sender: TObject);
+begin
+  ItemChanged(ctText);
+end;
+
+procedure TListItem.Delete;
+begin
+  if Assigned(FOwner) then
+    FOwner.Delete(Index);
+end;
+
+procedure TListItem.MakeVisible(APartialOK: Boolean);
+var
+  VList: TCustomListView;
+begin
+  VList := GetListView;
+  if Assigned(VList) then
+    VList.ScrollToItem(Self);
+end;
+
+{ TListItems }
+
+constructor TListItems.Create(AOwner: TCustomListView);
+begin
+  inherited Create;
+  FOwner := AOwner;
+  FItems := TList<TListItem>.Create;
+end;
+
+destructor TListItems.Destroy;
+var
+  VIndex: NativeInt;
+  VItem: TListItem;
+begin
+  if Assigned(FItems) then
+  begin
+    for VIndex := (FItems.Count - 1) downto 0 do
+    begin
+      VItem := FItems[VIndex];
+      VItem.Free;
+    end;
+    FItems.Free;
+    FItems := nil;
+  end;
+  inherited Destroy;
+end;
+
+procedure TListItems.DefineProperties(Filer: TFiler);
+begin
+  inherited DefineProperties(Filer);
+  /// The LCL list editor stores the rows in binary properties; accept them
+  /// (so the .lfm loads) but ignore them: items are built in code.
+  Filer.DefineBinaryProperty('Data', @ReadData, @WriteData, False);
+  Filer.DefineBinaryProperty('LazData', @ReadData, @WriteData, False);
+end;
+
+procedure TListItems.ReadData(Stream: TStream);
+begin
+  if Assigned(Stream) then
+    Stream.Position := Stream.Size;
+end;
+
+procedure TListItems.WriteData(Stream: TStream);
+begin
+  /// Nothing to save: items are created in code.
+end;
+
+function TListItems.GetCount: NativeInt;
+begin
+  Result := FItems.Count;
+end;
+
+function TListItems.GetItem(const AIndex: NativeInt): TListItem;
+begin
+  if (AIndex >= 0) and (AIndex < FItems.Count) then
+    Result := FItems[AIndex]
+  else
+    Result := nil;
+end;
+
+function TListItems.Add: TListItem;
+begin
+  if Assigned(FOwner) then
+    FOwner.BeginUpdate;
+  try
+    Result := TListItem.Create(Self);
+    FItems.Add(Result);
+  finally
+    if Assigned(FOwner) then
+      FOwner.EndUpdate;
+  end;
+end;
+
+function TListItems.Insert(AIndex: NativeInt): TListItem;
+begin
+  if (AIndex < 0) or (AIndex > FItems.Count) then
+    AIndex := FItems.Count;
+  if Assigned(FOwner) then
+    FOwner.BeginUpdate;
+  try
+    Result := TListItem.Create(Self);
+    FItems.Insert(AIndex, Result);
+  finally
+    if Assigned(FOwner) then
+      FOwner.EndUpdate;
+  end;
+end;
+
+procedure TListItems.Delete(AIndex: NativeInt);
+var
+  VItem: TListItem;
+begin
+  if (AIndex < 0) or (AIndex >= FItems.Count) then
+    Exit;
+  if Assigned(FOwner) then
+    FOwner.BeginUpdate;
+  try
+    VItem := FItems[AIndex];
+    FItems.Delete(AIndex);
+    if Assigned(FOwner) and (FOwner.FAnchor = VItem) then
+      FOwner.FAnchor := nil;
+    VItem.Free;
+  finally
+    if Assigned(FOwner) then
+      FOwner.EndUpdate;
+  end;
+end;
+
+procedure TListItems.Clear;
+var
+  VIndex: NativeInt;
+  VItem: TListItem;
+begin
+  if Assigned(FOwner) then
+    FOwner.BeginUpdate;
+  try
+    for VIndex := (FItems.Count - 1) downto 0 do
+    begin
+      VItem := FItems[VIndex];
+      VItem.Free;
+    end;
+    FItems.Clear;
+    if Assigned(FOwner) then
+      FOwner.FAnchor := nil;
+  finally
+    if Assigned(FOwner) then
+      FOwner.EndUpdate;
+  end;
+end;
+
+function TListItems.IndexOf(AItem: TListItem): NativeInt;
+begin
+  Result := FItems.IndexOf(AItem);
+end;
+
+procedure TListItems.BeginUpdate;
+begin
+  if Assigned(FOwner) then
+    FOwner.BeginUpdate;
+end;
+
+procedure TListItems.EndUpdate;
+begin
+  if Assigned(FOwner) then
+    FOwner.EndUpdate;
+end;
+
+{ TListColumn }
+
+constructor TListColumn.Create(ACollection: TCollection);
+begin
+  inherited Create(ACollection);
+  FAlignment := taLeftJustify;
+  FAutoSize := False;
+  FCaption := '';
+  FImageIndex := -1;
+  FMaxWidth := 0;
+  FMinWidth := 0;
+  FSortIndicator := siNone;
+  FTag := 0;
+  FVisible := True;
+  FWidth := 100;
+end;
+
+procedure TListColumn.ColumnChanged;
+begin
+  Changed(False);
+end;
+
+function TListColumn.GetDisplayName: string;
+begin
+  if (FCaption <> '') then
+    Result := FCaption
+  else
+    Result := inherited GetDisplayName;
+end;
+
+procedure TListColumn.SetAlignment(AValue: TAlignment);
+begin
+  if (FAlignment <> AValue) then
+  begin
+    FAlignment := AValue;
+    ColumnChanged;
+  end;
+end;
+
+procedure TListColumn.SetAutoSize(AValue: Boolean);
+begin
+  if (FAutoSize <> AValue) then
+  begin
+    FAutoSize := AValue;
+    ColumnChanged;
+  end;
+end;
+
+procedure TListColumn.SetCaption(const AValue: string);
+begin
+  if (FCaption <> AValue) then
+  begin
+    FCaption := AValue;
+    ColumnChanged;
+  end;
+end;
+
+procedure TListColumn.SetMaxWidth(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FMaxWidth <> AValue) then
+  begin
+    FMaxWidth := AValue;
+    ColumnChanged;
+  end;
+end;
+
+procedure TListColumn.SetMinWidth(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FMinWidth <> AValue) then
+  begin
+    FMinWidth := AValue;
+    ColumnChanged;
+  end;
+end;
+
+procedure TListColumn.SetSortIndicator(AValue: TSortIndicator);
+begin
+  if (FSortIndicator <> AValue) then
+  begin
+    FSortIndicator := AValue;
+    ColumnChanged;
+  end;
+end;
+
+procedure TListColumn.SetVisible(AValue: Boolean);
+begin
+  if (FVisible <> AValue) then
+  begin
+    FVisible := AValue;
+    ColumnChanged;
+  end;
+end;
+
+procedure TListColumn.SetWidth(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FWidth <> AValue) then
+  begin
+    FWidth := AValue;
+    ColumnChanged;
+  end;
+end;
+
+{ TListColumns }
+
+constructor TListColumns.Create(AOwner: TCustomListView);
+begin
+  inherited Create(TListColumn);
+  FOwner := AOwner;
+end;
+
+function TListColumns.Add: TListColumn;
+begin
+  Result := TListColumn(inherited Add);
+end;
+
+function TListColumns.GetColumn(const AIndex: NativeInt): TListColumn;
+begin
+  Result := TListColumn(inherited GetItem(AIndex));
+end;
+
+procedure TListColumns.SetColumn(const AIndex: NativeInt; AValue: TListColumn);
+begin
+  inherited SetItem(AIndex, AValue);
+end;
+
+function TListColumns.GetOwner: TPersistent;
+begin
+  Result := FOwner;
+end;
+
+procedure TListColumns.Update(AItem: TCollectionItem);
+begin
+  inherited Update(AItem);
+  if Assigned(FOwner) then
+    FOwner.Changed;
+end;
+
+{ TCustomListView }
+
+constructor TCustomListView.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  _RegisterWCLListRules;
+  FItems := TListItems.Create(Self);
+  FColumns := TListColumns.Create(Self);
+  FAutoSort := True;
+  FCheckboxes := False;
+  FGridLines := False;
+  FMultiSelect := False;
+  FReadOnly := False;
+  FRowHeight := 0;
+  FRowSelect := False;
+  FShowColumnHeaders := True;
+  FSortColumn := -1;
+  FSortDirection := sdAscending;
+  FSortType := stNone;
+  FViewStyle := vsList;
+  FAnchor := nil;
+  BeginUpdate;
+  try
+    TabStop := True;
+    with GetControlClassDefaultSize do
+    begin
+      SetBounds(0, 0, Cx, Cy);
+    end;
+  finally
+    EndUpdate;
+  end;
+end;
+
+destructor TCustomListView.Destroy;
+begin
+  FAnchor := nil;
+  FColumns.Free;
+  FColumns := nil;
+  FItems.Free;
+  FItems := nil;
+  inherited Destroy;
+end;
+
+class function TCustomListView.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 240;
+  Result.Cy := 160;
+end;
+
+function TCustomListView.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('div'));
+end;
+
+function TCustomListView.CheckChildClassAllowed(AChildClass: TClass): boolean;
+begin
+  /// The list renders its own DOM inside the handle element.
+  Result := False;
+end;
+
+procedure TCustomListView.Changed;
+begin
+  inherited Changed;
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+    RenderView;
+end;
+
+function TCustomListView.GetColumn(const AIndex: NativeInt): TListColumn;
+begin
+  Result := FColumns[AIndex];
+end;
+
+function TCustomListView.GetColumnCount: NativeInt;
+begin
+  Result := FColumns.Count;
+end;
+
+function TCustomListView.GetSelected: TListItem;
+var
+  VIndex: NativeInt;
+begin
+  Result := nil;
+  for VIndex := 0 to (FItems.Count - 1) do
+    if FItems[VIndex].FSelected then
+    begin
+      Result := FItems[VIndex];
+      Exit;
+    end;
+end;
+
+function TCustomListView.GetSelCount: NativeInt;
+var
+  VIndex: NativeInt;
+begin
+  Result := 0;
+  for VIndex := 0 to (FItems.Count - 1) do
+    if FItems[VIndex].FSelected then
+      Inc(Result);
+end;
+
+function TCustomListView.GetItemIndex: NativeInt;
+var
+  VItem: TListItem;
+begin
+  VItem := GetSelected;
+  if Assigned(VItem) then
+    Result := VItem.Index
+  else
+    Result := -1;
+end;
+
+procedure TCustomListView.SetItemIndex(AValue: NativeInt);
+begin
+  if (AValue >= 0) and (AValue < FItems.Count) then
+    SetSelected(FItems[AValue])
+  else
+    SetSelected(nil);
+end;
+
+procedure TCustomListView.SetSelected(AValue: TListItem);
+var
+  VOld: TListItem;
+begin
+  VOld := GetSelected;
+  if (VOld = AValue) then
+    Exit;
+  ClearSelection;
+  if Assigned(VOld) then
+    DoSelectItem(VOld, False);
+  if Assigned(AValue) then
+  begin
+    AValue.FSelected := True;
+    DoSelectItem(AValue, True);
+  end;
+  Changed;
+  DoItemChange(AValue, ctState);
+end;
+
+procedure TCustomListView.ClearSelection;
+var
+  VIndex: NativeInt;
+begin
+  for VIndex := 0 to (FItems.Count - 1) do
+    FItems[VIndex].FSelected := False;
+  Changed;
+end;
+
+procedure TCustomListView.SelectItem(AItem: TListItem; ASelected: Boolean);
+begin
+  if (not Assigned(AItem)) or (AItem.FSelected = ASelected) then
+    Exit;
+  AItem.FSelected := ASelected;
+  Changed;
+  DoItemChange(AItem, ctState);
+  DoSelectItem(AItem, ASelected);
+end;
+
+procedure TCustomListView.SelectRange(AFrom, ATo: TListItem);
+var
+  VFrom, VTo, VIndex: NativeInt;
+begin
+  if (not Assigned(AFrom)) or (not Assigned(ATo)) then
+    Exit;
+  VFrom := AFrom.Index;
+  VTo := ATo.Index;
+  if (VFrom > VTo) then
+  begin
+    VIndex := VFrom;
+    VFrom := VTo;
+    VTo := VIndex;
+  end;
+  BeginUpdate;
+  try
+    for VIndex := 0 to (FItems.Count - 1) do
+      FItems[VIndex].FSelected := (VIndex >= VFrom) and (VIndex <= VTo);
+  finally
+    EndUpdate;
+  end;
+  DoItemChange(ATo, ctState);
+  DoSelectItem(ATo, True);
+end;
+
+procedure TCustomListView.SelectAll;
+var
+  VIndex: NativeInt;
+begin
+  if (not FMultiSelect) then
+    Exit;
+  BeginUpdate;
+  try
+    for VIndex := 0 to (FItems.Count - 1) do
+      FItems[VIndex].FSelected := True;
+  finally
+    EndUpdate;
+  end;
+  DoItemChange(nil, ctState);
+end;
+
+procedure TCustomListView.DoItemChange(AItem: TListItem; AChange: TItemChange);
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self, AItem, AChange);
+end;
+
+procedure TCustomListView.DoSelectItem(AItem: TListItem; ASelected: Boolean);
+begin
+  if Assigned(FOnSelectItem) then
+    FOnSelectItem(Self, AItem, ASelected);
+end;
+
+procedure TCustomListView.DoItemChecked(AItem: TListItem);
+begin
+  if Assigned(FOnItemChecked) then
+    FOnItemChecked(Self, AItem);
+end;
+
+procedure TCustomListView.SetAutoSort(AValue: Boolean);
+begin
+  if (FAutoSort <> AValue) then
+    FAutoSort := AValue;
+end;
+
+procedure TCustomListView.SetCheckboxes(AValue: Boolean);
+begin
+  if (FCheckboxes <> AValue) then
+  begin
+    FCheckboxes := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomListView.SetGridLines(AValue: Boolean);
+begin
+  if (FGridLines <> AValue) then
+  begin
+    FGridLines := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomListView.SetMultiSelect(AValue: Boolean);
+begin
+  if (FMultiSelect <> AValue) then
+  begin
+    FMultiSelect := AValue;
+    if (not FMultiSelect) then
+      ClearSelection;
+    Changed;
+  end;
+end;
+
+procedure TCustomListView.SetReadOnly(AValue: Boolean);
+begin
+  if (FReadOnly <> AValue) then
+    FReadOnly := AValue;
+end;
+
+procedure TCustomListView.SetRowHeight(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FRowHeight <> AValue) then
+  begin
+    FRowHeight := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomListView.SetRowSelect(AValue: Boolean);
+begin
+  if (FRowSelect <> AValue) then
+  begin
+    FRowSelect := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomListView.SetShowColumnHeaders(AValue: Boolean);
+begin
+  if (FShowColumnHeaders <> AValue) then
+  begin
+    FShowColumnHeaders := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomListView.SetSortColumn(AValue: NativeInt);
+begin
+  if (FSortColumn <> AValue) then
+  begin
+    FSortColumn := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomListView.SetSortDirection(AValue: TSortDirection);
+begin
+  if (FSortDirection <> AValue) then
+  begin
+    FSortDirection := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomListView.SetSortType(AValue: TSortType);
+begin
+  if (FSortType <> AValue) then
+    FSortType := AValue;
+end;
+
+procedure TCustomListView.SetViewStyle(AValue: TViewStyle);
+begin
+  if (FViewStyle <> AValue) then
+  begin
+    FViewStyle := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomListView.RenderView;
+var
+  VScrollTop: NativeInt;
+begin
+  if (not Assigned(FItems)) or (not Assigned(FColumns)) or
+    (not Assigned(HandleElement)) then
+    Exit;
+  VScrollTop := HandleElement.scrollTop;
+  HandleElement.InnerHTML := '';
+  HandleElement.Style.SetProperty('overflow', 'auto');
+  HandleElement.classList.add('wcl-lv');
+  case FViewStyle of
+    vsReport:
+      RenderReport;
+    vsIcon:
+      RenderIcons;
+    vsSmallIcon:
+      RenderRows(True);
+  else
+    RenderRows(False);
+  end;
+  HandleElement.scrollTop := VScrollTop;
+end;
+
+procedure TCustomListView.RenderHeader(ARow: TJSHTMLElement;
+  AColumn: TListColumn);
+var
+  VSuffix: string;
+begin
+  VSuffix := '';
+  if (FSortColumn = AColumn.Index) then
+  begin
+    if (FSortDirection = sdAscending) then
+      VSuffix := ' ▲'
+    else
+      VSuffix := ' ▼';
+  end;
+  ARow.TextContent := AColumn.Caption + VSuffix;
+  ARow.Style.SetProperty('text-align', ListAlignmentCSS(AColumn.Alignment));
+end;
+
+procedure TCustomListView.RenderReport;
+var
+  VTable, VColGroup, VCol, VThead, VHeadRow, VTh: TJSHTMLElement;
+  VTbody, VTr, VTd, VInput: TJSHTMLElement;
+  VItem: TListItem;
+  VColumn: TListColumn;
+  I, J, VWidth: NativeInt;
+begin
+  VTable := TJSHTMLElement(Document.CreateElement('table'));
+  VTable.classList.add('wcl-lv-table');
+  if FGridLines then
+    VTable.classList.add('wcl-lv-gridlines');
+
+  VColGroup := TJSHTMLElement(Document.CreateElement('colgroup'));
+  if FCheckboxes then
+  begin
+    VCol := TJSHTMLElement(Document.CreateElement('col'));
+    VCol.Style.SetProperty('width', '32px');
+    VColGroup.AppendChild(VCol);
+  end;
+  for I := 0 to (FColumns.Count - 1) do
+  begin
+    VColumn := FColumns[I];
+    if (not VColumn.Visible) then
+      Continue;
+    VCol := TJSHTMLElement(Document.CreateElement('col'));
+    if (not VColumn.AutoSize) then
+    begin
+      VWidth := VColumn.Width;
+      if (VColumn.MinWidth > 0) and (VWidth < VColumn.MinWidth) then
+        VWidth := VColumn.MinWidth;
+      if (VColumn.MaxWidth > 0) and (VWidth > VColumn.MaxWidth) then
+        VWidth := VColumn.MaxWidth;
+      VCol.Style.SetProperty('width', IntToStr(VWidth) + 'px');
+    end;
+    VColGroup.AppendChild(VCol);
+  end;
+  VTable.AppendChild(VColGroup);
+
+  if FShowColumnHeaders then
+  begin
+    VThead := TJSHTMLElement(Document.CreateElement('thead'));
+    VHeadRow := TJSHTMLElement(Document.CreateElement('tr'));
+    if FCheckboxes then
+    begin
+      VTh := TJSHTMLElement(Document.CreateElement('th'));
+      VTh.classList.add('wcl-lv-checkcell');
+      VHeadRow.AppendChild(VTh);
+    end;
+    for I := 0 to (FColumns.Count - 1) do
+    begin
+      VColumn := FColumns[I];
+      if (not VColumn.Visible) then
+        Continue;
+      VTh := TJSHTMLElement(Document.CreateElement('th'));
+      VTh.setAttribute('data-wcl-col', IntToStr(I));
+      RenderHeader(VTh, VColumn);
+      VTh.addEventListener('click', @ColumnClickHandler);
+      VHeadRow.AppendChild(VTh);
+    end;
+    VThead.AppendChild(VHeadRow);
+    VTable.AppendChild(VThead);
+  end;
+
+  VTbody := TJSHTMLElement(Document.CreateElement('tbody'));
+  for J := 0 to (FItems.Count - 1) do
+  begin
+    VItem := FItems[J];
+    VTr := TJSHTMLElement(Document.CreateElement('tr'));
+    VTr.classList.add('wcl-lv-row');
+    if VItem.FSelected then
+      VTr.classList.add('wcl-lv-selected');
+    VTr.setAttribute('data-wcl-item', IntToStr(J));
+    if (FRowHeight > 0) then
+      VTr.Style.SetProperty('height', IntToStr(FRowHeight) + 'px');
+
+    if FCheckboxes then
+    begin
+      VTd := TJSHTMLElement(Document.CreateElement('td'));
+      VTd.classList.add('wcl-lv-checkcell');
+      VInput := TJSHTMLElement(Document.CreateElement('input'));
+      VInput.setAttribute('type', 'checkbox');
+      VInput.setAttribute('data-wcl-item', IntToStr(J));
+      TJSHTMLInputElement(VInput).checked := VItem.Checked;
+      VInput.addEventListener('click', @ItemCheckClick);
+      VTd.AppendChild(VInput);
+      VTr.AppendChild(VTd);
+    end;
+
+    for I := 0 to (FColumns.Count - 1) do
+    begin
+      VColumn := FColumns[I];
+      if (not VColumn.Visible) then
+        Continue;
+      VTd := TJSHTMLElement(Document.CreateElement('td'));
+      VTd.Style.SetProperty('text-align', ListAlignmentCSS(VColumn.Alignment));
+      if (I = 0) then
+        VTd.TextContent := VItem.Caption
+      else if ((I - 1) < VItem.SubItems.Count) then
+        VTd.TextContent := VItem.SubItems[I - 1];
+      VTr.AppendChild(VTd);
+    end;
+
+    VTr.addEventListener('click', @ItemClick);
+    VTbody.AppendChild(VTr);
+  end;
+  VTable.AppendChild(VTbody);
+  HandleElement.AppendChild(VTable);
+end;
+
+procedure TCustomListView.RenderRows(AWithIcon: Boolean);
+var
+  VUl, VLi, VInput, VIcon, VText: TJSHTMLElement;
+  VItem: TListItem;
+  I: NativeInt;
+begin
+  VUl := TJSHTMLElement(Document.CreateElement('ul'));
+  VUl.classList.add('wcl-lv-list');
+  for I := 0 to (FItems.Count - 1) do
+  begin
+    VItem := FItems[I];
+    VLi := TJSHTMLElement(Document.CreateElement('li'));
+    VLi.classList.add('wcl-lv-item');
+    VLi.classList.add('wcl-lv-row');
+    if VItem.FSelected then
+      VLi.classList.add('wcl-lv-selected');
+    VLi.setAttribute('data-wcl-item', IntToStr(I));
+    if (FRowHeight > 0) then
+      VLi.Style.SetProperty('min-height', IntToStr(FRowHeight) + 'px');
+
+    if FCheckboxes then
+    begin
+      VInput := TJSHTMLElement(Document.CreateElement('input'));
+      VInput.setAttribute('type', 'checkbox');
+      VInput.setAttribute('data-wcl-item', IntToStr(I));
+      TJSHTMLInputElement(VInput).checked := VItem.Checked;
+      VInput.addEventListener('click', @ItemCheckClick);
+      VLi.AppendChild(VInput);
+    end;
+
+    if AWithIcon and (VItem.ImageUrl <> '') then
+    begin
+      VIcon := TJSHTMLElement(Document.CreateElement('img'));
+      VIcon.classList.add('wcl-lv-icon');
+      VIcon.setAttribute('src', VItem.ImageUrl);
+      VIcon.setAttribute('alt', '');
+      VLi.AppendChild(VIcon);
+    end;
+
+    VText := TJSHTMLElement(Document.CreateElement('span'));
+    VText.classList.add('wcl-lv-text');
+    VText.TextContent := VItem.Caption;
+    VLi.AppendChild(VText);
+
+    VLi.addEventListener('click', @ItemClick);
+    VUl.AppendChild(VLi);
+  end;
+  HandleElement.AppendChild(VUl);
+end;
+
+procedure TCustomListView.RenderIcons;
+var
+  VDiv, VTile, VInput, VIcon, VText, VSub: TJSHTMLElement;
+  VItem: TListItem;
+  I: NativeInt;
+begin
+  VDiv := TJSHTMLElement(Document.CreateElement('div'));
+  VDiv.classList.add('wcl-lv-icons');
+  for I := 0 to (FItems.Count - 1) do
+  begin
+    VItem := FItems[I];
+    VTile := TJSHTMLElement(Document.CreateElement('div'));
+    VTile.classList.add('wcl-lv-tile');
+    VTile.classList.add('wcl-lv-row');
+    if VItem.FSelected then
+      VTile.classList.add('wcl-lv-selected');
+    VTile.setAttribute('data-wcl-item', IntToStr(I));
+
+    if FCheckboxes then
+    begin
+      VInput := TJSHTMLElement(Document.CreateElement('input'));
+      VInput.setAttribute('type', 'checkbox');
+      VInput.setAttribute('data-wcl-item', IntToStr(I));
+      TJSHTMLInputElement(VInput).checked := VItem.Checked;
+      VInput.addEventListener('click', @ItemCheckClick);
+      VTile.AppendChild(VInput);
+    end;
+
+    if (VItem.ImageUrl <> '') then
+    begin
+      VIcon := TJSHTMLElement(Document.CreateElement('img'));
+      VIcon.setAttribute('src', VItem.ImageUrl);
+      VIcon.setAttribute('alt', '');
+      VTile.AppendChild(VIcon);
+    end;
+
+    VText := TJSHTMLElement(Document.CreateElement('span'));
+    VText.classList.add('wcl-lv-text');
+    VText.TextContent := VItem.Caption;
+    VTile.AppendChild(VText);
+
+    if (VItem.SubItems.Count > 0) then
+    begin
+      VSub := TJSHTMLElement(Document.CreateElement('span'));
+      VSub.classList.add('wcl-lv-sub');
+      VSub.TextContent := VItem.SubItems[0];
+      VTile.AppendChild(VSub);
+    end;
+
+    VTile.addEventListener('click', @ItemClick);
+    VDiv.AppendChild(VTile);
+  end;
+  HandleElement.AppendChild(VDiv);
+end;
+
+function TCustomListView.ItemFromEvent(AEvent: TJSMouseEvent): TListItem;
+var
+  VElement: TJSHTMLElement;
+  VIndex: NativeInt;
+begin
+  Result := nil;
+  if (not Assigned(AEvent)) then
+    Exit;
+  VElement := TJSHTMLElement(AEvent.currentTargetElement);
+  if (not Assigned(VElement)) or (not VElement.hasAttribute('data-wcl-item')) then
+    Exit;
+  VIndex := StrToIntDef(VElement.getAttribute('data-wcl-item'), -1);
+  if (VIndex >= 0) and (VIndex < FItems.Count) then
+    Result := FItems[VIndex];
+end;
+
+function TCustomListView.ColumnFromEvent(AEvent: TJSMouseEvent): TListColumn;
+var
+  VElement: TJSHTMLElement;
+  VIndex: NativeInt;
+begin
+  Result := nil;
+  if (not Assigned(AEvent)) then
+    Exit;
+  VElement := TJSHTMLElement(AEvent.currentTargetElement);
+  if (not Assigned(VElement)) or (not VElement.hasAttribute('data-wcl-col')) then
+    Exit;
+  VIndex := StrToIntDef(VElement.getAttribute('data-wcl-col'), -1);
+  if (VIndex >= 0) and (VIndex < FColumns.Count) then
+    Result := FColumns[VIndex];
+end;
+
+function TCustomListView.ItemClick(AEvent: TJSMouseEvent): boolean;
+var
+  VItem: TListItem;
+begin
+  Result := True;
+  VItem := ItemFromEvent(AEvent);
+  if (not Assigned(VItem)) then
+    Exit;
+  SetFocus;
+  if FMultiSelect and AEvent.ctrlKey then
+  begin
+    FAnchor := VItem;
+    SelectItem(VItem, not VItem.FSelected);
+  end
+  else if FMultiSelect and AEvent.shiftKey and Assigned(FAnchor) then
+    SelectRange(FAnchor, VItem)
+  else
+  begin
+    FAnchor := VItem;
+    SetSelected(VItem);
+  end;
+end;
+
+function TCustomListView.ItemCheckClick(AEvent: TJSMouseEvent): boolean;
+var
+  VItem: TListItem;
+begin
+  AEvent.StopPropagation;
+  AEvent.PreventDefault;
+  Result := True;
+  if FReadOnly then
+    Exit;
+  VItem := ItemFromEvent(AEvent);
+  if (not Assigned(VItem)) then
+    Exit;
+  SetFocus;
+  VItem.Checked := not VItem.Checked;
+  DoItemChecked(VItem);
+end;
+
+function TCustomListView.ColumnClickHandler(AEvent: TJSMouseEvent): boolean;
+var
+  VColumn: TListColumn;
+begin
+  AEvent.StopPropagation;
+  Result := True;
+  VColumn := ColumnFromEvent(AEvent);
+  if Assigned(VColumn) then
+    ColumnClick(VColumn);
+end;
+
+procedure TCustomListView.ColumnClick(AColumn: TListColumn);
+begin
+  if (not Assigned(AColumn)) then
+    Exit;
+  if Assigned(FOnColumnClick) then
+    FOnColumnClick(Self, AColumn);
+  if (not FAutoSort) then
+    Exit;
+  if (FSortColumn = AColumn.Index) then
+  begin
+    if (FSortDirection = sdAscending) then
+      FSortDirection := sdDescending
+    else
+      FSortDirection := sdAscending;
+  end
+  else
+  begin
+    FSortColumn := AColumn.Index;
+    FSortDirection := sdAscending;
+  end;
+  SortItems;
+end;
+
+procedure TCustomListView.SortItems;
+var
+  VIndex, VInner: NativeInt;
+  VTemp: TListItem;
+  VCompare: Integer;
+
+  function CompareItems(A, B: TListItem): Integer;
+  var
+    VSub: NativeInt;
+    VA, VB: string;
+  begin
+    if (FSortType in [stData, stBoth]) and Assigned(FOnCompare) then
+    begin
+      VCompare := 0;
+      FOnCompare(Self, A, B, FSortColumn, VCompare);
+      Result := VCompare;
+    end
+    else
+    begin
+      if (FSortColumn > 0) then
+      begin
+        VSub := FSortColumn - 1;
+        if (VSub < A.SubItems.Count) then
+          VA := A.SubItems[VSub]
+        else
+          VA := '';
+        if (VSub < B.SubItems.Count) then
+          VB := B.SubItems[VSub]
+        else
+          VB := '';
+        Result := CompareText(VA, VB);
+        if (Result = 0) then
+          Result := CompareText(A.Caption, B.Caption);
+      end
+      else
+        Result := CompareText(A.Caption, B.Caption);
+    end;
+    if (FSortDirection = sdDescending) then
+      Result := -Result;
+  end;
+
+begin
+  BeginUpdate;
+  try
+    /// Insertion sort: the lists are small and it avoids a comparer object.
+    for VIndex := 1 to (FItems.Count - 1) do
+    begin
+      VTemp := FItems[VIndex];
+      VInner := VIndex - 1;
+      while (VInner >= 0) and (CompareItems(FItems[VInner], VTemp) > 0) do
+      begin
+        FItems.FItems[VInner + 1] := FItems.FItems[VInner];
+        Dec(VInner);
+      end;
+      FItems.FItems[VInner + 1] := VTemp;
+    end;
+    for VIndex := 0 to (FColumns.Count - 1) do
+    begin
+      if (VIndex = FSortColumn) then
+      begin
+        if (FSortDirection = sdAscending) then
+          FColumns[VIndex].FSortIndicator := siAscending
+        else
+          FColumns[VIndex].FSortIndicator := siDescending;
+      end
+      else
+        FColumns[VIndex].FSortIndicator := siNone;
+    end;
+  finally
+    EndUpdate;
+  end;
+end;
+
+function TCustomListView.AlphaSort: Boolean;
+begin
+  FSortColumn := 0;
+  FSortDirection := sdAscending;
+  SortItems;
+  Result := True;
+end;
+
+procedure TCustomListView.Clear;
+begin
+  FItems.Clear;
+end;
+
+function TCustomListView.FindItemElement(AItem: TListItem): TJSHTMLElement;
+begin
+  Result := nil;
+  if (not Assigned(AItem)) or (not Assigned(HandleElement)) then
+    Exit;
+  Result := TJSHTMLElement(HandleElement.querySelector(
+    '[data-wcl-item="' + IntToStr(AItem.Index) + '"].wcl-lv-row'));
+end;
+
+procedure TCustomListView.ScrollToItem(AItem: TListItem);
+var
+  VElement: TJSHTMLElement;
+begin
+  VElement := FindItemElement(AItem);
+  if Assigned(VElement) then
+    asm
+      VElement.scrollIntoView({ block: 'nearest' });
+    end;
+end;
+
+procedure TCustomListView.MoveSelection(ADelta: NativeInt);
+var
+  VIndex: NativeInt;
+begin
+  if (FItems.Count = 0) then
+    Exit;
+  VIndex := GetItemIndex;
+  if (VIndex < 0) then
+    VIndex := 0
+  else
+    VIndex := VIndex + ADelta;
+  if (VIndex < 0) then
+    VIndex := 0;
+  if (VIndex > (FItems.Count - 1)) then
+    VIndex := FItems.Count - 1;
+  SetSelected(FItems[VIndex]);
+  ScrollToItem(FItems[VIndex]);
+end;
+
+procedure TCustomListView.SelectFirst;
+begin
+  if (FItems.Count > 0) then
+  begin
+    SetSelected(FItems[0]);
+    ScrollToItem(FItems[0]);
+  end;
+end;
+
+procedure TCustomListView.SelectLast;
+begin
+  if (FItems.Count > 0) then
+  begin
+    SetSelected(FItems[FItems.Count - 1]);
+    ScrollToItem(FItems[FItems.Count - 1]);
+  end;
+end;
+
+procedure TCustomListView.KeyDown(var Key: NativeInt; Shift: TShiftState);
+begin
+  inherited KeyDown(Key, Shift);
+  case Key of
+    /// Up
+    38:
+      begin
+        MoveSelection(-1);
+        Key := 0;
+      end;
+    /// Down
+    40:
+      begin
+        MoveSelection(1);
+        Key := 0;
+      end;
+    /// Home
+    36:
+      begin
+        SelectFirst;
+        Key := 0;
+      end;
+    /// End
+    35:
+      begin
+        SelectLast;
+        Key := 0;
+      end;
+    /// Space
+    32:
+      begin
+        if FCheckboxes and (not FReadOnly) and Assigned(Selected) then
+        begin
+          Selected.Checked := not Selected.Checked;
+          DoItemChecked(Selected);
+        end;
+        Key := 0;
+      end;
+    /// Ctrl+A
+    65:
+      begin
+        if (ssCtrl in Shift) and FMultiSelect then
+        begin
+          SelectAll;
+          Key := 0;
+        end;
+      end;
+  end;
 end;
 
 end.

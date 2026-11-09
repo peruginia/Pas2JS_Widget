@@ -97,12 +97,23 @@ type
     FLayoutTop: TWPanel;
     FTree: TWTreeView;
     FTreeInfo: TWLabel;
+    FList: TWListView;
+    FListInfo: TWLabel;
     procedure BuildTreeTab;
     procedure TreeSelectionChanged(Sender: TObject);
     procedure TreeExpandAll(Sender: TObject);
     procedure TreeCollapseAll(Sender: TObject);
     procedure TreeAddChild(Sender: TObject);
     procedure TreeSort(Sender: TObject);
+    procedure BuildListTab;
+    procedure ListSelectItem(Sender: TObject; Item: TListItem; Selected: Boolean);
+    procedure ListChanged(Sender: TObject; Item: TListItem; Change: TItemChange);
+    procedure ListAdd(Sender: TObject);
+    procedure ListDelete(Sender: TObject);
+    procedure ListSort(Sender: TObject);
+    procedure ListCycleView(Sender: TObject);
+    procedure ListToggleMulti(Sender: TObject);
+    procedure ListColumnClick(Sender: TObject; Column: TListColumn);
     procedure BuildGridModesTab;
     procedure BuildGridPopup;
     procedure BuildSplitterTab;
@@ -205,6 +216,7 @@ begin
   BuildSplitterTab;
   BuildCanvasTab;
   BuildTreeTab;
+  BuildListTab;
   SetupStringGrid;
   SetupMenu;
   SetupActions;
@@ -947,6 +959,158 @@ end;
 procedure TWForm1.TreeSort(Sender: TObject);
 begin
   FTree.AlphaSort;
+end;
+
+{ --- TListView demo: report columns, selection and view styles --- }
+
+procedure TWForm1.BuildListTab;
+var
+  VSheet: TCustomTabSheet;
+  VColumn: TListColumn;
+  VItem: TListItem;
+  VButton: TWButton;
+
+  function AddButton(const ACaption: string; ATop: NativeInt;
+    AHandler: TNotifyEvent): TWButton;
+  begin
+    Result := TWButton.Create(Self);
+    Result.Parent := VSheet;
+    Result.SetBounds(460, ATop, 140, 31);
+    Result.Caption := ACaption;
+    Result.OnClick := AHandler;
+  end;
+
+  procedure AddItem(const ACaption, ARole, ACity: string;
+    AChecked: Boolean; const AImage: string);
+  begin
+    VItem := FList.Items.Add;
+    VItem.Caption := ACaption;
+    VItem.SubItems.Add(ARole);
+    VItem.SubItems.Add(ACity);
+    VItem.Checked := AChecked;
+    VItem.ImageUrl := AImage;
+  end;
+
+begin
+  VSheet := WPageControl1.AddTabSheet;
+  VSheet.Caption := 'List';
+  VSheet.SetBounds(0, 0, WPageControl1.Width, WPageControl1.Height);
+
+  FList := TWListView.Create(Self);
+  FList.Parent := VSheet;
+  FList.SetBounds(16, 16, 430, 320);
+  FList.ViewStyle := vsReport;
+  FList.Checkboxes := True;
+  FList.GridLines := True;
+  FList.RowHeight := 28;
+  FList.OnSelectItem := @ListSelectItem;
+  FList.OnChange := @ListChanged;
+  FList.OnColumnClick := @ListColumnClick;
+
+  VColumn := FList.Columns.Add;
+  VColumn.Caption := 'Name';
+  VColumn.Width := 160;
+  VColumn := FList.Columns.Add;
+  VColumn.Caption := 'Role';
+  VColumn.Width := 110;
+  VColumn := FList.Columns.Add;
+  VColumn.Caption := 'City';
+  VColumn.Width := 100;
+
+  AddItem('Mario Rossi', 'Developer', 'Rome', True, 'user.png');
+  AddItem('Anna Verdi', 'Designer', 'Milan', False, '');
+  AddItem('Luigi Bianchi', 'Manager', 'Naples', False, 'menu_new.png');
+  AddItem('Sofia Neri', 'Tester', 'Florence', True, '');
+  AddItem('Marco Gialli', 'Analyst', 'Turin', False, '');
+
+  FListInfo := TWLabel.Create(Self);
+  FListInfo.Parent := VSheet;
+  FListInfo.SetBounds(16, 350, 584, 60);
+  FListInfo.Caption := 'Select an item.';
+
+  AddButton('Add item', 16, @ListAdd);
+  AddButton('Delete selected', 54, @ListDelete);
+  AddButton('Sort A-Z', 92, @ListSort);
+  AddButton('View style', 130, @ListCycleView);
+  VButton := AddButton('Multi: off', 168, @ListToggleMulti);
+
+  FList.Selected := FList.Items[0];
+end;
+
+procedure TWForm1.ListSelectItem(Sender: TObject; Item: TListItem;
+  Selected: Boolean);
+begin
+  if (not Assigned(FListInfo)) then
+    Exit;
+  if Assigned(Item) then
+    FListInfo.Caption := 'Selected: ' + Item.Caption + #10 +
+      'Checked: ' + BoolToStr(Item.Checked, True)
+  else
+    FListInfo.Caption := 'No selection';
+end;
+
+procedure TWForm1.ListChanged(Sender: TObject; Item: TListItem;
+  Change: TItemChange);
+begin
+  if (not Assigned(FListInfo)) or (not Assigned(Item)) then
+    Exit;
+  FListInfo.Caption := 'Selected: ' + Item.Caption + #10 +
+    'Checked: ' + BoolToStr(Item.Checked, True);
+end;
+
+procedure TWForm1.ListAdd(Sender: TObject);
+var
+  VItem: TListItem;
+begin
+  VItem := FList.Items.Add;
+  VItem.Caption := 'Item ' + IntToStr(FList.Items.Count);
+  VItem.SubItems.Add('New role');
+  VItem.SubItems.Add('City');
+  FList.Selected := VItem;
+  VItem.MakeVisible(False);
+end;
+
+procedure TWForm1.ListDelete(Sender: TObject);
+begin
+  if Assigned(FList.Selected) then
+    FList.Selected.Delete;
+end;
+
+procedure TWForm1.ListSort(Sender: TObject);
+begin
+  FList.AlphaSort;
+end;
+
+procedure TWForm1.ListCycleView(Sender: TObject);
+begin
+  case FList.ViewStyle of
+    vsReport:
+      FList.ViewStyle := vsList;
+    vsList:
+      FList.ViewStyle := vsSmallIcon;
+    vsSmallIcon:
+      FList.ViewStyle := vsIcon;
+  else
+    FList.ViewStyle := vsReport;
+  end;
+end;
+
+procedure TWForm1.ListToggleMulti(Sender: TObject);
+begin
+  FList.MultiSelect := not FList.MultiSelect;
+  if (Sender is TWButton) then
+  begin
+    if FList.MultiSelect then
+      TWButton(Sender).Caption := 'Multi: on'
+    else
+      TWButton(Sender).Caption := 'Multi: off';
+  end;
+end;
+
+procedure TWForm1.ListColumnClick(Sender: TObject; Column: TListColumn);
+begin
+  if Assigned(FListInfo) and Assigned(Column) then
+    FListInfo.Caption := 'Column clicked: ' + Column.Caption;
 end;
 
 { --- TStringGrid demo: inline editing, events and keyboard navigation --- }

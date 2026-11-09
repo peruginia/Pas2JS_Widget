@@ -805,6 +805,7 @@ begin
     'escape': Result := 27;
     'pageup': Result := 33;
     'pagedown': Result := 34;
+    ' ': Result := 32;
     'end': Result := 35;
     'home': Result := 36;
     'arrowleft': Result := 37;

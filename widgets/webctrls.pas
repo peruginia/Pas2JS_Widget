@@ -549,6 +549,11 @@ type
   TWTreeView = class(TTreeView)
   end;
 
+  { TWListView }
+
+  TWListView = class(TListView)
+  end;
+
   { TWGroupBox }
 
   TWGroupBox = class(TCustomGroupBox)
