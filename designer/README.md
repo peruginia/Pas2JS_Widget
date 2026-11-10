@@ -36,7 +36,9 @@ Make sure `designer/projects` is writable by Apache.
 ## What it does
 
 - Lists the projects in `designer/projects/<id>/`.
-- Loads the form file declared in `project.json`.
+- Loads the project, lists its forms and opens the selected one.
+- The toolbar has a project selector and a form selector; each form has its
+  own LFM and unit.
 - Parses LFM into a lossless AST in the browser.
 - Shows the component tree and a graphical preview.
 - Shows a palette of visual components; drag one onto the form or into a
@@ -52,15 +54,45 @@ Make sure `designer/projects` is writable by Apache.
   text.
 - Decodes `TTreeView.Items.Data` and `TListView.Items.LazData` into an item
   editor; the canvas preview shows the tree nodes and list rows.
-- Saves the generated LFM back through `api.php` and synchronises the `.pas`
-  unit declared in `project.json`.
-- Shows and edits the `.pas` unit in a **Source** tab; component fields and
-  event handlers can be reached from the tree and the inspector.
+- Saves the generated LFM back through `api.php` and synchronises the unit of
+  the selected form.
+- Shows and edits the `.pas` unit of the selected form in a **Source** tab;
+  component fields and event handlers can be reached from the tree and the
+  inspector.
 - Imports an existing `.lfm` as a new project.
 
 Unknown properties, collections (`Columns = <...>`), string lists and binary
 properties the designer does not decode are preserved as raw text, so saving a
 form does not drop data the designer does not understand yet.
+
+## Projects
+
+A project is a folder in `designer/projects/<id>/` with a `project.json`:
+
+```json
+{
+  "name": "WCL Demo",
+  "mainForm": "unit1.lfm",
+  "forms": [
+    { "form": "unit1.lfm", "unit": "unit1.pas", "title": "Components" },
+    { "form": "uLogin.lfm", "unit": "uLogin.pas", "title": "Login" }
+  ],
+  "units": []
+}
+```
+
+- `forms` lists the forms; each entry has the LFM file, its unit and an
+  optional title shown in the form selector.
+- `mainForm` is the form opened when the project is selected.
+- `units` lists additional units (without a form) that belong to the project.
+- `program` (optional) names the `.lpr` file, ready for build/preview.
+- A single-form project written by the first designer version (`form`/`unit`)
+  is accepted and normalized automatically.
+
+The toolbar shows the project selector and the form selector. Switching forms
+discards unsaved changes after a confirmation; the component tree, canvas and
+Source tab follow the selected form. Save writes the selected LFM and
+synchronises the selected form's unit.
 
 ## Canvas editing
 
@@ -169,8 +201,7 @@ were read in. Tree nodes are always written in the current LCL format
 ## `.pas` synchronisation
 
 On save the designer also sends the form class name and the list of components
-(name, class, unit). `lib/PasSync.php` updates the unit declared as `unit` in
-`project.json`:
+(name, class, unit). `lib/PasSync.php` updates the unit of the selected form:
 
 - adds missing units to the **interface** `uses` clause;
 - adds missing fields right after the form class header, using the same
@@ -208,7 +239,7 @@ designer/
   assets/app.js           palette, tree, canvas, inspector
   assets/style.css
   manifest/components.json
-  projects/demo/          imported copy of examples/demo/unit1.lfm
+  projects/demo/          imported copy of examples/demo (unit1 + uLogin)
   tests/lfm.test.mjs      Node round-trip tests
   tests/binary.test.mjs   Node tree/list binary codec tests
   tests/pas-sync.test.php PHP .pas synchronisation test
@@ -221,15 +252,16 @@ All responses are JSON.
 | Action | Method | Parameters |
 |---|---|---|
 | `projects` | GET | - |
-| `load` | GET | `project=<id>` |
-| `unit` | GET | `project=<id>` |
-| `saveUnit` | POST | JSON `{ "project": "<id>", "source": "..." }` |
-| `save` | POST | JSON `{ "project": "<id>", "lfm": "...", "formClass": "TForm1", "components": [{ "name": "Button1", "className": "TWButton", "unit": "WebCtrls" }] }` |
+| `load` | GET | `project=<id>` and optional `form=<lfm>` |
+| `unit` | GET | `project=<id>` and optional `unit=<pas>` |
+| `saveUnit` | POST | JSON `{ "project": "<id>", "unit": "<pas>", "source": "..." }` |
+| `save` | POST | JSON `{ "project": "<id>", "form": "<lfm>", "lfm": "...", "formClass": "TForm1", "components": [{ "name": "Button1", "className": "TWButton", "unit": "WebCtrls" }] }` |
 | `import` | POST | JSON `{ "id": "...", "name": "...", "lfm": "..." }` |
 
-`save` returns `ok`, `bytes`, `pasChanged` and `warnings`. The `formClass` and
-`components` fields are optional; when they are omitted the `.pas` file is not
-touched.
+`load` uses `mainForm` when `form` is omitted; `unit` uses the main form's unit
+when `unit` is omitted. `save` returns `ok`, `form`, `unit`, `bytes`,
+`pasChanged` and `warnings`. The `formClass` and `components` fields are
+optional; when they are omitted the `.pas` file is not touched.
 
 ## Tests
 

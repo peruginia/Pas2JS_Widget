@@ -24,6 +24,8 @@ const state = {
   manifest: { nonVisual: [], aliases: {}, classes: [], defaults: {} },
   projects: [],
   project: null,
+  forms: [],
+  currentForm: null,
   roots: [],
   selected: null,
   activeTabs: new Map(),
@@ -39,6 +41,7 @@ const state = {
 
 const els = {
   project: document.getElementById('projectSelect'),
+  form: document.getElementById('formSelect'),
   reload: document.getElementById('reloadBtn'),
   save: document.getElementById('saveBtn'),
   importFile: document.getElementById('importFile'),
@@ -209,6 +212,12 @@ function setView(view) {
   }
 }
 
+function currentUnitName() {
+  if (state.currentForm && state.currentForm.unit) return state.currentForm.unit;
+  if (state.project && state.project.unit) return state.project.unit;
+  return '';
+}
+
 async function loadSource(force = false) {
   if (!state.project) {
     els.sourceName.textContent = 'No unit';
@@ -218,13 +227,13 @@ async function loadSource(force = false) {
     state.source = null;
     return;
   }
-  els.sourceName.textContent = state.project.unit || 'unit';
+  els.sourceName.textContent = currentUnitName() || 'unit';
   if (state.source !== null && !force) {
     return;
   }
   els.sourceStatus.textContent = 'Loading...';
   try {
-    const data = await api('unit', { project: state.project.id });
+    const data = await api('unit', { project: state.project.id, unit: currentUnitName() });
     state.sourceEol = data.source.includes('\r\n') ? '\r\n' : '\n';
     state.source = data.source.replace(/\r\n/g, '\n');
     state.sourceDirty = false;
@@ -264,7 +273,7 @@ async function saveSource({ saveForm = false } = {}) {
   const text = sourceText().split('\n').join(state.sourceEol || '\n');
   els.sourceStatus.textContent = 'Saving...';
   try {
-    const result = await api('saveUnit', {}, { project: state.project.id, source: text });
+    const result = await api('saveUnit', {}, { project: state.project.id, unit: currentUnitName(), source: text });
     state.source = sourceText();
     state.sourceDirty = false;
     updateSourceStatus();
@@ -1856,7 +1865,7 @@ async function ensureSourceLoaded() {
     return false;
   }
   try {
-    const data = await api('unit', { project: state.project.id });
+    const data = await api('unit', { project: state.project.id, unit: currentUnitName() });
     state.sourceEol = data.source.includes('\r\n') ? '\r\n' : '\n';
     state.source = data.source.replace(/\r\n/g, '\n');
     state.sourceDirty = false;
@@ -2471,12 +2480,42 @@ async function loadProjects() {
   await loadProject(state.projects[0].id);
 }
 
-async function loadProject(id) {
+function renderFormSelect() {
+  els.form.innerHTML = '';
+  for (const form of state.forms) {
+    const option = document.createElement('option');
+    option.value = form.form;
+    option.textContent = form.title || form.form;
+    els.form.appendChild(option);
+  }
+  if (state.currentForm) {
+    els.form.value = state.currentForm.form;
+  }
+  els.form.disabled = state.forms.length <= 1;
+}
+
+async function loadForm(formName) {
+  if (!state.project || !formName) return;
+  if (state.currentForm && state.currentForm.form === formName) return;
+  if (state.dirty || state.sourceDirty) {
+    if (!window.confirm('Discard the unsaved changes?')) {
+      if (state.currentForm) els.form.value = state.currentForm.form;
+      return;
+    }
+  }
+  await loadProject(state.project.id, formName);
+}
+
+async function loadProject(id, formName = '') {
   try {
     setStatus(`Loading ${id}...`);
-    const data = await api('load', { project: id });
+    const params = { project: id };
+    if (formName) params.form = formName;
+    const data = await api('load', params);
     const roots = parseLfm(data.lfm);
     state.project = data.project;
+    state.forms = data.project.forms || [];
+    state.currentForm = data.form || state.forms[0] || null;
     state.roots = roots;
     state.selected = null;
     state.activeTabs.clear();
@@ -2488,10 +2527,13 @@ async function loadProject(id) {
     els.sourceEditor.value = '';
     els.sourceGutter.textContent = '';
     els.project.value = id;
+    renderFormSelect();
     renderAll();
     setStatus(`${data.project.name} loaded`);
     if (state.view === 'source') loadSource(true);
   } catch (error) {
+    if (state.currentForm) els.form.value = state.currentForm.form;
+    if (state.project) els.project.value = state.project.id;
     setStatus(error.message, true);
   }
 }
@@ -2511,6 +2553,7 @@ async function saveProject() {
     const components = collectComponents(state.roots, false);
     const result = await api('save', {}, {
       project: state.project.id,
+      form: state.currentForm ? state.currentForm.form : '',
       lfm,
       formClass,
       components,
@@ -2565,8 +2608,8 @@ async function boot() {
   document.addEventListener('dragend', clearDropTargets);
   els.reload.addEventListener('click', () => {
     if (!state.project) return;
-    if (state.sourceDirty && !window.confirm('Discard the unsaved changes to the unit?')) return;
-    loadProject(state.project.id);
+    if ((state.dirty || state.sourceDirty) && !window.confirm('Discard the unsaved changes?')) return;
+    loadProject(state.project.id, state.currentForm ? state.currentForm.form : '');
   });
   els.save.addEventListener('click', saveProject);
   els.designTab.addEventListener('click', () => setView('design'));
@@ -2593,12 +2636,13 @@ async function boot() {
   });
   els.project.addEventListener('change', () => {
     if (!els.project.value) return;
-    if (state.sourceDirty && !window.confirm('Discard the unsaved changes to the unit?')) {
+    if ((state.dirty || state.sourceDirty) && !window.confirm('Discard the unsaved changes?')) {
       els.project.value = state.project ? state.project.id : els.project.value;
       return;
     }
     loadProject(els.project.value);
   });
+  els.form.addEventListener('change', () => loadForm(els.form.value));
   els.importBtn.addEventListener('click', () => els.importFile.click());
   els.importFile.addEventListener('change', () => {
     const file = els.importFile.files[0];

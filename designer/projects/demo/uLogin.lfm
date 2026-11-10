@@ -1,0 +1,97 @@
+object FormLogin: TFormLogin
+  Left = 0
+  Height = 750
+  Top = 0
+  Width = 1125
+  AlphaBlend = False
+  AlphaBlendValue = 255
+  Caption = 'WCL Demo - Accesso'
+  ClientHeight = 750
+  ClientWidth = 1125
+  DesignTimePPI = 120
+  OnResize = FormResize
+  object LoginPanel: TWPanel
+    Left = 388
+    Height = 412
+    Top = 169
+    Width = 350
+    BevelOuter = bvNone
+    ClientHeight = 412
+    ClientWidth = 350
+    TabOrder = 0
+    object lblTitle: TWLabel
+      Left = 0
+      Height = 35
+      Top = 15
+      Width = 350
+      Alignment = taCenter
+      AutoSize = False
+      Caption = 'WCL Component Demo'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object lblUser: TWLabel
+      Left = 0
+      Height = 20
+      Top = 78
+      Width = 280
+      Caption = 'Nome utente'
+    end
+    object edtUser: TWEdit
+      Left = 0
+      Height = 26
+      Top = 105
+      Width = 350
+      Autocomplete = 'username'
+      TabOrder = 0
+      TextHint = 'demo'
+    end
+    object lblPassword: TWLabel
+      Left = 0
+      Height = 20
+      Top = 155
+      Width = 280
+      Caption = 'Password'
+    end
+    object edtPassword: TWEdit
+      Left = 0
+      Height = 26
+      Top = 182
+      Width = 350
+      Autocomplete = 'current-password'
+      PasswordChar = '*'
+      TabOrder = 1
+      TextHint = 'demo'
+    end
+    object btnLogin: TWButton
+      Left = 100
+      Height = 42
+      Top = 240
+      Width = 150
+      Caption = 'Accedi'
+      Font.Style = [fsBold]
+      ParentFont = False
+      TabOrder = 2
+      OnClick = btnLoginClick
+    end
+    object lblError: TWLabel
+      Left = 0
+      Height = 45
+      Top = 295
+      Width = 350
+      Alignment = taCenter
+      AutoSize = False
+      Font.Color = clRed
+      ParentFont = False
+    end
+    object lblHint: TWLabel
+      Left = 0
+      Height = 50
+      Top = 350
+      Width = 350
+      Alignment = taCenter
+      AutoSize = False
+      Caption = 'Credenziali demo: demo / demo'
+    end
+  end
+end
