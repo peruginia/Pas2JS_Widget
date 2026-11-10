@@ -1109,6 +1109,10 @@ const COMMON_PROPERTIES = [
   { name: 'Enabled', kind: 'boolean', value: 'True' },
   { name: 'Visible', kind: 'boolean', value: 'True' },
   { name: 'Hint', kind: 'string', value: '' },
+  { name: 'OnClick', kind: 'identifier', value: '' },
+  { name: 'OnDblClick', kind: 'identifier', value: '' },
+  { name: 'OnMouseEnter', kind: 'identifier', value: '' },
+  { name: 'OnMouseLeave', kind: 'identifier', value: '' },
 ];
 
 // Published properties offered by the inspector when the LFM does not set
@@ -1124,11 +1128,13 @@ const CLASS_PROPERTIES = {
     { name: 'TextHint', kind: 'string', value: '' },
     { name: 'ReadOnly', kind: 'boolean', value: 'False' },
     { name: 'MaxLength', kind: 'integer', value: '0' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWMemo: [
     { name: 'Text', kind: 'string', value: '' },
     { name: 'ReadOnly', kind: 'boolean', value: 'False' },
     { name: 'ScrollBars', kind: 'identifier', value: 'ssBoth' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWComboBox: [
     { name: 'Text', kind: 'string', value: '' },
@@ -1136,20 +1142,24 @@ const CLASS_PROPERTIES = {
     { name: 'ItemIndex', kind: 'integer', value: '-1' },
     { name: 'Style', kind: 'identifier', value: 'csDropDown' },
     { name: 'Sorted', kind: 'boolean', value: 'False' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWListBox: [
     { name: 'Items.Strings', kind: 'strings', value: '()' },
     { name: 'ItemIndex', kind: 'integer', value: '-1' },
     { name: 'MultiSelect', kind: 'boolean', value: 'False' },
     { name: 'Sorted', kind: 'boolean', value: 'False' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWCheckbox: [
     { name: 'Caption', kind: 'string', value: 'Check' },
     { name: 'Checked', kind: 'boolean', value: 'False' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWRadioButton: [
     { name: 'Caption', kind: 'string', value: 'Radio' },
     { name: 'Checked', kind: 'boolean', value: 'False' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWLabel: [
     { name: 'Caption', kind: 'string', value: 'Label' },
@@ -1179,6 +1189,7 @@ const CLASS_PROPERTIES = {
     { name: 'ShowTabs', kind: 'boolean', value: 'True' },
     { name: 'TabIndex', kind: 'integer', value: '0' },
     { name: 'TabOrder', kind: 'integer', value: '0' },
+    { name: 'OnShowPage', kind: 'identifier', value: '' },
   ],
   TTabSheet: [
     { name: 'Caption', kind: 'string', value: 'Tab' },
@@ -1202,18 +1213,21 @@ const CLASS_PROPERTIES = {
     { name: 'Position', kind: 'integer', value: '0' },
     { name: 'Frequency', kind: 'integer', value: '1' },
     { name: 'Orientation', kind: 'identifier', value: 'trHorizontal' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWSpinEdit: [
     { name: 'Value', kind: 'integer', value: '0' },
     { name: 'MinValue', kind: 'integer', value: '0' },
     { name: 'MaxValue', kind: 'integer', value: '100' },
     { name: 'Increment', kind: 'integer', value: '1' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWIntegerEdit: [
     { name: 'Value', kind: 'integer', value: '0' },
     { name: 'MinValue', kind: 'integer', value: '0' },
     { name: 'MaxValue', kind: 'integer', value: '100' },
     { name: 'Increment', kind: 'integer', value: '1' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWFloatEdit: [
     { name: 'Value', kind: 'float', value: '0' },
@@ -1221,18 +1235,23 @@ const CLASS_PROPERTIES = {
     { name: 'MaxValue', kind: 'float', value: '100' },
     { name: 'DecimalPlaces', kind: 'integer', value: '2' },
     { name: 'Increment', kind: 'float', value: '1' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWDateEditBox: [
     { name: 'Value', kind: 'float', value: '0' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWTimeEditBox: [
     { name: 'Value', kind: 'float', value: '0' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWColorPicker: [
     { name: 'Color', kind: 'identifier', value: 'clBlack' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWFileButton: [
     { name: 'Caption', kind: 'string', value: 'Choose file' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWStringGrid: [
     { name: 'ColCount', kind: 'integer', value: '5' },
@@ -1247,6 +1266,7 @@ const CLASS_PROPERTIES = {
     { name: 'ShowButtons', kind: 'boolean', value: 'True' },
     { name: 'ReadOnly', kind: 'boolean', value: 'False' },
     { name: 'Indent', kind: 'integer', value: '18' },
+    { name: 'OnChange', kind: 'identifier', value: '' },
   ],
   TWListView: [
     { name: 'ViewStyle', kind: 'identifier', value: 'vsList' },
@@ -1753,7 +1773,9 @@ function renderInspector() {
   }
   for (const spec of missingProperties(node)) {
     const row = propertyRow(spec.name, spec.kind, true);
-    row.appendChild(defaultPropertyEditor(node, spec, row));
+    row.appendChild(isEventProperty(spec)
+      ? defaultEventEditor(node, spec, row)
+      : defaultPropertyEditor(node, spec, row));
     table.appendChild(row);
   }
   els.inspector.appendChild(table);
@@ -2065,6 +2087,57 @@ function stringListEditor(node, prop) {
   return wrap;
 }
 
+function defaultEventEditor(node, spec, row) {
+  let prop = null;
+  const ensure = () => {
+    if (!prop) {
+      prop = ensureProperty(node, spec);
+      if (row) row.classList.remove('default');
+    }
+    return prop;
+  };
+
+  const wrap = document.createElement('div');
+  wrap.className = 'property-editor-with-action';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'property-input';
+  input.placeholder = 'Handler name';
+  input.addEventListener('input', () => {
+    setPropertyValue(ensure(), input.value, 'raw');
+    markDirty();
+    renderCanvas();
+    renderTree();
+  });
+
+  const go = document.createElement('button');
+  go.type = 'button';
+  go.className = 'event-btn';
+  go.textContent = '{ }';
+  go.title = 'Show the handler in the source';
+  go.addEventListener('click', async () => {
+    if (!prop) {
+      setStatus('No handler assigned to this event.', true);
+      return;
+    }
+    await gotoHandler(prop);
+  });
+
+  const plus = document.createElement('button');
+  plus.type = 'button';
+  plus.className = 'event-btn';
+  plus.textContent = '+';
+  plus.title = 'Create the handler in the unit';
+  plus.addEventListener('click', () => createHandler(node, ensure()));
+
+  wrap.append(input, go);
+  if (NOTIFY_EVENTS.has(spec.name)) {
+    wrap.appendChild(plus);
+  }
+  return wrap;
+}
+
 function defaultPropertyEditor(node, spec, row) {
   let created = false;
   const ensure = () => {
@@ -2207,7 +2280,9 @@ function renderAddProperty(node) {
       setStatus('Invalid property name.', true);
       return;
     }
-    const chosenKind = kind.value === 'auto' ? inferKind(value.value) : kind.value;
+    const chosenKind = kind.value === 'auto'
+      ? (/^On[A-Z]/.test(propertyName) ? 'identifier' : inferKind(value.value))
+      : kind.value;
     const raw = chosenKind === 'strings' ? '()' : rawForKind(chosenKind, value.value);
     let prop = getProperty(node, propertyName);
     if (prop) {

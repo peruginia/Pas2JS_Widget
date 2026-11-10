@@ -171,6 +171,13 @@ it also shows the common published properties the form does not set yet
 have a dashed border and an italic label; editing one adds the property to the
 LFM, so the form keeps only the values that differ from the defaults.
 
+The default rows also include the common events: `OnClick`, `OnDblClick`,
+`OnMouseEnter` and `OnMouseLeave` for every visual control, plus `OnChange`
+for the input-like controls. They show the same `{ }` and `+` buttons as the
+events already stored in the LFM, so a new component can get a handler
+without adding the property first. The **Add property** box treats names
+starting with `On` as identifiers when the type is Auto.
+
 String lists (`Items.Strings`, `Cells.Strings`) are edited as a list of rows
 with add and remove buttons, not as raw text.
 
