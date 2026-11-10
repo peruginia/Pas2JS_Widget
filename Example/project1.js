@@ -56755,11 +56755,12 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
       this.FInput = document.createElement("input");
       this.FInput.type = "color";
       this.FInput.style.setProperty("position","fixed");
-      this.FInput.style.setProperty("left","-1000px");
-      this.FInput.style.setProperty("top","-1000px");
+      this.FInput.style.setProperty("left","50%");
+      this.FInput.style.setProperty("top","50%");
       this.FInput.style.setProperty("width","1px");
       this.FInput.style.setProperty("height","1px");
-      this.FInput.style.setProperty("opacity","0");
+      this.FInput.style.setProperty("opacity","0.01");
+      this.FInput.style.setProperty("transform","translate(-50%, -50%)");
       document.body.appendChild(this.FInput);
       this.FInput.addEventListener("change",rtl.createCallback(this,"HandleChange"));
       return this;

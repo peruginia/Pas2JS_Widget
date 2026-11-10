@@ -1214,12 +1214,15 @@ begin
   FColor := clBlack;
   FInput := TJSHTMLInputElement(Document.CreateElement('input'));
   FInput._type := 'color';
+  /// Keep the input on screen: showPicker/click opens the native colour
+  /// picker next to it, so an off-screen input makes the picker invisible.
   FInput.Style.SetProperty('position', 'fixed');
-  FInput.Style.SetProperty('left', '-1000px');
-  FInput.Style.SetProperty('top', '-1000px');
+  FInput.Style.SetProperty('left', '50%');
+  FInput.Style.SetProperty('top', '50%');
   FInput.Style.SetProperty('width', '1px');
   FInput.Style.SetProperty('height', '1px');
-  FInput.Style.SetProperty('opacity', '0');
+  FInput.Style.SetProperty('opacity', '0.01');
+  FInput.Style.SetProperty('transform', 'translate(-50%, -50%)');
   Document.Body.AppendChild(FInput);
   FInput.addEventListener('change', TJSEventHandler(@HandleChange));
 end;
