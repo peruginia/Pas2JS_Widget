@@ -199,7 +199,7 @@ designer/
   assets/app.js           palette, tree, canvas, inspector
   assets/style.css
   manifest/components.json
-  projects/demo/          imported copy of Example/unit1.lfm
+  projects/demo/          imported copy of examples/demo/unit1.lfm
   tests/lfm.test.mjs      Node round-trip tests
   tests/binary.test.mjs   Node tree/list binary codec tests
   tests/pas-sync.test.php PHP .pas synchronisation test
@@ -230,7 +230,7 @@ node designer\tests\binary.test.mjs
 C:\Vario\xampp\php\php.exe designer\tests\pas-sync.test.php
 ```
 
-The LFM test parses and rewrites `Example/unit1.lfm`, `Example/uLogin.lfm` and a
+The LFM test parses and rewrites `examples/demo/unit1.lfm`, `examples/demo/uLogin.lfm` and a
 synthetic form with collections, string lists and binary data, then compares
 the ASTs. The binary test decodes real Lazarus `Items.Data`/`Items.LazData`
 blobs, checks the item structure and that re-encoding reproduces the original

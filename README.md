@@ -5,6 +5,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 ### Live Demo
 🔗 [**peruginia.github.io/Pas2JS_Widget/project1.html**](https://peruginia.github.io/Pas2JS_Widget/project1.html) — all components demo (DataGrid with progressive loading, filtering, sorting)
 🔗 [**peruginia.github.io/Pas2JS_Widget/MobileDemo/mobile.html**](https://peruginia.github.io/Pas2JS_Widget/MobileDemo/mobile.html) — mobile/PWA demo (responsive layout, touch sizes, safe area, installable)
+- [**peruginia.github.io/Pas2JS_Widget/examples/host/project1.html**](https://peruginia.github.io/Pas2JS_Widget/examples/host/project1.html) - host + dynamically loaded module example
 
 ### Requirements
 - Lazarus 2.1+
@@ -552,7 +553,7 @@ On touch devices the shared theme also enlarges inputs to 16px (which prevents i
 
 ---
 
-### Example (`Example/`)
+### Demo (`examples/demo/`)
 
 A demo project showcasing all components including `TWWebDBConnection` + `TWWebDBTable` with progressive loading.
 
@@ -564,7 +565,7 @@ The demo starts on a **login form** and switches to the main form after a succes
 
 ```bash
 # Start the PHP backend
-cd Example
+cd examples/demo
 php -S localhost:80
 
 # Open project1.html in a browser (after compiling in Lazarus)
@@ -601,13 +602,13 @@ unit is a separate file in `lib/`.
 After building, generate the module manifest:
 
 ```bash
-php design/tools/module-manifest.php lib
+php design/tools/module-manifest.php lib Module1
 ```
 
 The tool reads the `rtl.module` headers from the JavaScript files and writes
-`lib/modules.json` with the unit files in dependency order. The loader page
-uses it to load the main file, then the unit modules, and finally calls
-`rtl.run('program')`.
+`lib/modules.json` with the unit files in dependency order, the entry unit
+(`Module1`) and the main file. The loader page uses it to load the main file,
+then the unit modules, and finally calls `rtl.run('program')`.
 
 A host application can load the same files: execute the main module first,
 then the unit modules that are not registered yet (`rtl.module` rejects a
@@ -615,7 +616,36 @@ duplicate module name), and call `rtl.run` for the module entry point. Keep
 the host and the modules on the same pas2js/RTL/WCL version, so the shared
 classes and the RTL match.
 
-### Mobile demo (`MobileDemo/`)
+### Host + module example (`examples/host/`, `examples/module/`)
+
+A working example of the base shell + loadable module architecture:
+
+* `examples/host/` is a normal **Web GUI Application** (`-Jc`). Its `AppHost`
+  unit keeps the shared state (`UserName`, the content panel) and a registry
+  of screens; the shell builds a menu from the registered screens.
+* `examples/module/` is a **Web Module** (`-Jc-`). `Module1` registers
+  `TModulePanel` in `AppHost` from its `initialization`; the panel is built in
+  code, so the example needs no LFM resource.
+* `examples/host/module-loader.js` fetches `../module/lib/modules.json`, skips
+  the units already registered in `pas` (RTL, WCL, `AppHost`), loads
+  `module1.js`, runs `rtl.run('Module1')` and finally `rtl.run('program')`.
+* The module main (`examples/module/lib/project1.js`, which contains the RTL)
+  is only used by the standalone `examples/module/project1.html`; the host
+  never loads it, otherwise it would replace the host RTL.
+
+Build both examples (pas2js and PHP must be reachable, or pass their paths):
+
+```powershell
+.\examples\build.ps1
+# or
+.\examples\build.ps1 -Pas2JS C:\lazarus\pas2js\bin\x86_64-win64\pas2js.exe -Php C:\Vario\xampp\php\php.exe
+```
+
+Serve the repository root (for example with `php -S localhost:80`) and open
+`examples/host/project1.html`. The module files in `examples/module/lib` are
+committed, so a static server is enough to run the demo.
+
+### Mobile demo (`examples/mobile/`)
 
 A second, phone-first demo built entirely in code (a plain `TWForm`, no `.lfm`) to show the mobile side of the framework:
 
@@ -628,26 +658,26 @@ The app enables `Application.ViewportFit := True`: the viewport gets `viewport-f
 
 ```bash
 pas2js -dPas2js -O- -Jeutf-8 "-Jirtl.js" -Jc -JRjs \
-  -FuC:/lazarus/pas2js/packages/rtl/src -Fuwidgets -FuMobileDemo \
-  -oMobileDemo/mobile.js MobileDemo/mobile.lpr
+  -FuC:/lazarus/pas2js/packages/rtl/src -Fuwidgets -Fuexamples/mobile \
+  -oexamples/mobile/mobile.js examples/mobile/mobile.lpr
 ```
 
 When the app assets change, bump `CACHE` in `sw.js` (`wcl-mobile-v2`, …) so installed clients fetch the new build.
 
 ### Hosting the demo on GitHub Pages
 
-The workflow `.github/workflows/pages.yml` publishes `Example/` at the site root and copies `MobileDemo/` under `/MobileDemo/`:
+The workflow `.github/workflows/pages.yml` publishes `examples/demo/` at the site root, copies `examples/mobile/` under `/MobileDemo/` and the host/module examples under `/examples/`:
 
 1. In the repository, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
-2. Push to `master` (any change under `Example/` or `MobileDemo/` triggers a deploy), or run the workflow manually.
+2. Push to `master` (any change under `examples/` triggers a deploy), or run the workflow manually.
 
-There is no build step in CI, so **`Example/project1.js` and `MobileDemo/mobile.js` must be committed**. After changing a demo, recompile it and commit the result:
+There is no build step in CI, so **`examples/demo/project1.js`, `examples/mobile/mobile.js` and the compiled host/module files must be committed**. After changing a demo, recompile it and commit the result:
 
 ```bash
 pas2js -dPas2js -O- -Jeutf-8 -Jirtl.js -Jc -JRjs \
-  -Fu<path-to-pas2js>/packages/rtl/src -Fuwidgets -FuExample \
-  -oExample/project1.js Example/project1.lpr
-git add -f Example/project1.js    # the file is git-ignored by Example/.gitignore
+  -Fu<path-to-pas2js>/packages/rtl/src -Fuwidgets -Fuexamples/demo \
+  -oexamples/demo/project1.js examples/demo/project1.lpr
+git add -f examples/demo/project1.js    # the file is git-ignored by examples/demo/.gitignore
 git commit -m "chore: rebuild demo"
 ```
 
@@ -660,9 +690,9 @@ git commit -m "chore: rebuild demo"
 The demo shows the classic two-form flow: a login window first, then the application.
 
 ```
-Example/uLogin.pas    TFormLogin (TWForm)   username / password / Accedi
-Example/unit1.pas     TWForm1               the component demo
-Example/project1.lpr  creates both, login first
+examples/demo/uLogin.pas    TFormLogin (TWForm)   username / password / Accedi
+examples/demo/unit1.pas     TWForm1               the component demo
+examples/demo/project1.lpr  creates both, login first
 ```
 
 `TApplication.UpdateMainForm` keeps the **first** form created as `MainForm`, and `Application.Run` shows it. Creating the login first therefore makes it the start screen; the main form stays hidden until the login succeeds:
@@ -702,7 +732,7 @@ Because GitHub Pages does not execute PHP, the client falls back to a local `dem
 - Design-time units in `design/source/` use a `D` suffix to avoid name conflicts with runtime units
 - Component icons are XPM in `design/image/`
 - Runtime units in `widgets/` are compiled to JS
-- `widgets/backup/` and `Example/backup/` hold obsolete snapshots and are git-ignored — not part of the build
+- `widgets/backup/` and `examples/demo/backup/` hold obsolete snapshots and are git-ignored — not part of the build
 
 ### Feature notes
 

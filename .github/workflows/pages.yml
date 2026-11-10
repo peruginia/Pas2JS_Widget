@@ -4,8 +4,7 @@ on:
   push:
     branches: [master]
     paths:
-      - 'Example/**'
-      - 'MobileDemo/**'
+      - 'examples/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -38,8 +37,11 @@ jobs:
       - name: Prepare site
         run: |
           mkdir -p site
-          cp -R Example/. site/
-          cp -R MobileDemo site/MobileDemo
+          cp -R examples/demo/. site/
+          cp -R examples/mobile site/MobileDemo
+          mkdir -p site/examples
+          cp -R examples/host site/examples/host
+          cp -R examples/module site/examples/module
 
       - name: Upload static site
         uses: actions/upload-pages-artifact@v3

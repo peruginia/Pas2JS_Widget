@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Project1 module</title>
+</head>
+<body>
+  <pre id="module-status">Loading...</pre>
+  <script>
+    (async function () {
+      function loadScript(url) {
+        return new Promise(function (resolve, reject) {
+          var script = document.createElement("script");
+          script.src = url;
+          script.onload = function () { resolve(); };
+          script.onerror = function () { reject(new Error("Cannot load " + url)); };
+          document.head.appendChild(script);
+        });
+      }
+      async function loadFirst(urls) {
+        var last = null;
+        for (var i = 0; i < urls.length; i++) {
+          try { await loadScript(urls[i]); return; }
+          catch (error) { last = error; }
+        }
+        throw last || new Error("Nothing to load");
+      }
+      async function fetchManifest(urls) {
+        for (var i = 0; i < urls.length; i++) {
+          try {
+            var response = await fetch(urls[i]);
+            if (response.ok) return { url: urls[i], data: await response.json() };
+          } catch (error) {}
+        }
+        return null;
+      }
+      try {
+        await loadFirst(["project1.js", "lib/project1.js"]);
+        var manifest = await fetchManifest(["modules.json", "lib/modules.json"]);
+        if (manifest) {
+          var base = manifest.url.slice(0, manifest.url.length - "modules.json".length);
+          for (var i = 0; i < manifest.data.files.length; i++) {
+            var entry = manifest.data.files[i];
+            var file = typeof entry === "string" ? entry : entry.file;
+            await loadScript(base + file);
+          }
+        }
+        rtl.run("program");
+        document.getElementById("module-status").textContent = "Module loaded.";
+      } catch (error) {
+        document.getElementById("module-status").textContent = String(error);
+        console.error(error);
+      }
+    })();
+  </script>
+</body>
+</html>

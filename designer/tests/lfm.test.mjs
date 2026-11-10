@@ -31,8 +31,8 @@ function count(nodes) {
 }
 
 const files = [
-  path.join(root, 'Example', 'unit1.lfm'),
-  path.join(root, 'Example', 'uLogin.lfm'),
+  path.join(root, 'examples', 'demo', 'unit1.lfm'),
+  path.join(root, 'examples', 'demo', 'uLogin.lfm'),
 ];
 
 for (const file of files) {

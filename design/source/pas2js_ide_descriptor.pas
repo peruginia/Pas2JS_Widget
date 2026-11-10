@@ -327,7 +327,9 @@ const
     '        if (manifest) {' + LE +
     '          var base = manifest.url.slice(0, manifest.url.length - "modules.json".length);' + LE +
     '          for (var i = 0; i < manifest.data.files.length; i++) {' + LE +
-    '            await loadScript(base + manifest.data.files[i]);' + LE +
+    '            var item = manifest.data.files[i];' + LE +
+    '            var file = typeof item === "string" ? item : item.file;' + LE +
+    '            await loadScript(base + file);' + LE +
     '          }' + LE +
     '        }' + LE +
     '        rtl.run("program");' + LE +
@@ -379,7 +381,7 @@ begin
   CompOpts.GenerateDebugInfo := False;
   CompOpts.CompilerPath := '$(pas2js)';
   CompOpts.UnitOutputDirectory := 'lib';
-  CompOpts.CustomOptions := '-Jeutf-8 -Jirtl.js -Jc- -Jminclude -JRjs';
+  CompOpts.CustomOptions := '-Jeutf-8 -Jirtl.js -Jc- -Jm- -JRjs';
 end;
 
 function TPas2JSModuleProject.CreateStartFiles(AProject: TLazProject): TModalResult;

@@ -13,7 +13,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
 /**
- * Fake login endpoint used by the multi-form demo (Example/uLogin.pas).
+ * Fake login endpoint used by the multi-form demo (examples/demo/uLogin.pas).
  *
  *   GET api.php?cmd=Login&UserName=demo&Password=demo
  *   -> {"result":true,"userId":1,"SessionId":"...","scade":"...","Name":"Demo User"}

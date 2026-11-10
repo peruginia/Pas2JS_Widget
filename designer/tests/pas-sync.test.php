@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 require __DIR__ . '/../lib/PasSync.php';
 
-$pas = file_get_contents(__DIR__ . '/../../Example/unit1.pas');
+$pas = file_get_contents(__DIR__ . '/../../examples/demo/unit1.pas');
 if ($pas === false) {
-    fwrite(STDERR, "Cannot read Example/unit1.pas\n");
+    fwrite(STDERR, "Cannot read examples/demo/unit1.pas\n");
     exit(1);
 }
 

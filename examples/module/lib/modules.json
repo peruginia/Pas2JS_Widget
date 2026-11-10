@@ -1,0 +1,175 @@
+{
+    "generated": "2026-11-10T11:20:51+01:00",
+    "main": "project1.js",
+    "entry": "Module1",
+    "files": [
+        {
+            "name": "System",
+            "file": "system.js"
+        },
+        {
+            "name": "RTLConsts",
+            "file": "rtlconsts.js"
+        },
+        {
+            "name": "Types",
+            "file": "types.js"
+        },
+        {
+            "name": "JS",
+            "file": "js.js"
+        },
+        {
+            "name": "SysUtils",
+            "file": "sysutils.js"
+        },
+        {
+            "name": "TypInfo",
+            "file": "typinfo.js"
+        },
+        {
+            "name": "p2jsres",
+            "file": "p2jsres.js"
+        },
+        {
+            "name": "Classes",
+            "file": "classes.js"
+        },
+        {
+            "name": "Generics.Strings",
+            "file": "generics.strings.js"
+        },
+        {
+            "name": "Generics.Defaults",
+            "file": "generics.defaults.js"
+        },
+        {
+            "name": "Generics.Collections",
+            "file": "generics.collections.js"
+        },
+        {
+            "name": "weborworker",
+            "file": "weborworker.js"
+        },
+        {
+            "name": "Web",
+            "file": "web.js"
+        },
+        {
+            "name": "Math",
+            "file": "math.js"
+        },
+        {
+            "name": "Graphics",
+            "file": "graphics.js"
+        },
+        {
+            "name": "Controls",
+            "file": "controls.js"
+        },
+        {
+            "name": "ActnList",
+            "file": "actnlist.js"
+        },
+        {
+            "name": "AppHost",
+            "file": "apphost.js"
+        },
+        {
+            "name": "WebExtra",
+            "file": "webextra.js"
+        },
+        {
+            "name": "Forms",
+            "file": "forms.js"
+        },
+        {
+            "name": "StdCtrls",
+            "file": "stdctrls.js"
+        },
+        {
+            "name": "BtnCtrls",
+            "file": "btnctrls.js"
+        },
+        {
+            "name": "ComCtrls",
+            "file": "comctrls.js"
+        },
+        {
+            "name": "contnrs",
+            "file": "contnrs.js"
+        },
+        {
+            "name": "DateUtils",
+            "file": "dateutils.js"
+        },
+        {
+            "name": "DB",
+            "file": "db.js"
+        },
+        {
+            "name": "fpexprpars",
+            "file": "fpexprpars.js"
+        },
+        {
+            "name": "JSONDataset",
+            "file": "jsondataset.js"
+        },
+        {
+            "name": "localjsondataset",
+            "file": "localjsondataset.js"
+        },
+        {
+            "name": "WebDB",
+            "file": "webdb.js"
+        },
+        {
+            "name": "DataGrid",
+            "file": "datagrid.js"
+        },
+        {
+            "name": "DBConst",
+            "file": "dbconst.js"
+        },
+        {
+            "name": "DttCtrls",
+            "file": "dttctrls.js"
+        },
+        {
+            "name": "ExtCtrls",
+            "file": "extctrls.js"
+        },
+        {
+            "name": "MaskUtils",
+            "file": "maskutils.js"
+        },
+        {
+            "name": "Menus",
+            "file": "menus.js"
+        },
+        {
+            "name": "NumCtrls",
+            "file": "numctrls.js"
+        },
+        {
+            "name": "WebCtrls",
+            "file": "webctrls.js"
+        },
+        {
+            "name": "Module1",
+            "file": "module1.js"
+        },
+        {
+            "name": "simplelinkedlist",
+            "file": "simplelinkedlist.js"
+        },
+        {
+            "name": "WCLStrConsts",
+            "file": "wclstrconsts.js"
+        },
+        {
+            "name": "WResources",
+            "file": "wresources.js"
+        }
+    ]
+}
