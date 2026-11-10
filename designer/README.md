@@ -41,6 +41,8 @@ Make sure `designer/projects` is writable by Apache.
 - Shows the component tree and a graphical preview.
 - Shows a palette of visual components; drag one onto the form or into a
   container (panel, group box, tab sheet, page control) to add it.
+- Draws a preview of the common controls and shows every tab of a page
+  control, with the active tab selectable.
 - Moves and resizes components on the canvas; `Left`, `Top`, `Width` and
   `Height` are written back to the LFM.
 - Lets you edit properties; string, integer, boolean and raw LFM values are
@@ -68,6 +70,31 @@ Components on the canvas can be moved and resized with the mouse:
 
 The canvas remains a preview: `Align` and `Anchors` are not simulated, so a
 component with `Align` set may be laid out differently in the browser.
+
+## Component previews
+
+The canvas draws a preview for the common controls instead of a plain box:
+buttons, edits, memos, combo boxes, list boxes, check boxes, radio buttons,
+progress bars, sliders, spin edits, colour pickers, images, string grids and
+pagination. The preview uses the LFM properties (`Caption`, `Text`,
+`Items.Strings`, `Min`/`Max`/`Value`, `Color`, ...) and does not run the
+runtime code.
+
+## Page control
+
+A `TWPageControl` is drawn with a tab strip for all its `TTabSheet` children:
+
+- click a tab to show that sheet in the designer; the active page is stored in
+  `ActivePage`;
+- selecting a tab sheet (or one of its children) in the component tree shows
+  its tab as well;
+- the **Pages** section of the inspector renames, activates and deletes tabs
+  and adds new ones;
+- dropping a `TTabSheet` from the palette onto a page control adds a tab;
+  dropping it elsewhere is refused.
+
+The tab sheet fills the page control below the tab strip, so the components
+inside it keep their own `Left`/`Top`.
 
 ## Tree and list items
 

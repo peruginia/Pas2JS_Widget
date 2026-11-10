@@ -387,6 +387,340 @@ body.dragging {
   white-space: nowrap;
 }
 
+/* Page control */
+
+.designer-component.kind-pagecontrol:not(.selected) {
+  border: 1px solid #aeb7c2;
+  background: #fff;
+}
+
+.page-tabs {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  height: 28px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 0 4px;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.page-tab {
+  position: relative;
+  height: 24px;
+  max-width: 160px;
+  padding: 0 12px;
+  border: 1px solid #c9c3ba;
+  border-bottom: 0;
+  border-top-left-radius: 15px;
+  border-top-right-radius: 2px;
+  background: #dddada;
+  color: #34495e;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.page-tab.active {
+  background: #fff;
+  border-bottom: 1px solid #fff;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.designer-component.page-sheet {
+  border: 0;
+  background: transparent;
+}
+
+.designer-component.page-sheet.selected {
+  border: 1px dashed rgba(47, 128, 237, 0.8);
+  background: rgba(47, 128, 237, 0.04);
+}
+
+/* Component previews */
+
+.designer-component.kind-panel:not(.selected) {
+  border: 1px solid #c7d0d9;
+  background: #f7f9fb;
+}
+
+.designer-component.kind-group:not(.selected) {
+  border: 1px solid #b9c3cd;
+  border-radius: 3px;
+  background: #fff;
+}
+
+.designer-component.kind-scrollbox:not(.selected) {
+  border: 1px solid #b9c3cd;
+  background: #fff;
+}
+
+.preview-button,
+.preview-input,
+.preview-list,
+.preview-color {
+  position: absolute;
+  inset: 1px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #888;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+  font-size: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.preview-button {
+  justify-content: center;
+  border-radius: 4px;
+  background: #f0f0f0;
+  font-size: 12px;
+}
+
+.preview-input {
+  padding: 0 6px;
+}
+
+.preview-input.preview-memo {
+  align-items: flex-start;
+  padding-top: 4px;
+  white-space: pre-wrap;
+}
+
+.preview-select {
+  padding-right: 20px;
+}
+
+.preview-arrow {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  font-size: 10px;
+}
+
+.preview-spin-buttons {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  bottom: 1px;
+  width: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-left: 1px solid #ccc;
+  color: #555;
+  font-size: 8px;
+  line-height: 9px;
+}
+
+.preview-muted {
+  color: #9aa5b1;
+}
+
+.preview-list {
+  flex-direction: column;
+  align-items: stretch;
+  font-size: 11px;
+}
+
+.preview-row {
+  padding: 1px 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-check {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 4px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.preview-box {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 1px solid #888;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.preview-radio {
+  border-radius: 50%;
+}
+
+.preview-check.checked .preview-box {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
+.preview-progress {
+  position: absolute;
+  inset: 2px;
+  border: 1px solid #b5b5b5;
+  border-radius: 3px;
+  background: #f4f4f4;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.preview-progress-fill {
+  height: 100%;
+  background: #4caf50;
+}
+
+.preview-slider {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 50%;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 2px;
+  background: #cfd6de;
+  pointer-events: none;
+}
+
+.preview-thumb {
+  position: absolute;
+  top: -5px;
+  width: 12px;
+  height: 12px;
+  border: 1px solid #888;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.preview-color {
+  gap: 6px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.preview-swatch {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 1px solid #666;
+  border-radius: 3px;
+}
+
+.preview-image {
+  position: absolute;
+  inset: 1px;
+  border: 1px solid #aeb7c2;
+  background-color: #fafafa;
+  background-image:
+    linear-gradient(45deg, #e6e6e6 25%, transparent 25%),
+    linear-gradient(-45deg, #e6e6e6 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e6e6e6 75%),
+    linear-gradient(-45deg, transparent 75%, #e6e6e6 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  pointer-events: none;
+}
+
+.preview-grid {
+  position: absolute;
+  inset: 1px;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.preview-grid td {
+  border: 1px solid #d5dbe2;
+  padding: 1px 3px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.preview-pagination {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 4px;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.preview-page {
+  min-width: 16px;
+  padding: 1px 4px;
+  border: 1px solid #cfd6de;
+  border-radius: 3px;
+  background: #fafbfc;
+  text-align: center;
+}
+
+.preview-page.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.preview-canvas {
+  position: absolute;
+  inset: 1px;
+  border: 1px solid #aeb7c2;
+  background: #fdfdfd;
+  pointer-events: none;
+}
+
+.preview-updown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #888;
+  border-radius: 3px;
+  background: #f0f0f0;
+  font-size: 8px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.preview-updown span {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-updown span + span {
+  border-top: 1px solid #ccc;
+}
+
+.preview-splitter {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(45deg, #dfe4ea, #dfe4ea 2px, #f4f6f8 2px, #f4f6f8 4px);
+  pointer-events: none;
+}
+
 .resize-handle {
   position: absolute;
   width: 8px;
@@ -489,6 +823,12 @@ body.dragging {
 
 .item-btn:hover {
   border-color: var(--accent);
+  color: var(--accent);
+}
+
+.item-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 

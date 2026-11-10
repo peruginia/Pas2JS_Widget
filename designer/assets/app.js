@@ -26,6 +26,7 @@ const state = {
   project: null,
   roots: [],
   selected: null,
+  activeTabs: new Map(),
   dirty: false,
 };
 
@@ -157,13 +158,21 @@ function displayText(node) {
 
 function assignIds(nodes, prefix = 'n') {
   let counter = 0;
-  const walk = (list) => {
+  const walk = (list, parent) => {
     for (const node of list) {
       node.__id = `${prefix}${++counter}`;
-      walk(node.children);
+      node.__parent = parent;
+      walk(node.children, node);
     }
   };
-  walk(nodes);
+  walk(nodes, null);
+}
+
+function findAncestor(node, predicate) {
+  for (let current = node ? node.__parent : null; current; current = current.__parent) {
+    if (predicate(current)) return current;
+  }
+  return null;
 }
 
 function findById(id) {
@@ -182,12 +191,36 @@ function findById(id) {
   return result;
 }
 
-function selectedTabSheet(pageControl) {
+function pageControlSheets(pageControl) {
+  return pageControl.children.filter((node) => node.className === 'TTabSheet');
+}
+
+function activeTabSheet(pageControl) {
+  const sheets = pageControlSheets(pageControl);
+  if (sheets.length === 0) return null;
+  const override = state.activeTabs.get(pageControl);
+  if (override && sheets.includes(override)) return override;
   const active = getPropertyValue(pageControl, 'ActivePage', '');
-  const sheets = pageControl.children.filter((node) => node.className === 'TTabSheet');
-  if (sheets.length === 0) return pageControl.children;
-  const activeSheet = sheets.find((node) => node.name === active);
-  return activeSheet ? [activeSheet] : [sheets[0]];
+  return sheets.find((sheet) => sheet.name === active) || sheets[0];
+}
+
+function activateTabSheet(sheet, persist = false) {
+  const pageControl = sheet.__parent;
+  if (!pageControl || pageControl.className !== 'TWPageControl') return;
+  state.activeTabs.set(pageControl, sheet);
+  if (!persist) return;
+  const prop = getProperty(pageControl, 'ActivePage');
+  if (!prop) {
+    pageControl.properties.push(makeProp('ActivePage', sheet.name));
+    markDirty();
+  } else if (String(prop.value) !== sheet.name) {
+    setPropertyValue(prop, sheet.name, 'identifier');
+    markDirty();
+  }
+}
+
+function showPageTabs(pageControl) {
+  return getPropertyValue(pageControl, 'ShowTabs', true) !== false;
 }
 
 function renderTree() {
@@ -410,7 +443,7 @@ function findDropElement(target) {
   while (element && element.classList.contains('designer-component')) {
     const node = findById(element.dataset.id);
     if (node && node.className === 'TWPageControl') {
-      const sheet = selectedTabSheet(node)[0];
+      const sheet = activeTabSheet(node);
       const sheetElement = sheet
         ? els.canvas.querySelector(`[data-id="${sheet.__id}"]`)
         : null;
@@ -458,8 +491,45 @@ function handleDrop(event) {
   const element = findDropElement(event.target);
   const parent = nodeFromDropElement(element);
   if (!parent) return;
+
+  if (canonicalClassName(className) === 'TTabSheet') {
+    const pageControl = parent.className === 'TWPageControl'
+      ? parent
+      : findAncestor(parent, (node) => node.className === 'TWPageControl');
+    if (pageControl) {
+      addTabSheet(pageControl);
+    } else {
+      setStatus('Drop a TTabSheet on a page control to add a tab.', true);
+    }
+    return;
+  }
+
   const rect = element.getBoundingClientRect();
   addComponent(className, parent, event.clientX - rect.left, event.clientY - rect.top);
+}
+
+function addTabSheet(pageControl) {
+  const caption = `Tab ${pageControlSheets(pageControl).length + 1}`;
+  const sheet = {
+    kind: 'object',
+    name: uniqueName('TTabSheet'),
+    className: 'TTabSheet',
+    properties: [makeProp('Caption', encodeLfmString(caption))],
+    children: [],
+  };
+  pageControl.children.push(sheet);
+  assignIds(state.roots);
+  state.activeTabs.set(pageControl, sheet);
+  const activeProp = getProperty(pageControl, 'ActivePage');
+  if (activeProp) setPropertyValue(activeProp, sheet.name, 'identifier');
+  else pageControl.properties.push(makeProp('ActivePage', sheet.name));
+  state.selected = sheet;
+  renderTree();
+  renderCanvas();
+  renderInspector();
+  markDirty();
+  setStatus(`Added ${sheet.name} (TTabSheet)`);
+  return sheet;
 }
 
 const RESIZE_HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -574,6 +644,7 @@ function endDrag() {
       setNumberProp(node, 'Width', current.width);
       setNumberProp(node, 'Height', current.height);
       markDirty();
+      renderCanvas();
       renderInspector();
       setStatus(`${node.name}: ${current.left}, ${current.top} · ${current.width} × ${current.height}`);
     }
@@ -601,64 +672,396 @@ function renderCanvas() {
     selectNode(root);
   });
 
-  const children = root.className === 'TWPageControl' ? selectedTabSheet(root) : root.children;
-  for (const child of children) {
+  for (const child of root.children) {
     renderCanvasNode(child, form);
   }
   els.canvas.appendChild(form);
   els.formTitle.textContent = `${root.name || root.className} · ${root.className}`;
 }
 
-function renderCanvasNode(node, parent) {
+const TAB_STRIP_HEIGHT = 28;
+
+const COMPONENT_KINDS = {
+  TWButton: 'button',
+  TWFileButton: 'button',
+  TWEdit: 'input',
+  TWDateEditBox: 'input',
+  TWTimeEditBox: 'input',
+  TWMemo: 'memo',
+  TWComboBox: 'select',
+  TWListBox: 'list',
+  TWCheckbox: 'check',
+  TWRadioButton: 'radio',
+  TWGroupBox: 'group',
+  TWPanel: 'panel',
+  TWScrollBox: 'scrollbox',
+  TWPageControl: 'pagecontrol',
+  TWLabel: 'label',
+  TWImage: 'image',
+  TWProgressBar: 'progress',
+  TWScrollBar: 'slider',
+  TWTrackBar: 'slider',
+  TWSpinEdit: 'spin',
+  TWIntegerEdit: 'spin',
+  TWFloatEdit: 'spin',
+  TWColorPicker: 'color',
+  TWStringGrid: 'grid',
+  TWDataGrid: 'grid',
+  TWPagination: 'pagination',
+  TWShape: 'canvas',
+  TWPaintBox: 'canvas',
+  TWSplitter: 'splitter',
+  TWUpDown: 'updown',
+};
+
+const DELPHI_COLORS = {
+  clBlack: '#000000',
+  clMaroon: '#800000',
+  clGreen: '#008000',
+  clOlive: '#808000',
+  clNavy: '#000080',
+  clPurple: '#800080',
+  clTeal: '#008080',
+  clGray: '#808080',
+  clSilver: '#c0c0c0',
+  clRed: '#ff0000',
+  clLime: '#00ff00',
+  clYellow: '#ffff00',
+  clBlue: '#0000ff',
+  clFuchsia: '#ff00ff',
+  clAqua: '#00ffff',
+  clWhite: '#ffffff',
+  clBtnFace: '#f0f0f0',
+  clBtnText: '#000000',
+  clWindow: '#ffffff',
+  clWindowText: '#000000',
+};
+
+function componentKind(node) {
+  return COMPONENT_KINDS[canonicalClassName(node.className)] || '';
+}
+
+function colorValue(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return '#f0f0f0';
+  if (DELPHI_COLORS[text]) return DELPHI_COLORS[text];
+  const match = /^\$([0-9A-Fa-f]{1,8})$/.exec(text);
+  if (match) {
+    const value = parseInt(match[1], 16);
+    return `rgb(${value & 0xff}, ${(value >> 8) & 0xff}, ${(value >> 16) & 0xff})`;
+  }
+  return '#f0f0f0';
+}
+
+// Parse the `( 'a' 'b' )` form used by Items.Strings and Cells.Strings.
+function parseStringList(raw) {
+  const text = String(raw ?? '').trim().replace(/^\(/, '').replace(/\)$/, '');
+  const result = [];
+  let current = '';
+  let index = 0;
+  while (index < text.length) {
+    const ch = text[index];
+    if (ch === "'") {
+      index++;
+      while (index < text.length) {
+        if (text[index] === "'") {
+          if (text[index + 1] === "'") {
+            current += "'";
+            index += 2;
+            continue;
+          }
+          index++;
+          break;
+        }
+        current += text[index++];
+      }
+    } else if (ch === '#') {
+      index++;
+      let digits = '';
+      while (index < text.length && /[0-9A-Fa-f$]/.test(text[index])) digits += text[index++];
+      if (digits.startsWith('$')) current += String.fromCharCode(parseInt(digits.slice(1), 16));
+      else if (digits) current += String.fromCharCode(parseInt(digits, 10));
+    } else if (ch === '\n' || ch === '\r' || ch === ',') {
+      if (current !== '') result.push(current);
+      current = '';
+      index++;
+    } else {
+      index++;
+    }
+  }
+  if (current !== '' || result.length === 0) result.push(current);
+  return result;
+}
+
+function stringList(node, name) {
+  const prop = getProperty(node, name);
+  return prop && prop.kind === 'strings' ? parseStringList(prop.raw) : [];
+}
+
+function skinElement(tag, className, text) {
+  const el = document.createElement(tag);
+  el.className = className;
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+function renderComponentSkin(node) {
+  const className = canonicalClassName(node.className);
+  const caption = propText(node, 'Caption');
+  const text = propText(node, 'Text');
+
+  switch (className) {
+    case 'TWButton':
+    case 'TWFileButton':
+      return skinElement('div', 'preview-button', caption || node.name);
+
+    case 'TWEdit':
+      return skinElement('div', 'preview-input', text);
+
+    case 'TWDateEditBox':
+    case 'TWTimeEditBox':
+      return skinElement('div', 'preview-input preview-muted', propText(node, 'Value') || text);
+
+    case 'TWMemo':
+      return skinElement('div', 'preview-input preview-memo', text);
+
+    case 'TWComboBox': {
+      const items = stringList(node, 'Items.Strings');
+      const index = propNumber(node, 'ItemIndex', -1);
+      const value = index >= 0 && index < items.length ? items[index] : text;
+      const box = skinElement('div', 'preview-input preview-select', value || '');
+      box.appendChild(skinElement('span', 'preview-arrow', '▾'));
+      return box;
+    }
+
+    case 'TWListBox': {
+      const items = stringList(node, 'Items.Strings');
+      const box = skinElement('div', 'preview-list');
+      for (const item of items.slice(0, 12)) {
+        box.appendChild(skinElement('div', 'preview-row', item || ' '));
+      }
+      if (items.length === 0) box.appendChild(skinElement('div', 'preview-row preview-muted', '(empty)'));
+      return box;
+    }
+
+    case 'TWCheckbox':
+    case 'TWRadioButton': {
+      const row = skinElement('div', 'preview-check');
+      if (getPropertyValue(node, 'Checked', false) === true) row.classList.add('checked');
+      const box = skinElement('span', className === 'TWRadioButton' ? 'preview-box preview-radio' : 'preview-box');
+      row.append(box, skinElement('span', 'preview-check-label', caption || node.name));
+      return row;
+    }
+
+    case 'TWProgressBar': {
+      const min = propNumber(node, 'Min', 0);
+      const max = propNumber(node, 'Max', 100);
+      const value = propNumber(node, 'Value', 0);
+      const ratio = max > min ? (value - min) / (max - min) : 0;
+      const bar = skinElement('div', 'preview-progress');
+      const fill = skinElement('div', 'preview-progress-fill');
+      fill.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
+      bar.appendChild(fill);
+      return bar;
+    }
+
+    case 'TWScrollBar':
+    case 'TWTrackBar': {
+      const min = propNumber(node, 'Min', 0);
+      const max = propNumber(node, 'Max', 100);
+      const value = propNumber(node, 'Position', 0);
+      const ratio = max > min ? (value - min) / (max - min) : 0;
+      const bar = skinElement('div', 'preview-slider');
+      const thumb = skinElement('div', 'preview-thumb');
+      thumb.style.left = `calc(${Math.max(0, Math.min(1, ratio)) * 100}% - 6px)`;
+      bar.appendChild(thumb);
+      return bar;
+    }
+
+    case 'TWSpinEdit':
+    case 'TWIntegerEdit':
+    case 'TWFloatEdit': {
+      const box = skinElement('div', 'preview-input preview-spin', propText(node, 'Value') || '0');
+      const buttons = skinElement('span', 'preview-spin-buttons');
+      buttons.append(skinElement('span', '', '▴'), skinElement('span', '', '▾'));
+      box.appendChild(buttons);
+      return box;
+    }
+
+    case 'TWColorPicker': {
+      const box = skinElement('div', 'preview-color');
+      const swatch = skinElement('span', 'preview-swatch');
+      swatch.style.background = colorValue(propText(node, 'Color'));
+      box.append(swatch, skinElement('span', 'preview-muted', propText(node, 'Color')));
+      return box;
+    }
+
+    case 'TWImage':
+      return skinElement('div', 'preview-image');
+
+    case 'TWStringGrid': {
+      const cells = stringList(node, 'Cells.Strings');
+      const cols = Math.max(1, propNumber(node, 'ColCount', 5));
+      const rows = Math.max(1, propNumber(node, 'RowCount', 5));
+      const table = document.createElement('table');
+      table.className = 'preview-grid';
+      for (let row = 0; row < Math.min(rows, 8); row++) {
+        const tr = document.createElement('tr');
+        for (let col = 0; col < Math.min(cols, 8); col++) {
+          tr.appendChild(skinElement('td', '', cells[row * cols + col] || ''));
+        }
+        table.appendChild(tr);
+      }
+      return table;
+    }
+
+    case 'TWPagination': {
+      const current = propNumber(node, 'CurrentPage', 1);
+      const count = Math.max(1, propNumber(node, 'PageCount', 5));
+      const row = skinElement('div', 'preview-pagination');
+      for (let page = 1; page <= Math.min(count, 9); page++) {
+        row.appendChild(skinElement('span', page === current ? 'preview-page active' : 'preview-page', String(page)));
+      }
+      return row;
+    }
+
+    case 'TWShape':
+    case 'TWPaintBox':
+      return skinElement('div', 'preview-canvas');
+
+    case 'TWUpDown': {
+      const box = skinElement('div', 'preview-updown');
+      box.append(skinElement('span', '', '▴'), skinElement('span', '', '▾'));
+      return box;
+    }
+
+    case 'TWSplitter':
+      return skinElement('div', 'preview-splitter');
+
+    default:
+      return null;
+  }
+}
+
+function renderPageControl(node, el) {
+  const sheets = pageControlSheets(node);
+  if (sheets.length === 0) {
+    for (const child of node.children) renderCanvasNode(child, el);
+    return;
+  }
+
+  const active = activeTabSheet(node);
+  const stripHeight = showPageTabs(node) ? TAB_STRIP_HEIGHT : 0;
+  if (stripHeight > 0) {
+    const strip = document.createElement('div');
+    strip.className = 'page-tabs';
+    for (const sheet of sheets) {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'page-tab';
+      if (sheet === active) tab.classList.add('active');
+      tab.textContent = propText(sheet, 'Caption') || sheet.name;
+      tab.title = sheet.name;
+      tab.addEventListener('pointerdown', (event) => event.stopPropagation());
+      tab.addEventListener('click', (event) => {
+        event.stopPropagation();
+        activateTabSheet(sheet, true);
+        selectNode(sheet);
+      });
+      strip.appendChild(tab);
+    }
+    el.appendChild(strip);
+  }
+
+  if (!active) return;
+  const width = Math.max(1, propNumber(node, 'Width', 300));
+  const height = Math.max(1, propNumber(node, 'Height', 200));
+  renderCanvasNode(active, el, {
+    left: 0,
+    top: stripHeight,
+    width,
+    height: Math.max(1, height - stripHeight),
+    chrome: false,
+  });
+}
+
+function renderCanvasNode(node, parent, frame = null) {
   if (!isVisual(node)) return;
   const el = document.createElement('div');
   el.className = 'designer-component';
   el.dataset.id = node.__id;
   el.title = nodeTitle(node);
-  el.style.left = `${propNumber(node, 'Left', 0)}px`;
-  el.style.top = `${propNumber(node, 'Top', 0)}px`;
-  el.style.width = `${Math.max(1, propNumber(node, 'Width', 100))}px`;
-  el.style.height = `${Math.max(1, propNumber(node, 'Height', 25))}px`;
+
+  const geometry = frame || {
+    left: propNumber(node, 'Left', 0),
+    top: propNumber(node, 'Top', 0),
+    width: Math.max(1, propNumber(node, 'Width', 100)),
+    height: Math.max(1, propNumber(node, 'Height', 25)),
+  };
+  el.style.left = `${geometry.left}px`;
+  el.style.top = `${geometry.top}px`;
+  el.style.width = `${Math.max(1, geometry.width)}px`;
+  el.style.height = `${Math.max(1, geometry.height)}px`;
   if (getPropertyValue(node, 'Visible', true) === false) {
     el.classList.add('hidden');
   }
   if (state.selected === node) el.classList.add('selected');
 
-  const text = document.createElement('span');
-  text.className = 'component-text';
-  text.textContent = displayText(node);
-  el.appendChild(text);
+  const chrome = !frame || frame.chrome !== false;
+  if (!chrome) el.classList.add('page-sheet');
 
-  const badge = document.createElement('span');
-  badge.className = 'component-badge';
-  badge.textContent = node.className;
-  el.appendChild(badge);
+  const kind = componentKind(node);
+  if (kind) el.classList.add(`kind-${kind}`);
 
-  const preview = renderItemPreview(node);
-  if (preview) el.appendChild(preview);
+  const isPageControl = canonicalClassName(node.className) === 'TWPageControl';
 
-  if (state.selected === node) {
-    for (const handle of RESIZE_HANDLES) {
-      const grip = document.createElement('span');
-      grip.className = `resize-handle handle-${handle}`;
-      grip.dataset.handle = handle;
-      grip.addEventListener('pointerdown', (event) => startDrag(event, node, handle));
-      el.appendChild(grip);
+  if (chrome) {
+    const skin = renderComponentSkin(node);
+    if (skin) {
+      el.appendChild(skin);
+    } else if (!isPageControl) {
+      const text = document.createElement('span');
+      text.className = 'component-text';
+      text.textContent = displayText(node);
+      el.appendChild(text);
     }
+
+    if (!isPageControl) {
+      const badge = document.createElement('span');
+      badge.className = 'component-badge';
+      badge.textContent = node.className;
+      el.appendChild(badge);
+    }
+
+    const preview = renderItemPreview(node);
+    if (preview) el.appendChild(preview);
+
+    if (state.selected === node) {
+      for (const handle of RESIZE_HANDLES) {
+        const grip = document.createElement('span');
+        grip.className = `resize-handle handle-${handle}`;
+        grip.dataset.handle = handle;
+        grip.addEventListener('pointerdown', (event) => startDrag(event, node, handle));
+        el.appendChild(grip);
+      }
+    }
+
+    el.addEventListener('click', (event) => {
+      event.stopPropagation();
+      selectNode(node);
+    });
+    el.addEventListener('pointerdown', (event) => {
+      if (event.target instanceof Element && event.target.classList.contains('resize-handle')) return;
+      startDrag(event, node, 'move');
+    });
   }
 
-  el.addEventListener('click', (event) => {
-    event.stopPropagation();
-    selectNode(node);
-  });
-  el.addEventListener('pointerdown', (event) => {
-    if (event.target instanceof Element && event.target.classList.contains('resize-handle')) return;
-    startDrag(event, node, 'move');
-  });
-
-  const children = node.className === 'TWPageControl' ? selectedTabSheet(node) : node.children;
-  for (const child of children) {
-    renderCanvasNode(child, el);
+  if (canonicalClassName(node.className) === 'TWPageControl') {
+    renderPageControl(node, el);
+  } else {
+    for (const child of node.children) {
+      renderCanvasNode(child, el);
+    }
   }
   parent.appendChild(el);
 }
@@ -770,6 +1173,8 @@ function renderInspector() {
   els.inspector.appendChild(table);
   const editor = renderItemsEditor(node);
   if (editor) els.inspector.appendChild(editor);
+  const pages = renderPagesEditor(node);
+  if (pages) els.inspector.appendChild(pages);
 }
 
 function renderItemsEditor(node) {
@@ -928,7 +1333,69 @@ function listItemsEditor({ prop, items, format }) {
   return wrap;
 }
 
+function renderPagesEditor(node) {
+  if (canonicalClassName(node.className) !== 'TWPageControl') return null;
+  const sheets = pageControlSheets(node);
+  const { wrap, rows, actions } = editorShell('Pages', `${sheets.length} tabs`);
+  const active = activeTabSheet(node);
+
+  for (const sheet of sheets) {
+    const row = document.createElement('div');
+    row.className = 'item-row';
+
+    const activate = smallButton(sheet === active ? '●' : '○', 'Show this tab');
+    if (sheet === active) activate.classList.add('active');
+    activate.addEventListener('click', () => {
+      activateTabSheet(sheet, true);
+      selectNode(sheet);
+    });
+
+    const input = document.createElement('input');
+    input.className = 'item-text';
+    input.value = propText(sheet, 'Caption');
+    input.placeholder = 'Tab caption';
+    input.addEventListener('input', () => {
+      const prop = getProperty(sheet, 'Caption');
+      if (prop) setPropertyValue(prop, input.value, 'string');
+      else sheet.properties.push(makeProp('Caption', encodeLfmString(input.value)));
+      markDirty();
+      renderCanvas();
+      renderTree();
+    });
+
+    const remove = smallButton('×', 'Delete tab');
+    remove.addEventListener('click', () => {
+      const index = node.children.indexOf(sheet);
+      if (index < 0) return;
+      node.children.splice(index, 1);
+      if (state.activeTabs.get(node) === sheet) state.activeTabs.delete(node);
+      if (state.selected === sheet || findAncestor(state.selected, (parent) => parent === sheet)) {
+        state.selected = node;
+      }
+      assignIds(state.roots);
+      renderTree();
+      renderCanvas();
+      renderInspector();
+      markDirty();
+    });
+
+    row.append(activate, input, remove);
+    rows.appendChild(row);
+  }
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'item-add';
+  add.textContent = 'Add tab';
+  add.addEventListener('click', () => addTabSheet(node));
+  actions.appendChild(add);
+  return wrap;
+}
+
 function selectNode(node) {
+  for (let current = node; current; current = current.__parent) {
+    if (current.className === 'TTabSheet') activateTabSheet(current);
+  }
   state.selected = node;
   renderTree();
   renderCanvas();
@@ -971,6 +1438,7 @@ async function loadProject(id) {
     state.project = data.project;
     state.roots = roots;
     state.selected = null;
+    state.activeTabs.clear();
     els.project.value = id;
     renderAll();
     setStatus(`${data.project.name} loaded`);
