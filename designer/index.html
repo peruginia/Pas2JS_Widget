@@ -36,11 +36,23 @@
 
     <section class="panel canvas-panel">
       <div class="canvas-head">
+        <div class="view-switch">
+          <button id="designTab" type="button" class="view-tab active">Design</button>
+          <button id="sourceTab" type="button" class="view-tab">Source</button>
+        </div>
         <span id="formTitle">No form</span>
         <span class="hint">Drag to move · handles to resize · Alt disables the grid</span>
       </div>
       <div class="canvas-scroll">
         <div id="canvas" class="canvas"></div>
+        <div id="sourceView" class="source-view hidden-view">
+          <div class="source-head">
+            <span id="sourceName">unit1.pas</span>
+            <span id="sourceStatus" class="source-status"></span>
+            <button id="sourceReloadBtn" type="button">Reload</button>
+          </div>
+          <div id="sourceCode" class="source-lines"></div>
+        </div>
       </div>
     </section>
 

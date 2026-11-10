@@ -142,6 +142,28 @@ try {
             break;
         }
 
+        case 'unit': {
+            $id = projectId((string) ($_GET['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $config = readProject($dir, $id);
+            $file = $dir . DIRECTORY_SEPARATOR . $config['unit'];
+            if (!is_file($file)) {
+                fail('Unit file not found.', 404);
+            }
+            $source = file_get_contents($file);
+            if ($source === false) {
+                fail('Cannot read the unit file.', 500);
+            }
+            echo json_encode([
+                'unit' => $config['unit'],
+                'source' => $source,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+            break;
+        }
+
         case 'save': {
             if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
                 fail('POST required.', 405);

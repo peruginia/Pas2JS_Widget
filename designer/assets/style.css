@@ -274,7 +274,7 @@ body {
 
 .canvas-head {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
@@ -285,7 +285,117 @@ body {
 }
 
 .canvas-head .hint {
+  margin-left: auto;
   color: var(--muted);
+}
+
+.view-switch {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+}
+
+.view-tab {
+  border: 0;
+  background: transparent;
+  color: #4b5b6b;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.view-tab + .view-tab {
+  border-left: 1px solid var(--line);
+}
+
+.view-tab:hover {
+  background: var(--accent-soft);
+}
+
+.view-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.hidden-view {
+  display: none !important;
+}
+
+.source-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid #aeb7c2;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.source-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  background: #fafbfc;
+  font-size: 12px;
+}
+
+.source-status {
+  flex: 1;
+  color: var(--muted);
+  text-align: right;
+}
+
+.source-head button {
+  border: 1px solid #cfd6de;
+  border-radius: 4px;
+  background: #fff;
+  color: #34495e;
+  padding: 3px 8px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.source-head button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.source-lines {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 0;
+  color: #263238;
+  font: 12px/1.5 Consolas, "Courier New", monospace;
+}
+
+.source-line {
+  display: flex;
+  gap: 10px;
+  padding: 0 10px;
+  white-space: pre;
+}
+
+.source-line.highlight {
+  background: #fff6d6;
+}
+
+.source-num {
+  width: 44px;
+  flex: none;
+  color: #aab4c0;
+  text-align: right;
+  user-select: none;
+}
+
+.source-code {
+  white-space: pre;
 }
 
 .canvas-scroll {

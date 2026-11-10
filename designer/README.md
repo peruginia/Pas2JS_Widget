@@ -54,6 +54,8 @@ Make sure `designer/projects` is writable by Apache.
   editor; the canvas preview shows the tree nodes and list rows.
 - Saves the generated LFM back through `api.php` and synchronises the `.pas`
   unit declared in `project.json`.
+- Shows the `.pas` unit in a **Source** tab; the declaration of the selected
+  component is highlighted.
 - Imports an existing `.lfm` as a new project.
 
 Unknown properties, collections (`Columns = <...>`), string lists and binary
@@ -85,6 +87,20 @@ progress bars, sliders, spin edits, colour pickers, images, string grids and
 pagination. The preview uses the LFM properties (`Caption`, `Text`,
 `Items.Strings`, `Min`/`Max`/`Value`, `Color`, ...) and does not run the
 runtime code.
+
+## Source view
+
+The **Design / Source** switch in the canvas header shows the `.pas` unit
+declared in `project.json` next to the form:
+
+- the source is loaded on demand with the `unit` API action and rendered with
+  line numbers;
+- selecting a component in the component tree highlights its field
+  declaration and scrolls it into view;
+- the **Reload** button re-reads the file, and a save or project reload
+  refreshes it automatically;
+- the view is read-only: edit the unit in the IDE (or with any editor), then
+  press Reload.
 
 ## Properties
 
@@ -189,6 +205,7 @@ All responses are JSON.
 |---|---|---|
 | `projects` | GET | - |
 | `load` | GET | `project=<id>` |
+| `unit` | GET | `project=<id>` |
 | `save` | POST | JSON `{ "project": "<id>", "lfm": "...", "formClass": "TForm1", "components": [{ "name": "Button1", "className": "TWButton", "unit": "WebCtrls" }] }` |
 | `import` | POST | JSON `{ "id": "...", "name": "...", "lfm": "..." }` |
 

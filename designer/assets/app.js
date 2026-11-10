@@ -27,6 +27,8 @@ const state = {
   roots: [],
   selected: null,
   activeTabs: new Map(),
+  view: 'design',
+  source: null,
   dirty: false,
 };
 
@@ -42,6 +44,13 @@ const els = {
   canvas: document.getElementById('canvas'),
   inspector: document.getElementById('inspector'),
   formTitle: document.getElementById('formTitle'),
+  designTab: document.getElementById('designTab'),
+  sourceTab: document.getElementById('sourceTab'),
+  sourceView: document.getElementById('sourceView'),
+  sourceName: document.getElementById('sourceName'),
+  sourceStatus: document.getElementById('sourceStatus'),
+  sourceReload: document.getElementById('sourceReloadBtn'),
+  sourceCode: document.getElementById('sourceCode'),
 };
 
 const nonVisual = new Set();
@@ -119,6 +128,73 @@ function setDirty(value) {
 function markDirty() {
   setDirty(true);
   setStatus('Modified');
+}
+
+function escapeRegExp(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function setView(view) {
+  state.view = view;
+  const source = view === 'source';
+  els.designTab.classList.toggle('active', !source);
+  els.sourceTab.classList.toggle('active', source);
+  els.canvas.classList.toggle('hidden-view', source);
+  els.sourceView.classList.toggle('hidden-view', !source);
+  if (source) loadSource();
+}
+
+async function loadSource(force = false) {
+  if (!state.project) {
+    els.sourceName.textContent = 'No unit';
+    els.sourceStatus.textContent = 'Select a project.';
+    els.sourceCode.innerHTML = '';
+    return;
+  }
+  els.sourceName.textContent = state.project.unit || 'unit';
+  if (state.source !== null && !force) {
+    renderSource();
+    return;
+  }
+  els.sourceStatus.textContent = 'Loading...';
+  try {
+    const data = await api('unit', { project: state.project.id });
+    state.source = data.source;
+    els.sourceName.textContent = data.unit;
+    els.sourceStatus.textContent = `${data.source.replace(/\r\n/g, '\n').split('\n').length} lines`;
+    renderSource();
+  } catch (error) {
+    state.source = null;
+    els.sourceStatus.textContent = error.message;
+    els.sourceCode.innerHTML = '';
+  }
+}
+
+function renderSource() {
+  els.sourceCode.innerHTML = '';
+  if (state.source === null) return;
+  const lines = state.source.replace(/\r\n/g, '\n').split('\n');
+  const name = state.selected && state.selected.name;
+  const pattern = name ? new RegExp(`\\b${escapeRegExp(name)}\\s*:`) : null;
+  let highlight = -1;
+  if (pattern) highlight = lines.findIndex((line) => pattern.test(line));
+
+  lines.forEach((line, index) => {
+    const row = document.createElement('div');
+    row.className = 'source-line';
+    if (index === highlight) row.classList.add('highlight');
+    const number = document.createElement('span');
+    number.className = 'source-num';
+    number.textContent = String(index + 1);
+    const code = document.createElement('span');
+    code.className = 'source-code';
+    code.textContent = line === '' ? ' ' : line;
+    row.append(number, code);
+    els.sourceCode.appendChild(row);
+  });
+
+  const marked = els.sourceCode.querySelector('.highlight');
+  if (marked) marked.scrollIntoView({ block: 'nearest' });
 }
 
 function nodeTitle(node) {
@@ -2004,6 +2080,7 @@ function selectNode(node) {
   renderTree();
   renderCanvas();
   renderInspector();
+  if (state.view === 'source') renderSource();
 }
 
 function renderAll() {
@@ -2043,9 +2120,11 @@ async function loadProject(id) {
     state.roots = roots;
     state.selected = null;
     state.activeTabs.clear();
+    state.source = null;
     els.project.value = id;
     renderAll();
     setStatus(`${data.project.name} loaded`);
+    if (state.view === 'source') loadSource(true);
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -2067,6 +2146,8 @@ async function saveProject() {
       components,
     });
     setDirty(false);
+    state.source = null;
+    if (state.view === 'source') loadSource(true);
     const warnings = result.warnings || [];
     if (warnings.length > 0) {
       setStatus(`Saved ${result.bytes} bytes; ${warnings.join('; ')}`, true);
@@ -2116,6 +2197,9 @@ async function boot() {
     if (state.project) loadProject(state.project.id);
   });
   els.save.addEventListener('click', saveProject);
+  els.designTab.addEventListener('click', () => setView('design'));
+  els.sourceTab.addEventListener('click', () => setView('source'));
+  els.sourceReload.addEventListener('click', () => loadSource(true));
   els.project.addEventListener('change', () => {
     if (els.project.value) loadProject(els.project.value);
   });
