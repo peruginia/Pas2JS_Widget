@@ -18,11 +18,17 @@
     <div class="toolbar">
       <label for="projectSelect" class="sr-only">Project</label>
       <select id="projectSelect"></select>
+      <button id="newProjectBtn" type="button" title="Create an application, host or module project">New project…</button>
       <label for="formSelect" class="sr-only">Form</label>
       <select id="formSelect"></select>
       <button id="reloadBtn" type="button">Reload</button>
       <button id="saveBtn" type="button">Save</button>
-      <button id="previewBtn" type="button" title="Build the selected form with pas2js and run it">Preview</button>
+      <label for="previewMode" class="sr-only">Preview target</label>
+      <select id="previewMode" title="What Preview builds">
+        <option value="project">Project</option>
+        <option value="form">Current form</option>
+      </select>
+      <button id="previewBtn" type="button" title="Build and run the project or the selected form">Preview</button>
       <button id="projectBtn" type="button">Project…</button>
       <button id="importBtn" type="button">Import .lfm</button>
       <input id="importFile" type="file" accept=".lfm" hidden>
@@ -77,6 +83,51 @@
     </div>
     <div class="dialog-section">
       <div class="dialog-title">
+        <span>Settings</span>
+        <button id="saveSettingsBtn" type="button">Save</button>
+      </div>
+      <div class="dialog-form settings-form">
+        <label class="dialog-field">
+          <span>Name</span>
+          <input id="settingName" type="text">
+        </label>
+        <label class="dialog-field">
+          <span>Type</span>
+          <select id="settingKind">
+            <option value="application">Application</option>
+            <option value="host">Host application</option>
+            <option value="module">Module</option>
+          </select>
+        </label>
+        <label class="dialog-field">
+          <span>Program</span>
+          <input id="settingProgram" type="text" placeholder="project1.lpr">
+        </label>
+        <label class="dialog-field">
+          <span>HTML</span>
+          <input id="settingHtml" type="text" placeholder="project1.html">
+        </label>
+        <label class="dialog-field">
+          <span>Output</span>
+          <input id="settingOutput" type="text" placeholder="program name + .js">
+        </label>
+        <label class="dialog-field module-only">
+          <span>Entry unit</span>
+          <input id="settingEntry" type="text" placeholder="Module1">
+        </label>
+        <label class="dialog-field module-only">
+          <span>Manifest</span>
+          <input id="settingManifest" type="text" placeholder="modules.json">
+        </label>
+        <label class="dialog-field host-only">
+          <span>Modules</span>
+          <textarea id="settingModules" rows="3" placeholder="../module/preview/lib/modules.json"></textarea>
+        </label>
+        <p class="dialog-hint host-only">One module manifest per line.</p>
+      </div>
+    </div>
+    <div class="dialog-section">
+      <div class="dialog-title">
         <span>Forms</span>
         <button id="newFormBtn" type="button">New form</button>
       </div>
@@ -93,6 +144,37 @@
       <input id="deleteFilesCheck" type="checkbox">
       Also delete files when removing
     </label>
+  </dialog>
+
+  <dialog id="newProjectDialog" class="project-dialog new-project-dialog">
+    <div class="dialog-head">
+      <h2>New project</h2>
+      <button id="newProjectCloseBtn" type="button">Close</button>
+    </div>
+    <div class="dialog-section">
+      <div class="dialog-form">
+        <label class="dialog-field">
+          <span>Name</span>
+          <input id="newProjectName" type="text" value="New project">
+        </label>
+        <label class="dialog-field">
+          <span>Folder id</span>
+          <input id="newProjectId" type="text" value="new-project">
+        </label>
+        <label class="dialog-field">
+          <span>Type</span>
+          <select id="newProjectKind">
+            <option value="application">Application</option>
+            <option value="host">Host application</option>
+            <option value="module">Module</option>
+          </select>
+        </label>
+        <p id="newProjectHint" class="dialog-hint"></p>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button id="newProjectCreateBtn" type="button" class="dialog-primary">Create</button>
+    </div>
   </dialog>
 
   <dialog id="previewDialog" class="preview-dialog">

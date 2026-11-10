@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'PasSync.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'ModuleManifest.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -46,6 +47,38 @@ function programFile(string $value): string
 {
     if (!preg_match('/^[A-Za-z0-9_.-]+\.lpr$/', $value)) {
         fail('Invalid program file name.');
+    }
+    return $value;
+}
+
+function htmlFile(string $value): string
+{
+    if (!preg_match('/^[A-Za-z0-9_.-]+\.html?$/i', $value)) {
+        fail('Invalid HTML file name.');
+    }
+    return $value;
+}
+
+function jsFile(string $value): string
+{
+    if (!preg_match('/^[A-Za-z0-9_.-]+\.js$/i', $value)) {
+        fail('Invalid JavaScript file name.');
+    }
+    return $value;
+}
+
+function jsonFile(string $value): string
+{
+    if (!preg_match('/^[A-Za-z0-9_.-]+\.json$/i', $value)) {
+        fail('Invalid JSON file name.');
+    }
+    return $value;
+}
+
+function unitName(string $value): string
+{
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value)) {
+        fail('Invalid unit name.');
     }
     return $value;
 }
@@ -121,7 +154,7 @@ function readProject(string $dir, string $id): array
             $forms[] = formEntry($entry);
         }
     }
-    if ($forms === []) {
+    if ($forms === [] && (isset($config['form']) || isset($config['unit']))) {
         // Single-form project written by the first designer version.
         $forms[] = formEntry([
             'form' => $config['form'] ?? 'unit1.lfm',
@@ -137,26 +170,60 @@ function readProject(string $dir, string $id): array
     }
     $forms = array_values($unique);
 
-    $main = trim((string) ($config['mainForm'] ?? $config['form'] ?? $forms[0]['form']));
-    $mainEntry = null;
-    foreach ($forms as $entry) {
-        if ($entry['form'] === $main) {
-            $mainEntry = $entry;
-            break;
+    if ($forms === []) {
+        // A module (or a unit-only project) has no form.
+        $config['forms'] = [];
+        $config['mainForm'] = '';
+        $config['form'] = '';
+        $config['unit'] = '';
+    } else {
+        $main = trim((string) ($config['mainForm'] ?? $config['form'] ?? $forms[0]['form']));
+        $mainEntry = null;
+        foreach ($forms as $entry) {
+            if ($entry['form'] === $main) {
+                $mainEntry = $entry;
+                break;
+            }
         }
-    }
-    if ($mainEntry === null) {
-        $mainEntry = $forms[0];
+        if ($mainEntry === null) {
+            $mainEntry = $forms[0];
+        }
+
+        $config['forms'] = $forms;
+        $config['mainForm'] = $mainEntry['form'];
+        // Keep the single-form fields for older clients and scripts.
+        $config['form'] = $mainEntry['form'];
+        $config['unit'] = $mainEntry['unit'];
     }
 
-    $config['forms'] = $forms;
-    $config['mainForm'] = $mainEntry['form'];
-    // Keep the single-form fields for older clients and scripts.
-    $config['form'] = $mainEntry['form'];
-    $config['unit'] = $mainEntry['unit'];
+    $kinds = ['application', 'host', 'module'];
+    $kind = strtolower(trim((string) ($config['kind'] ?? 'application')));
+    $config['kind'] = in_array($kind, $kinds, true) ? $kind : 'application';
 
     $program = trim((string) ($config['program'] ?? ''));
     $config['program'] = $program !== '' ? programFile($program) : '';
+
+    $html = trim((string) ($config['html'] ?? ''));
+    $config['html'] = $html !== '' ? htmlFile($html) : '';
+
+    $output = trim((string) ($config['output'] ?? ''));
+    $config['output'] = $output !== '' ? jsFile($output) : '';
+
+    $manifest = trim((string) ($config['manifest'] ?? ''));
+    $config['manifest'] = $manifest !== '' ? jsonFile($manifest) : '';
+
+    $entry = trim((string) ($config['entry'] ?? ''));
+    $config['entry'] = $entry !== '' ? unitName($entry) : '';
+
+    $modules = [];
+    if (isset($config['modules']) && is_array($config['modules'])) {
+        foreach ($config['modules'] as $module) {
+            if (is_string($module) && trim($module) !== '') {
+                $modules[] = trim($module);
+            }
+        }
+    }
+    $config['modules'] = array_values(array_unique($modules));
 
     $units = [];
     if (isset($config['units']) && is_array($config['units'])) {
@@ -230,6 +297,98 @@ PAS;
     return str_replace('{{NAME}}', $unitName, $source) . "\n";
 }
 
+function newApplicationProgram(int $number): string
+{
+    $source = <<<'PAS'
+program project1;
+
+{$mode delphi}{$H+}
+
+uses
+  Interfaces, Forms, Unit{{N}};
+
+var
+  Form{{N}}: TForm{{N}};
+
+begin
+  Application.Initialize;
+  Application.CreateForm(TForm{{N}}, Form{{N}});
+  Application.Run;
+end.
+PAS;
+    return str_replace('{{N}}', (string) $number, $source) . "\n";
+}
+
+function newApplicationHtml(string $title, string $output = 'project1.js'): string
+{
+    $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $safeOutput = htmlspecialchars($output, ENT_QUOTES, 'UTF-8');
+    return <<<HTML
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{$safeTitle}</title>
+  <script src="{$safeOutput}"></script>
+</head>
+<body>
+  <script>rtl.run();</script>
+</body>
+</html>
+
+HTML;
+}
+
+function newModuleUnitSource(): string
+{
+    return <<<'PAS'
+unit Module1;
+
+{$mode delphi}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils;
+
+type
+  TModule1 = class
+  public
+    class procedure Register;
+  end;
+
+implementation
+
+class procedure TModule1.Register;
+begin
+  // Register screens, services and actions in the host application.
+end;
+
+initialization
+  TModule1.Register;
+
+end.
+PAS;
+}
+
+function newModuleProgramSource(): string
+{
+    return <<<'PAS'
+program project1;
+
+{$mode delphi}{$H+}
+
+uses
+  JS, Classes, SysUtils, Forms, WebCtrls, Module1;
+
+begin
+  // A module does not start the application: the host does.
+  // Module1 registers itself in its initialization section.
+end.
+PAS;
+}
+
 /**
  * Write the normalized project back to project.json. The units of the forms
  * are not repeated in the "units" list.
@@ -246,12 +405,18 @@ function writeProject(string $dir, array $config): void
 
     $data = [
         'name' => $config['name'],
+        'kind' => $config['kind'] ?? 'application',
         'mainForm' => $config['mainForm'],
         'forms' => $config['forms'],
         'units' => array_values(array_unique($units)),
     ];
-    if (($config['program'] ?? '') !== '') {
-        $data['program'] = $config['program'];
+    foreach (['program', 'html', 'output', 'manifest', 'entry'] as $key) {
+        if (($config[$key] ?? '') !== '') {
+            $data[$key] = $config[$key];
+        }
+    }
+    if (($config['modules'] ?? []) !== []) {
+        $data['modules'] = array_values($config['modules']);
     }
 
     $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
@@ -354,8 +519,25 @@ function runProcess(array $command, string $cwd): array
     return [$code, $combined];
 }
 
-function previewProgram(string $unitName, string $formClass): string
+function previewProgram(string $unitName, string $formClass, array $extraUnits = []): string
 {
+    $units = [];
+    foreach (array_merge([$unitName], $extraUnits) as $unit) {
+        if ($unit === '') {
+            continue;
+        }
+        $known = false;
+        foreach ($units as $existing) {
+            if (strcasecmp($existing, $unit) === 0) {
+                $known = true;
+                break;
+            }
+        }
+        if (!$known) {
+            $units[] = $unit;
+        }
+    }
+    $uses = implode(",\n  ", $units);
     $source = <<<'PAS'
 program preview;
 
@@ -373,12 +555,13 @@ begin
   Application.Run;
 end.
 PAS;
-    return str_replace(['{{UNIT}}', '{{CLASS}}'], [$unitName, $formClass], $source) . "\n";
+    return str_replace(['{{UNIT}}', '{{CLASS}}'], [$uses, $formClass], $source) . "\n";
 }
 
-function previewHtml(string $title, string $version): string
+function previewHtml(string $title, string $version, string $output = 'preview.js'): string
 {
     $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $safeOutput = htmlspecialchars($output, ENT_QUOTES, 'UTF-8');
     return <<<HTML
 <!doctype html>
 <html lang="en">
@@ -389,7 +572,7 @@ function previewHtml(string $title, string $version): string
   <!-- Relative paths inside the form (images, URLs) resolve against the project folder. -->
   <base href="../">
   <link rel="icon" href="preview/preview.ico">
-  <script src="preview/preview.js?v={$version}"></script>
+  <script src="preview/{$safeOutput}?v={$version}"></script>
 </head>
 <body>
   <script>rtl.run();</script>
@@ -397,6 +580,223 @@ function previewHtml(string $title, string $version): string
 </html>
 
 HTML;
+}
+
+function previewHtmlHost(string $title, string $version, string $output, array $modules): string
+{
+    $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $safeOutput = htmlspecialchars($output, ENT_QUOTES, 'UTF-8');
+    $modulesJson = json_encode(array_values($modules), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return <<<HTML
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{$safeTitle}</title>
+  <base href="../">
+  <link rel="icon" href="preview/preview.ico">
+  <script src="preview/{$safeOutput}?v={$version}"></script>
+</head>
+<body>
+  <script>
+    (async function () {
+      function loadScript(url) {
+        return new Promise(function (resolve, reject) {
+          var script = document.createElement("script");
+          script.src = url;
+          script.onload = function () { resolve(); };
+          script.onerror = function () { reject(new Error("Cannot load " + url)); };
+          document.head.appendChild(script);
+        });
+      }
+      async function loadModule(url) {
+        var response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) throw new Error("Cannot load " + url + " (" + response.status + ")");
+        var manifest = await response.json();
+        var base = url.slice(0, url.lastIndexOf("/") + 1);
+        for (var i = 0; i < manifest.files.length; i++) {
+          var entry = manifest.files[i];
+          var name = typeof entry === "string" ? null : entry.name;
+          var file = typeof entry === "string" ? entry : entry.file;
+          if (name && window.pas && pas[name]) continue;
+          await loadScript(base + file);
+        }
+        if (manifest.entry) rtl.run(manifest.entry);
+      }
+      try {
+        var modules = {$modulesJson};
+        for (var i = 0; i < modules.length; i++) await loadModule(modules[i]);
+        rtl.run("program");
+      } catch (error) {
+        console.error(error);
+        var status = document.createElement("pre");
+        status.style.cssText = "margin:16px;color:#b00020;white-space:pre-wrap";
+        status.textContent = String(error);
+        document.body.appendChild(status);
+      }
+    })();
+  </script>
+</body>
+</html>
+
+HTML;
+}
+
+function previewHtmlModule(string $title, string $version, string $manifest): string
+{
+    $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $safeManifest = htmlspecialchars($manifest, ENT_QUOTES, 'UTF-8');
+    return <<<HTML
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{$safeTitle}</title>
+  <base href="../">
+  <link rel="icon" href="preview/preview.ico">
+</head>
+<body>
+  <pre id="module-status">Loading...</pre>
+  <script>
+    (async function () {
+      function loadScript(url) {
+        return new Promise(function (resolve, reject) {
+          var script = document.createElement("script");
+          script.src = url;
+          script.onload = function () { resolve(); };
+          script.onerror = function () { reject(new Error("Cannot load " + url)); };
+          document.head.appendChild(script);
+        });
+      }
+      try {
+        var response = await fetch("preview/lib/{$safeManifest}?v={$version}", { cache: "no-store" });
+        if (!response.ok) throw new Error("Cannot load modules.json (" + response.status + ")");
+        var manifest = await response.json();
+        if (manifest.main) await loadScript("preview/lib/" + manifest.main + "?v={$version}");
+        for (var i = 0; i < manifest.files.length; i++) {
+          var entry = manifest.files[i];
+          var file = typeof entry === "string" ? entry : entry.file;
+          await loadScript("preview/lib/" + file + "?v={$version}");
+        }
+        rtl.run("program");
+        document.getElementById("module-status").textContent = "Module loaded: "
+          + manifest.files.length + " modules"
+          + (manifest.entry ? ", entry " + manifest.entry : "") + ".";
+      } catch (error) {
+        console.error(error);
+        document.getElementById("module-status").textContent = String(error);
+      }
+    })();
+  </script>
+</body>
+</html>
+
+HTML;
+}
+
+/**
+ * RTL and search paths shared by every build.
+ *
+ * @return list<string>
+ */
+function pas2jsPaths(string $widgetsDir, string $dir, string $previewDir): array
+{
+    return [
+        '-Jirtl.js',
+        '-Jm-',
+        '-Jeutf-8',
+        '-JRjs',
+        '-O-',
+        '-Fu' . $widgetsDir,
+        '-Fi' . $widgetsDir,
+        '-Fu' . $dir,
+        '-Fu' . $previewDir,
+    ];
+}
+
+function pas2jsCompiler(): string
+{
+    $compiler = getenv('PAS2JS');
+    if ($compiler === false || trim($compiler) === '') {
+        $compiler = 'C:\\lazarus\\pas2js\\bin\\x86_64-win64\\pas2js.exe';
+    }
+    return $compiler;
+}
+
+/** Read the root class and the unit name of a form. */
+function formMeta(string $dir, array $formEntry): array
+{
+    $lfmPath = $dir . DIRECTORY_SEPARATOR . $formEntry['form'];
+    $unitPath = $dir . DIRECTORY_SEPARATOR . $formEntry['unit'];
+    if (!is_file($lfmPath)) {
+        return ['error' => "Form file {$formEntry['form']} not found."];
+    }
+    if (!is_file($unitPath)) {
+        return ['error' => "Unit file {$formEntry['unit']} not found."];
+    }
+    $lfm = (string) file_get_contents($lfmPath);
+    $unitSource = (string) file_get_contents($unitPath);
+    if (!preg_match('/^\s*(?:object|inherited)\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Za-z_][A-Za-z0-9_]*)/m', $lfm, $classMatch)) {
+        return ['error' => "Cannot find the root form class in {$formEntry['form']}."];
+    }
+    if (!preg_match('/^\s*unit\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/mi', $unitSource, $unitMatch)) {
+        return ['error' => "Cannot find the unit name in {$formEntry['unit']}."];
+    }
+    return [
+        'class' => $classMatch[1],
+        'unit' => $unitMatch[1],
+        'resource' => (bool) preg_match('/{\$R\b[^}]*\.lfm/i', $unitSource),
+    ];
+}
+
+/** @return list<string> */
+function missingFormResources(string $dir, array $config): array
+{
+    $missing = [];
+    foreach ($config['forms'] as $entry) {
+        $path = $dir . DIRECTORY_SEPARATOR . $entry['unit'];
+        if (!is_file($path)) {
+            $missing[] = $entry['unit'] . ' (file not found)';
+            continue;
+        }
+        $source = (string) file_get_contents($path);
+        if (!preg_match('/{\$R\b[^}]*\.lfm/i', $source)) {
+            $missing[] = $entry['unit'];
+        }
+    }
+    return $missing;
+}
+
+function unitDeclaredName(string $path, string $fallback): string
+{
+    if (is_file($path)) {
+        $source = (string) file_get_contents($path);
+        if (preg_match('/^\s*unit\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/mi', $source, $match)) {
+            return $match[1];
+        }
+    }
+    return $fallback;
+}
+
+/** @param list<string> $unitNames */
+function moduleProgramSource(array $unitNames): string
+{
+    $uses = $unitNames === [] ? '' : ",\n  " . implode(",\n  ", $unitNames);
+    $source = <<<'PAS'
+program preview;
+
+{$mode delphi}{$H+}
+
+uses
+  JS, Classes, SysUtils, Forms, WebCtrls{{USES}};
+
+begin
+  // A module does not start the application: the host does.
+end.
+PAS;
+    return str_replace('{{USES}}', $uses, $source) . "\n";
 }
 
 /** A 1x1 transparent icon: the runtime links <page>.ico, so the preview needs one. */
@@ -425,6 +825,7 @@ function listProjects(string $projectsDir): array
             $result[] = [
                 'id' => $config['id'],
                 'name' => $config['name'],
+                'kind' => $config['kind'],
                 'form' => $config['form'],
                 'unit' => $config['unit'],
                 'mainForm' => $config['mainForm'],
@@ -471,6 +872,17 @@ try {
             }
             $config = readProject($dir, $id);
             $requestedForm = trim((string) ($_GET['form'] ?? ''));
+            if ($config['forms'] === []) {
+                if ($requestedForm !== '') {
+                    fail('Form not found in project.', 404);
+                }
+                echo json_encode([
+                    'project' => $config,
+                    'form' => null,
+                    'lfm' => '',
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                break;
+            }
             $formEntry = findProjectForm($config, $requestedForm);
             if ($formEntry === null) {
                 fail('Form not found in project.', 404);
@@ -796,6 +1208,155 @@ try {
             break;
         }
 
+        case 'createProject': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['id'] ?? ''));
+            $name = trim((string) ($data['name'] ?? ''));
+            if ($name === '') {
+                $name = $id;
+            }
+            $kind = strtolower(trim((string) ($data['kind'] ?? 'application')));
+            if (!in_array($kind, ['application', 'host', 'module'], true)) {
+                fail('Invalid project kind.');
+            }
+            $dir = projectDir($projectsDir, $id);
+            if (is_dir($dir)) {
+                fail('Project already exists.', 409);
+            }
+            if (!mkdir($dir, 0775, true) && !is_dir($dir)) {
+                fail('Cannot create the project folder.', 500);
+            }
+
+            $config = [
+                'name' => $name,
+                'kind' => $kind,
+                'mainForm' => '',
+                'forms' => [],
+                'units' => [],
+                'program' => '',
+                'html' => '',
+                'output' => '',
+                'manifest' => '',
+                'entry' => '',
+                'modules' => [],
+            ];
+            if ($kind === 'module') {
+                $config['program'] = 'project1.lpr';
+                $config['manifest'] = 'modules.json';
+                $config['entry'] = 'Module1';
+                $config['units'] = ['module1.pas'];
+                $files = [
+                    'module1.pas' => newModuleUnitSource(),
+                    'project1.lpr' => newModuleProgramSource(),
+                ];
+            } else {
+                $lfm = 'object Form1: TForm1' . "\n"
+                    . "  Left = 0\n  Top = 0\n  Width = 800\n  Height = 600\n"
+                    . '  Caption = ' . lfmString($name) . "\nend\n";
+                $config['program'] = 'project1.lpr';
+                $config['html'] = 'project1.html';
+                $config['forms'] = [['form' => 'unit1.lfm', 'unit' => 'unit1.pas', 'title' => $name]];
+                $config['mainForm'] = 'unit1.lfm';
+                $files = [
+                    'unit1.lfm' => $lfm,
+                    'unit1.pas' => newFormUnitSource(1),
+                    'project1.lpr' => newApplicationProgram(1),
+                    'project1.html' => newApplicationHtml($name),
+                ];
+            }
+
+            foreach ($files as $file => $content) {
+                if (file_put_contents($dir . DIRECTORY_SEPARATOR . $file, $content) === false) {
+                    fail("Cannot write {$file}.", 500);
+                }
+            }
+            writeProject($dir, $config);
+            $project = readProject($dir, $id);
+            echo json_encode([
+                'ok' => true,
+                'project' => $project,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'updateProject': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $config = readProject($dir, $id);
+            $settings = $data['settings'] ?? $data;
+            if (!is_array($settings)) {
+                fail('Invalid project settings.');
+            }
+
+            if (array_key_exists('name', $settings)) {
+                $name = trim((string) $settings['name']);
+                if ($name === '') {
+                    fail('Project name is required.');
+                }
+                $config['name'] = $name;
+            }
+            if (array_key_exists('kind', $settings)) {
+                $kind = strtolower(trim((string) $settings['kind']));
+                if (!in_array($kind, ['application', 'host', 'module'], true)) {
+                    fail('Invalid project kind.');
+                }
+                $config['kind'] = $kind;
+            }
+            $validators = [
+                'program' => 'programFile',
+                'html' => 'htmlFile',
+                'output' => 'jsFile',
+                'manifest' => 'jsonFile',
+                'entry' => 'unitName',
+            ];
+            foreach ($validators as $key => $validator) {
+                if (!array_key_exists($key, $settings)) {
+                    continue;
+                }
+                $value = trim((string) $settings[$key]);
+                $config[$key] = $value === '' ? '' : $validator($value);
+            }
+            if (array_key_exists('modules', $settings)) {
+                $modules = $settings['modules'];
+                if (!is_array($modules)) {
+                    fail('modules must be a list.');
+                }
+                $clean = [];
+                foreach ($modules as $module) {
+                    if (!is_string($module)) {
+                        fail('Invalid module reference.');
+                    }
+                    $module = trim($module);
+                    if ($module === '') {
+                        continue;
+                    }
+                    if (strlen($module) > 1024 || preg_match('/[\r\n]/', $module)) {
+                        fail('Invalid module reference.');
+                    }
+                    $clean[] = $module;
+                }
+                $config['modules'] = array_values(array_unique($clean));
+            }
+
+            writeProject($dir, $config);
+            $updated = readProject($dir, $id);
+            echo json_encode([
+                'ok' => true,
+                'project' => $updated,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
         case 'build': {
             if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
                 fail('POST required.', 405);
@@ -807,109 +1368,235 @@ try {
                 fail('Project not found.', 404);
             }
             $config = readProject($dir, $id);
-            $formEntry = findProjectForm($config, trim((string) ($data['form'] ?? '')));
-            if ($formEntry === null) {
-                fail('Form not found in project.', 404);
-            }
-            $lfmPath = $dir . DIRECTORY_SEPARATOR . $formEntry['form'];
-            $unitPath = $dir . DIRECTORY_SEPARATOR . $formEntry['unit'];
-            if (!is_file($lfmPath)) {
-                fail('Form file not found.', 404);
-            }
-            if (!is_file($unitPath)) {
-                fail('Unit file not found.', 404);
-            }
-
-            $lfm = (string) file_get_contents($lfmPath);
-            $unitSource = (string) file_get_contents($unitPath);
-            if (!preg_match('/^\s*(?:object|inherited)\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Za-z_][A-Za-z0-9_]*)/m', $lfm, $classMatch)) {
-                echo json_encode([
-                    'ok' => false,
-                    'output' => "Cannot find the root form class in {$formEntry['form']}.",
-                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                break;
-            }
-            $formClass = $classMatch[1];
-            if (!preg_match('/^\s*unit\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/mi', $unitSource, $unitMatch)) {
-                echo json_encode([
-                    'ok' => false,
-                    'output' => "Cannot find the unit name in {$formEntry['unit']}.",
-                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                break;
-            }
-            $unitName = $unitMatch[1];
-            if (!preg_match('/{\$R\b[^}]*\.lfm/i', $unitSource)) {
-                echo json_encode([
-                    'ok' => false,
-                    'output' => "{$formEntry['unit']} does not link its form resource."
-                        . "\nAdd {\$R *.lfm} after the implementation keyword and build again.",
-                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                break;
-            }
+            $mode = (string) ($data['mode'] ?? 'project');
+            $mode = $mode === 'form' ? 'form' : 'project';
 
             $previewDir = $dir . DIRECTORY_SEPARATOR . 'preview';
             if (!is_dir($previewDir) && !mkdir($previewDir, 0775, true) && !is_dir($previewDir)) {
                 fail('Cannot create the preview folder.', 500);
             }
             $version = (string) time();
-            $title = trim((string) ($formEntry['title'] ?? ''));
-            if ($title === '') {
-                $title = $formClass;
-            }
-            $files = [
-                'preview.lpr' => previewProgram($unitName, $formClass),
-                'preview.html' => previewHtml($title, $version),
-                'preview.ico' => previewIcon(),
-            ];
-            foreach ($files as $name => $content) {
-                if (file_put_contents($previewDir . DIRECTORY_SEPARATOR . $name, $content) === false) {
-                    fail("Cannot write preview/$name.", 500);
+            $emit = static function (array $result): void {
+                echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            };
+            $write = static function (string $file, string $content) use ($previewDir): void {
+                if (file_put_contents($previewDir . DIRECTORY_SEPARATOR . $file, $content) === false) {
+                    fail("Cannot write preview/{$file}.", 500);
                 }
-            }
-            @unlink($previewDir . DIRECTORY_SEPARATOR . 'preview.js');
+            };
 
-            $compiler = getenv('PAS2JS');
-            if ($compiler === false || trim($compiler) === '') {
-                $compiler = 'C:\\lazarus\\pas2js\\bin\\x86_64-win64\\pas2js.exe';
-            }
+            $compiler = pas2jsCompiler();
             if (!is_file($compiler)) {
-                echo json_encode([
+                $emit([
                     'ok' => false,
                     'output' => "pas2js not found: {$compiler}"
                         . "\nSet the PAS2JS environment variable to the compiler executable.",
-                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                ]);
+                break;
+            }
+            $widgetsDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'widgets';
+            $url = 'projects/' . $id . '/preview/preview.html';
+
+            if ($mode === 'form') {
+                $formEntry = findProjectForm($config, trim((string) ($data['form'] ?? '')));
+                if ($formEntry === null) {
+                    fail('Form not found in project.', 404);
+                }
+                $meta = formMeta($dir, $formEntry);
+                if (isset($meta['error'])) {
+                    $emit(['ok' => false, 'output' => $meta['error']]);
+                    break;
+                }
+                if (!$meta['resource']) {
+                    $emit([
+                        'ok' => false,
+                        'output' => "{$formEntry['unit']} does not link its form resource."
+                            . "\nAdd {\$R *.lfm} after the implementation keyword and build again.",
+                    ]);
+                    break;
+                }
+
+                $title = trim((string) ($formEntry['title'] ?? ''));
+                if ($title === '') {
+                    $title = $meta['class'];
+                }
+                $write('preview.lpr', previewProgram($meta['unit'], $meta['class']));
+                $write('preview.html', previewHtml($title, $version, 'preview.js'));
+                $write('preview.ico', previewIcon());
+                $outputPath = $previewDir . DIRECTORY_SEPARATOR . 'preview.js';
+                @unlink($outputPath);
+
+                $command = array_merge(
+                    [$compiler],
+                    pas2jsPaths($widgetsDir, $dir, $previewDir),
+                    ['-Jc', '-o' . $outputPath, $previewDir . DIRECTORY_SEPARATOR . 'preview.lpr'],
+                );
+                [$code, $output] = runProcess($command, $dir);
+                $ok = $code === 0 && is_file($outputPath);
+                if ($output === '') {
+                    $output = $ok ? 'Build succeeded.' : 'The compiler returned no output.';
+                }
+                $emit([
+                    'ok' => $ok,
+                    'mode' => 'form',
+                    'form' => $formEntry['form'],
+                    'unit' => $formEntry['unit'],
+                    'formClass' => $meta['class'],
+                    'url' => $url,
+                    'output' => $output,
+                ]);
                 break;
             }
 
-            $widgetsDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'widgets';
-            $command = [
-                $compiler,
-                '-Jc',
-                '-Jirtl.js',
-                '-Jm-',
-                '-Jeutf-8',
-                '-JRjs',
-                '-O-',
-                '-Fu' . $widgetsDir,
-                '-Fi' . $widgetsDir,
-                '-Fu' . $dir,
-                '-Fu' . $previewDir,
-                '-o' . $previewDir . DIRECTORY_SEPARATOR . 'preview.js',
-                $previewDir . DIRECTORY_SEPARATOR . 'preview.lpr',
-            ];
+            $missing = missingFormResources($dir, $config);
+            if ($missing !== []) {
+                $emit([
+                    'ok' => false,
+                    'output' => 'These units do not link their form resource: '
+                        . implode(', ', $missing)
+                        . "\nAdd {\$R *.lfm} after the implementation keyword and build again.",
+                ]);
+                break;
+            }
+
+            if ($config['kind'] === 'module') {
+                if ($config['program'] !== '') {
+                    $programName = $config['program'];
+                    $programPath = $dir . DIRECTORY_SEPARATOR . $programName;
+                    if (!is_file($programPath)) {
+                        $emit(['ok' => false, 'output' => "Program file {$programName} not found."]);
+                        break;
+                    }
+                } else {
+                    $unitNames = [];
+                    foreach ($config['units'] as $unitFile) {
+                        $fallback = ucfirst((string) pathinfo($unitFile, PATHINFO_FILENAME));
+                        $unitNames[] = unitDeclaredName($dir . DIRECTORY_SEPARATOR . $unitFile, $fallback);
+                    }
+                    $programName = 'preview.lpr';
+                    $programPath = $previewDir . DIRECTORY_SEPARATOR . $programName;
+                    $write($programName, moduleProgramSource($unitNames));
+                }
+
+                $outputName = $config['output'] !== ''
+                    ? $config['output']
+                    : (string) preg_replace('/\.lpr$/i', '.js', basename($programName));
+                $manifestName = $config['manifest'] !== '' ? $config['manifest'] : 'modules.json';
+                $libDir = $previewDir . DIRECTORY_SEPARATOR . 'lib';
+                if (!is_dir($libDir) && !mkdir($libDir, 0775, true) && !is_dir($libDir)) {
+                    fail('Cannot create preview/lib.', 500);
+                }
+                foreach (glob($libDir . DIRECTORY_SEPARATOR . '*.js') ?: [] as $oldFile) {
+                    @unlink($oldFile);
+                }
+
+                $write('preview.html', previewHtmlModule($config['name'] . ' module', $version, $manifestName));
+                $write('preview.ico', previewIcon());
+                $outputPath = $libDir . DIRECTORY_SEPARATOR . $outputName;
+                $command = array_merge(
+                    [$compiler],
+                    pas2jsPaths($widgetsDir, $dir, $previewDir),
+                    ['-Jc-', '-FU' . $libDir, '-o' . $outputPath, $programPath],
+                );
+                [$code, $output] = runProcess($command, $dir);
+                $ok = $code === 0 && is_file($outputPath);
+                if ($ok) {
+                    try {
+                        $manifest = writeModuleManifest(
+                            $libDir,
+                            $libDir . DIRECTORY_SEPARATOR . $manifestName,
+                            $config['entry'],
+                        );
+                        $output .= ($output !== '' ? "\n" : '')
+                            . 'Wrote ' . $manifestName . ' (' . count($manifest['files']) . ' modules)';
+                    } catch (Throwable $error) {
+                        $ok = false;
+                        $output .= ($output !== '' ? "\n" : '') . $error->getMessage();
+                    }
+                }
+                if ($output === '') {
+                    $output = $ok ? 'Build succeeded.' : 'The compiler returned no output.';
+                }
+                $emit([
+                    'ok' => $ok,
+                    'kind' => 'module',
+                    'url' => $url,
+                    'manifest' => 'preview/lib/' . $manifestName,
+                    'program' => $config['program'] !== '' ? $config['program'] : $programName,
+                    'output' => $output,
+                ]);
+                break;
+            }
+
+            if ($config['program'] !== '') {
+                $programName = $config['program'];
+                $programPath = $dir . DIRECTORY_SEPARATOR . $programName;
+                if (!is_file($programPath)) {
+                    $emit(['ok' => false, 'output' => "Program file {$programName} not found."]);
+                    break;
+                }
+            } else {
+                $mainForm = findProjectForm($config, '');
+                if ($mainForm === null) {
+                    $emit([
+                        'ok' => false,
+                        'output' => 'The project has no program and no main form.'
+                            . "\nConfigure a program in the project settings or add a form.",
+                    ]);
+                    break;
+                }
+                $meta = formMeta($dir, $mainForm);
+                if (isset($meta['error'])) {
+                    $emit(['ok' => false, 'output' => $meta['error']]);
+                    break;
+                }
+                if (!$meta['resource']) {
+                    $emit([
+                        'ok' => false,
+                        'output' => "{$mainForm['unit']} does not link its form resource."
+                            . "\nAdd {\$R *.lfm} after the implementation keyword and build again.",
+                    ]);
+                    break;
+                }
+                $programName = 'preview.lpr';
+                $programPath = $previewDir . DIRECTORY_SEPARATOR . $programName;
+                $unitNames = [];
+                foreach ($config['units'] as $unitFile) {
+                    $fallback = ucfirst((string) pathinfo($unitFile, PATHINFO_FILENAME));
+                    $unitNames[] = unitDeclaredName($dir . DIRECTORY_SEPARATOR . $unitFile, $fallback);
+                }
+                $write($programName, previewProgram($meta['unit'], $meta['class'], $unitNames));
+            }
+
+            $outputName = $config['output'] !== ''
+                ? $config['output']
+                : (string) preg_replace('/\.lpr$/i', '.js', basename($programName));
+            if ($config['kind'] === 'host') {
+                $write('preview.html', previewHtmlHost($config['name'], $version, $outputName, $config['modules']));
+            } else {
+                $write('preview.html', previewHtml($config['name'], $version, $outputName));
+            }
+            $write('preview.ico', previewIcon());
+            $outputPath = $previewDir . DIRECTORY_SEPARATOR . $outputName;
+            @unlink($outputPath);
+
+            $command = array_merge(
+                [$compiler],
+                pas2jsPaths($widgetsDir, $dir, $previewDir),
+                ['-Jc', '-o' . $outputPath, $programPath],
+            );
             [$code, $output] = runProcess($command, $dir);
-            $ok = $code === 0 && is_file($previewDir . DIRECTORY_SEPARATOR . 'preview.js');
+            $ok = $code === 0 && is_file($outputPath);
             if ($output === '') {
                 $output = $ok ? 'Build succeeded.' : 'The compiler returned no output.';
             }
-            echo json_encode([
+            $emit([
                 'ok' => $ok,
-                'form' => $formEntry['form'],
-                'unit' => $formEntry['unit'],
-                'formClass' => $formClass,
-                'url' => 'projects/' . $id . '/preview/preview.html',
+                'kind' => $config['kind'],
+                'url' => $url,
+                'program' => $config['program'] !== '' ? $config['program'] : $programName,
                 'output' => $output,
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            ]);
             break;
         }
 

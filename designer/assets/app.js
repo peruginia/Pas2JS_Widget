@@ -45,6 +45,15 @@ const els = {
   form: document.getElementById('formSelect'),
   reload: document.getElementById('reloadBtn'),
   save: document.getElementById('saveBtn'),
+  previewMode: document.getElementById('previewMode'),
+  newProjectBtn: document.getElementById('newProjectBtn'),
+  newProjectDialog: document.getElementById('newProjectDialog'),
+  newProjectName: document.getElementById('newProjectName'),
+  newProjectId: document.getElementById('newProjectId'),
+  newProjectKind: document.getElementById('newProjectKind'),
+  newProjectHint: document.getElementById('newProjectHint'),
+  newProjectCreateBtn: document.getElementById('newProjectCreateBtn'),
+  newProjectCloseBtn: document.getElementById('newProjectCloseBtn'),
   projectBtn: document.getElementById('projectBtn'),
   importFile: document.getElementById('importFile'),
   importBtn: document.getElementById('importBtn'),
@@ -75,6 +84,15 @@ const els = {
   projectDialog: document.getElementById('projectDialog'),
   dialogForms: document.getElementById('dialogForms'),
   dialogUnits: document.getElementById('dialogUnits'),
+  settingName: document.getElementById('settingName'),
+  settingKind: document.getElementById('settingKind'),
+  settingProgram: document.getElementById('settingProgram'),
+  settingHtml: document.getElementById('settingHtml'),
+  settingOutput: document.getElementById('settingOutput'),
+  settingEntry: document.getElementById('settingEntry'),
+  settingManifest: document.getElementById('settingManifest'),
+  settingModules: document.getElementById('settingModules'),
+  saveSettingsBtn: document.getElementById('saveSettingsBtn'),
   newFormBtn: document.getElementById('newFormBtn'),
   newUnitBtn: document.getElementById('newUnitBtn'),
   projectCloseBtn: document.getElementById('projectCloseBtn'),
@@ -259,6 +277,15 @@ async function loadSource(force = false) {
     els.sourceEditor.value = '';
     els.sourceGutter.textContent = '';
     state.source = null;
+    return;
+  }
+  if (!currentUnitName()) {
+    els.sourceName.textContent = 'No unit';
+    els.sourceStatus.textContent = 'The project has no unit.';
+    els.sourceEditor.value = '';
+    els.sourceGutter.textContent = '';
+    state.source = null;
+    state.sourceDirty = false;
     return;
   }
   els.sourceName.textContent = currentUnitName() || 'unit';
@@ -593,7 +620,7 @@ function layoutFrames(container, width, height) {
 function renderTree() {
   els.tree.innerHTML = '';
   if (state.roots.length === 0) {
-    els.tree.textContent = 'No form loaded.';
+    els.tree.textContent = 'This project has no form.';
     return;
   }
   const build = (nodes, parent) => {
@@ -1032,7 +1059,8 @@ function renderCanvas() {
   els.canvas.innerHTML = '';
   const root = state.roots[0];
   if (!root) {
-    els.canvas.textContent = 'Load a project to see the form.';
+    els.canvas.textContent = 'This project has no form.';
+    els.formTitle.textContent = 'No form';
     return;
   }
   const form = document.createElement('div');
@@ -2553,7 +2581,7 @@ function renderAll() {
   setDirty(false);
 }
 
-async function loadProjects() {
+async function loadProjects(loadFirst = true) {
   const data = await api('projects');
   state.projects = data.projects || [];
   els.project.innerHTML = '';
@@ -2567,11 +2595,19 @@ async function loadProjects() {
     setStatus('No projects found. Import an .lfm file.', true);
     return;
   }
-  await loadProject(state.projects[0].id);
+  if (loadFirst) {
+    await loadProject(state.projects[0].id);
+  }
 }
 
 function renderFormSelect() {
   els.form.innerHTML = '';
+  if (state.forms.length === 0) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'No form';
+    els.form.appendChild(option);
+  }
   for (const form of state.forms) {
     const option = document.createElement('option');
     option.value = form.form;
@@ -2613,10 +2649,60 @@ function dialogButton(text, title) {
   return button;
 }
 
+function updateSettingsVisibility() {
+  const kind = els.settingKind.value;
+  for (const node of els.projectDialog.querySelectorAll('.module-only')) {
+    node.classList.toggle('hidden-field', kind !== 'module');
+  }
+  for (const node of els.projectDialog.querySelectorAll('.host-only')) {
+    node.classList.toggle('hidden-field', kind !== 'host');
+  }
+}
+
+function renderProjectSettings() {
+  if (!state.project) return;
+  els.settingName.value = state.project.name || '';
+  els.settingKind.value = state.project.kind || 'application';
+  els.settingProgram.value = state.project.program || '';
+  els.settingHtml.value = state.project.html || '';
+  els.settingOutput.value = state.project.output || '';
+  els.settingEntry.value = state.project.entry || '';
+  els.settingManifest.value = state.project.manifest || '';
+  els.settingModules.value = (state.project.modules || []).join('\n');
+  updateSettingsVisibility();
+}
+
+async function saveProjectSettings() {
+  if (!state.project) return;
+  const settings = {
+    name: els.settingName.value.trim(),
+    kind: els.settingKind.value,
+    program: els.settingProgram.value.trim(),
+    html: els.settingHtml.value.trim(),
+    output: els.settingOutput.value.trim(),
+    entry: els.settingEntry.value.trim(),
+    manifest: els.settingManifest.value.trim(),
+    modules: els.settingModules.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+  };
+  try {
+    const result = await api('updateProject', {}, { project: state.project.id, settings });
+    state.project = result.project;
+    state.forms = result.project.forms || [];
+    const option = [...els.project.options].find((item) => item.value === state.project.id);
+    if (option) option.textContent = state.project.name;
+    renderFormSelect();
+    renderProjectDialog();
+    setStatus('Project settings saved');
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
 function renderProjectDialog() {
   els.dialogForms.innerHTML = '';
   els.dialogUnits.innerHTML = '';
   if (!state.project) return;
+  renderProjectSettings();
 
   const formUnits = new Set(state.forms.map((form) => form.unit));
 
@@ -2688,6 +2774,58 @@ function openDialog(dialog) {
   }
 }
 
+let newProjectIdTouched = false;
+
+function deriveProjectId(name) {
+  return String(name)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64) || 'project';
+}
+
+function updateNewProjectHint() {
+  const hints = {
+    application: 'A pas2js application: a main form, project1.lpr and project1.html.',
+    host: 'A pas2js application that loads the module manifests configured in its settings.',
+    module: 'A pas2js module: the units are compiled separately with a modules.json manifest.',
+  };
+  els.newProjectHint.textContent = hints[els.newProjectKind.value] || '';
+}
+
+function openNewProjectDialog() {
+  els.newProjectName.value = 'New project';
+  els.newProjectId.value = 'new-project';
+  els.newProjectKind.value = 'application';
+  newProjectIdTouched = false;
+  updateNewProjectHint();
+  openDialog(els.newProjectDialog);
+}
+
+async function createNewProject() {
+  const name = els.newProjectName.value.trim();
+  const id = els.newProjectId.value.trim();
+  if (!name || !id) {
+    setStatus('Project name and folder id are required.', true);
+    return;
+  }
+  els.newProjectCreateBtn.disabled = true;
+  try {
+    const result = await api('createProject', {}, { id, name, kind: els.newProjectKind.value });
+    closeDialog(els.newProjectDialog);
+    await loadProjects(false);
+    els.project.value = result.project.id;
+    await loadProject(result.project.id);
+    setStatus(`Created ${result.project.name}`);
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    els.newProjectCreateBtn.disabled = false;
+  }
+}
+
 function closeDialog(dialog) {
   if (dialog.close) {
     dialog.close();
@@ -2697,9 +2835,13 @@ function closeDialog(dialog) {
 }
 
 async function buildPreview() {
-  if (!state.project || !state.currentForm) {
-    setStatus('No form selected.', true);
+  if (!state.project) {
+    setStatus('No project selected.', true);
     return;
+  }
+  let mode = els.previewMode.value === 'form' ? 'form' : 'project';
+  if (mode === 'form' && !state.currentForm) {
+    mode = 'project';
   }
   if (state.sourceDirty) {
     await saveSource();
@@ -2711,10 +2853,12 @@ async function buildPreview() {
   }
 
   const form = state.currentForm;
+  const body = { project: state.project.id, mode };
+  if (mode === 'form') body.form = form.form;
   els.previewBtn.disabled = true;
-  setStatus(`Building ${form.form}...`);
+  setStatus(mode === 'form' ? `Building ${form.form}...` : `Building ${state.project.name}...`);
   try {
-    const result = await api('build', {}, { project: state.project.id, form: form.form });
+    const result = await api('build', {}, body);
     if (!result.ok) {
       els.buildOutput.textContent = result.output || 'Build failed.';
       openDialog(els.buildDialog);
@@ -2723,11 +2867,13 @@ async function buildPreview() {
     }
     const url = new URL(result.url, window.location.href);
     url.searchParams.set('t', Date.now().toString());
-    els.previewTitle.textContent = `Preview · ${form.title || form.form}`;
+    els.previewTitle.textContent = mode === 'form' && form
+      ? `Preview · ${form.title || form.form}`
+      : `Preview · ${state.project.name}`;
     els.previewOpenLink.href = url.href;
     els.previewFrame.src = url.href;
     openDialog(els.previewDialog);
-    setStatus(`Preview built · ${result.unit}`);
+    setStatus(mode === 'form' ? `Preview built · ${result.unit}` : `Preview built · ${result.kind || state.project.kind}`);
   } catch (error) {
     els.buildOutput.textContent = error.message;
     openDialog(els.buildDialog);
@@ -2859,11 +3005,13 @@ async function loadProject(id, formName = '') {
     const params = { project: id };
     if (formName) params.form = formName;
     const data = await api('load', params);
-    const roots = parseLfm(data.lfm);
+    const roots = data.lfm && String(data.lfm).trim() !== '' ? parseLfm(data.lfm) : [];
     state.project = data.project;
     state.forms = data.project.forms || [];
     state.currentForm = data.form || state.forms[0] || null;
-    state.currentUnit = state.currentForm ? state.currentForm.unit : '';
+    state.currentUnit = state.currentForm
+      ? state.currentForm.unit
+      : (state.project.units[0] || '');
     state.roots = roots;
     state.selected = null;
     state.activeTabs.clear();
@@ -2889,6 +3037,14 @@ async function loadProject(id, formName = '') {
 async function saveProject() {
   if (!state.project) {
     setStatus('No project selected.', true);
+    return;
+  }
+  if (!state.currentForm) {
+    if (state.sourceDirty) {
+      await saveSource();
+    } else {
+      setStatus('No form to save.');
+    }
     return;
   }
   if (state.sourceDirty) {
@@ -2929,7 +3085,7 @@ async function importFile(file) {
     const name = (window.prompt('Project name', id) || id).trim();
     await api('import', {}, { id, name, lfm });
     setStatus(`Imported ${name}`);
-    await loadProjects();
+    await loadProjects(false);
     els.project.value = id;
     await loadProject(id);
   } catch (error) {
@@ -2968,6 +3124,26 @@ async function boot() {
   });
   els.projectBtn.addEventListener('click', openProjectDialog);
   els.projectCloseBtn.addEventListener('click', closeProjectDialog);
+  els.newProjectBtn.addEventListener('click', openNewProjectDialog);
+  els.newProjectCloseBtn.addEventListener('click', () => closeDialog(els.newProjectDialog));
+  els.newProjectCreateBtn.addEventListener('click', createNewProject);
+  els.newProjectName.addEventListener('input', () => {
+    if (!newProjectIdTouched) {
+      els.newProjectId.value = deriveProjectId(els.newProjectName.value);
+    }
+  });
+  els.newProjectId.addEventListener('input', () => {
+    newProjectIdTouched = true;
+  });
+  els.newProjectKind.addEventListener('change', updateNewProjectHint);
+  els.newProjectDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
+      event.preventDefault();
+      createNewProject();
+    }
+  });
+  els.saveSettingsBtn.addEventListener('click', saveProjectSettings);
+  els.settingKind.addEventListener('change', updateSettingsVisibility);
   els.newFormBtn.addEventListener('click', createForm);
   els.newUnitBtn.addEventListener('click', createUnit);
   els.designTab.addEventListener('click', () => setView('design'));
