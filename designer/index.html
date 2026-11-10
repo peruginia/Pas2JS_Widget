@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WCL Designer</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">W</span>
+      <div>
+        <h1>WCL Designer</h1>
+        <p>LFM form designer</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <label for="projectSelect" class="sr-only">Project</label>
+      <select id="projectSelect"></select>
+      <button id="reloadBtn" type="button">Reload</button>
+      <button id="saveBtn" type="button">Save</button>
+      <button id="importBtn" type="button">Import .lfm</button>
+      <input id="importFile" type="file" accept=".lfm" hidden>
+    </div>
+    <div id="status" class="status">Starting...</div>
+  </header>
+
+  <main class="workspace">
+    <aside class="panel tree-panel">
+      <div class="panel-title">Components</div>
+      <div id="tree" class="tree"></div>
+    </aside>
+
+    <section class="panel canvas-panel">
+      <div class="canvas-head">
+        <span id="formTitle">No form</span>
+        <span class="hint">Click a component to inspect it</span>
+      </div>
+      <div class="canvas-scroll">
+        <div id="canvas" class="canvas"></div>
+      </div>
+    </section>
+
+    <aside class="panel inspector-panel">
+      <div class="panel-title">Properties</div>
+      <div id="inspector" class="inspector"></div>
+    </aside>
+  </main>
+
+  <script type="module" src="assets/app.js"></script>
+</body>
+</html>
