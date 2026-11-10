@@ -111,6 +111,12 @@ type
     FWidgetCombo: TWComboBox;
     FWidgetInfo: TWLabel;
     FAccelEdit: TWEdit;
+    FOpenDialog: TOpenDialog;
+    FSaveDialog: TSaveDialog;
+    FColorDialog: TColorDialog;
+    FFontDialog: TFontDialog;
+    FDialogInfo: TWLabel;
+    FDialogSample: TWLabel;
     procedure BuildTreeTab;
     procedure TreeSelectionChanged(Sender: TObject);
     procedure TreeExpandAll(Sender: TObject);
@@ -148,6 +154,11 @@ type
     procedure WidgetMessageBoxApp(Sender: TObject);
     procedure WidgetMessageBoxGlobal(Sender: TObject);
     procedure WidgetUpdateInfo;
+    procedure BuildDialogsTab;
+    procedure DialogOpenFile(Sender: TObject);
+    procedure DialogSaveFile(Sender: TObject);
+    procedure DialogPickColor(Sender: TObject);
+    procedure DialogPickFont(Sender: TObject);
     procedure BuildGridModesTab;
     procedure BuildGridPopup;
     procedure BuildSplitterTab;
@@ -257,6 +268,7 @@ begin
   BuildListTab;
   BuildDragTab;
   BuildWidgetsTab;
+  BuildDialogsTab;
   SetupStringGrid;
   SetupMenu;
   SetupActions;
@@ -1472,6 +1484,117 @@ begin
     begin
       ShowMessage('Result: ' + IntToStr(AResult));
     end));
+end;
+
+{ --- file, colour and font dialogs --- }
+
+procedure TWForm1.BuildDialogsTab;
+var
+  VSheet: TCustomTabSheet;
+  VButton: TWButton;
+
+  function AddButton(const ACaption: string; ATop: NativeInt;
+    AHandler: TNotifyEvent): TWButton;
+  begin
+    Result := TWButton.Create(Self);
+    Result.Parent := VSheet;
+    Result.SetBounds(16, ATop, 170, 31);
+    Result.Caption := ACaption;
+    Result.OnClick := AHandler;
+  end;
+
+begin
+  VSheet := WPageControl1.AddTabSheet;
+  VSheet.Caption := 'Dialogs';
+  VSheet.SetBounds(0, 0, WPageControl1.Width, WPageControl1.Height);
+
+  FOpenDialog := TOpenDialog.Create(Self);
+  FOpenDialog.Filter := 'Text files (*.txt)|*.txt|All files (*.*)|*.*';
+  FOpenDialog.Title := 'Open file';
+
+  FSaveDialog := TSaveDialog.Create(Self);
+  FSaveDialog.Filter := 'Text files (*.txt)|*.txt|All files (*.*)|*.*';
+  FSaveDialog.FileName := 'document.txt';
+  FSaveDialog.Title := 'Save file';
+
+  FColorDialog := TColorDialog.Create(Self);
+  FFontDialog := TFontDialog.Create(Self);
+
+  FDialogSample := TWLabel.Create(Self);
+  FDialogSample.Parent := VSheet;
+  FDialogSample.SetBounds(220, 16, 360, 100);
+  FDialogSample.AutoSize := False;
+  FDialogSample.Transparent := False;
+  FDialogSample.Color := clWhite;
+  FDialogSample.Caption := 'Sample text';
+  FDialogSample.Font.Size := 20;
+  FDialogSample.Font.Style := [fsBold];
+
+  FDialogInfo := TWLabel.Create(Self);
+  FDialogInfo.Parent := VSheet;
+  FDialogInfo.SetBounds(16, 190, 600, 90);
+  FDialogInfo.Caption := 'Use the buttons to open the browser dialogs.';
+
+  AddButton('Open file', 16, @DialogOpenFile);
+  AddButton('Save file', 54, @DialogSaveFile);
+  AddButton('Pick colour', 92, @DialogPickColor);
+  AddButton('Pick font', 130, @DialogPickFont);
+end;
+
+procedure TWForm1.DialogOpenFile(Sender: TObject);
+begin
+  FOpenDialog.Execute(TDialogResultProc(procedure(ASender: TObject;
+    Accepted: Boolean)
+  begin
+    if Accepted then
+      FDialogInfo.Caption := 'Open: ' + FOpenDialog.FileName
+    else
+      FDialogInfo.Caption := 'Open cancelled';
+  end));
+end;
+
+procedure TWForm1.DialogSaveFile(Sender: TObject);
+begin
+  FSaveDialog.Execute(TDialogResultProc(procedure(ASender: TObject;
+    Accepted: Boolean)
+  begin
+    if Accepted then
+      FDialogInfo.Caption := 'Save: ' + FSaveDialog.FileName
+    else
+      FDialogInfo.Caption := 'Save cancelled';
+  end));
+end;
+
+procedure TWForm1.DialogPickColor(Sender: TObject);
+begin
+  FColorDialog.Color := FDialogSample.Font.Color;
+  FColorDialog.Execute(TDialogResultProc(procedure(ASender: TObject;
+    Accepted: Boolean)
+  begin
+    if Accepted then
+    begin
+      FDialogSample.Font.Color := FColorDialog.Color;
+      FDialogInfo.Caption := 'Colour selected';
+    end
+    else
+      FDialogInfo.Caption := 'Colour cancelled';
+  end));
+end;
+
+procedure TWForm1.DialogPickFont(Sender: TObject);
+begin
+  FFontDialog.Font.Assign(FDialogSample.Font);
+  FFontDialog.Execute(TDialogResultProc(procedure(ASender: TObject;
+    Accepted: Boolean)
+  begin
+    if Accepted then
+    begin
+      FDialogSample.Font.Assign(FFontDialog.Font);
+      FDialogInfo.Caption := 'Font selected: ' + FFontDialog.Font.Name;
+    end
+    else
+      FDialogInfo.Caption := 'Font cancelled';
+  end));
 end;
 
 { --- TStringGrid demo: inline editing, events and keyboard navigation --- }

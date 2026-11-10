@@ -68,6 +68,10 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWWebSocketClient** | WebSocket client, `Url`, `OnMessage`, `OnBinaryMessage` |
 | **TWAction** | Action: `Caption`, `Enabled`, `Checked`, `Visible`, `Hint`, `ShortCut`, `OnExecute`, `OnUpdate` |
 | **TWActionList** | Owns actions: `AddAction`, `ActionByName`, `Update` |
+| **TWOpenDialog** | File open dialog: `Filter`, `FileName`, `Files`, `Execute` async |
+| **TWSaveDialog** | File save dialog: `Filter`, `FileName`, `Execute` async |
+| **TWColorDialog** | Colour picker dialog: `Color`, `Execute` async |
+| **TWFontDialog** | Font picker dialog: `Font`, `Title`, `Execute` async |
 | **TWDataModule** | Non-visual data container |
 
 ### New: WebDB — storage abstraction
@@ -466,6 +470,35 @@ Application.MessageBox('Save changes?', 'Confirm',
 
 The callback may be omitted for a simple notification. The global `MessageBox` uses `Application.ActiveForm` as owner. When the `Dialogs` unit is not linked, `Application.MessageBox` falls back to the browser alert.
 
+### File, colour and font dialogs
+
+`TOpenDialog`, `TSaveDialog`, `TColorDialog` and `TFontDialog` are non-visual components with asynchronous `Execute`:
+
+```pascal
+OpenDialog1.Filter := 'Text files (*.txt)|*.txt|All files (*.*)|*.*';
+OpenDialog1.Execute(TDialogResultProc(procedure(Sender: TObject; Accepted: Boolean)
+begin
+  if Accepted then
+    Memo1.Lines.LoadFromFile(OpenDialog1.FileName);
+end));
+
+ColorDialog1.Color := Label1.Font.Color;
+ColorDialog1.Execute(TDialogResultProc(procedure(Sender: TObject; Accepted: Boolean)
+begin
+  if Accepted then
+    Label1.Font.Color := ColorDialog1.Color;
+end));
+
+FontDialog1.Font.Assign(Label1.Font);
+FontDialog1.Execute(TDialogResultProc(procedure(Sender: TObject; Accepted: Boolean)
+begin
+  if Accepted then
+    Label1.Font.Assign(FontDialog1.Font);
+end));
+```
+
+`TOpenDialog` uses a hidden `<input type="file">`; `Files` contains the selected names and `FileName` the first one. `TSaveDialog` uses `showSaveFilePicker` when available and otherwise asks for a file name. `TColorDialog` wraps `<input type="color">`. `TFontDialog` opens a small form with font family, size, bold/italic and colour, plus a live preview.
+
 ---
 
 ### Infrastructure
@@ -525,7 +558,7 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
-The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Tree** tab has a `TWTreeView` with folders built in code plus Expand/Collapse/Add child/Sort buttons, the **List** tab has a `TWListView` in report mode with columns, checkboxes, multi-select, column sorting and a view-style cycler, the **Drag** tab has automatic and manual drag sources with a panel and a list box as drop targets, the **Widgets** tab shows horizontal/vertical scroll bars, a spin edit, an associated up-down, an editable/list combo and an `&Name` accelerator label, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
+The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Tree** tab has a `TWTreeView` with folders built in code plus Expand/Collapse/Add child/Sort buttons, the **List** tab has a `TWListView` in report mode with columns, checkboxes, multi-select, column sorting and a view-style cycler, the **Drag** tab has automatic and manual drag sources with a panel and a list box as drop targets, the **Widgets** tab shows horizontal/vertical scroll bars, a spin edit, an associated up-down, an editable/list combo and an `&Name` accelerator label, the **Dialogs** tab opens file, colour and font dialogs and applies the result to a sample label, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
 
 The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
 

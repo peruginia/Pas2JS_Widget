@@ -56313,7 +56313,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnChange",2,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","SetOnChange");
   });
 });
-rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","Forms","WebCtrls"],function () {
+rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","ExtCtrls","Forms","Web","WebCtrls"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
@@ -56474,6 +56474,455 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
       };
     },50);
   };
+  this.$rtti.$RefToProcVar("TDialogResultProc",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Accepted",rtl.boolean]])});
+  this.TOpenOption = {"0": "ofReadOnly", ofReadOnly: 0, "1": "ofOverwritePrompt", ofOverwritePrompt: 1, "2": "ofHideReadOnly", ofHideReadOnly: 2, "3": "ofNoChangeDir", ofNoChangeDir: 3, "4": "ofShowHelp", ofShowHelp: 4, "5": "ofNoValidate", ofNoValidate: 5, "6": "ofAllowMultiSelect", ofAllowMultiSelect: 6, "7": "ofExtensionDifferent", ofExtensionDifferent: 7, "8": "ofPathMustExist", ofPathMustExist: 8, "9": "ofFileMustExist", ofFileMustExist: 9, "10": "ofCreatePrompt", ofCreatePrompt: 10, "11": "ofShareAware", ofShareAware: 11, "12": "ofNoTestFileCreate", ofNoTestFileCreate: 12, "13": "ofNoNetworkButton", ofNoNetworkButton: 13, "14": "ofNoLongNames", ofNoLongNames: 14, "15": "ofOldStyleDialog", ofOldStyleDialog: 15, "16": "ofNoDereferenceLinks", ofNoDereferenceLinks: 16, "17": "ofEnableSizing", ofEnableSizing: 17, "18": "ofDontAddToRecent", ofDontAddToRecent: 18, "19": "ofForceShowHidden", ofForceShowHidden: 19};
+  this.$rtti.$Enum("TOpenOption",{minvalue: 0, maxvalue: 19, ordtype: 1, enumtype: this.TOpenOption});
+  this.$rtti.$Set("TOpenOptions",{comptype: this.$rtti["TOpenOption"]});
+  rtl.createClass(this,"TCustomDialog",pas.Classes.TComponent,function () {
+    this.$init = function () {
+      pas.Classes.TComponent.$init.call(this);
+      this.FExecuting = false;
+      this.FOnClose = null;
+    };
+    this.$final = function () {
+      this.FOnClose = undefined;
+      pas.Classes.TComponent.$final.call(this);
+    };
+    this.DoClose = function (Accepted) {
+      var VProc = null;
+      if (!this.FExecuting) return;
+      this.FExecuting = false;
+      VProc = this.FOnClose;
+      this.FOnClose = null;
+      if (VProc != null) VProc(this,Accepted);
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Classes.TComponent.Create$1.call(this,AOwner);
+      this.FExecuting = false;
+      this.FOnClose = null;
+      return this;
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+  });
+  rtl.createClass(this,"TCustomFileDialog",this.TCustomDialog,function () {
+    this.$init = function () {
+      $mod.TCustomDialog.$init.call(this);
+      this.FDefaultExt = "";
+      this.FFilter = "";
+      this.FFilterIndex = 0;
+      this.FFileName = "";
+      this.FFiles = null;
+      this.FInitialDir = "";
+      this.FOptions = {};
+      this.FTitle = "";
+    };
+    this.$final = function () {
+      this.FFiles = undefined;
+      this.FOptions = undefined;
+      $mod.TCustomDialog.$final.call(this);
+    };
+    this.FilterToAccept = function () {
+      var Result = "";
+      var VList = null;
+      var VIndex = 0;
+      Result = "";
+      if (this.FFilter === "") return Result;
+      VList = pas.Classes.TStringList.$create("Create$1");
+      try {
+        VList.SetDelimiter("|");
+        VList.FStrictDelimiter = true;
+        VList.SetDelimitedText(this.FFilter);
+        VIndex = ((this.FFilterIndex - 1) * 2) + 1;
+        if ((VIndex >= 0) && (VIndex < VList.GetCount())) {
+          Result = VList.Get(VIndex)}
+         else {
+          VIndex = 1;
+          while (VIndex < VList.GetCount()) {
+            if (Result !== "") Result = Result + ";";
+            Result = Result + VList.Get(VIndex);
+            VIndex += 2;
+          };
+        };
+        Result = pas.SysUtils.StringReplace(Result,";",",",rtl.createSet(pas.SysUtils.TStringReplaceFlag.rfReplaceAll));
+      } finally {
+        VList = rtl.freeLoc(VList);
+      };
+      return Result;
+    };
+    this.Create$1 = function (AOwner) {
+      $mod.TCustomDialog.Create$1.call(this,AOwner);
+      this.FDefaultExt = "";
+      this.FFilter = "";
+      this.FFilterIndex = 1;
+      this.FFileName = "";
+      this.FFiles = pas.Classes.TStringList.$create("Create$1");
+      this.FInitialDir = "";
+      this.FOptions = {};
+      this.FTitle = "";
+      return this;
+    };
+    this.Destroy = function () {
+      rtl.free(this,"FFiles");
+      this.FFiles = null;
+      pas.Classes.TComponent.Destroy.call(this);
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+    $r.addProperty("DefaultExt",0,rtl.string,"FDefaultExt","FDefaultExt");
+    $r.addProperty("FileName",0,rtl.string,"FFileName","FFileName");
+    $r.addProperty("Filter",0,rtl.string,"FFilter","FFilter");
+    $r.addProperty("FilterIndex",0,rtl.longint,"FFilterIndex","FFilterIndex",{Default: 1});
+    $r.addProperty("InitialDir",0,rtl.string,"FInitialDir","FInitialDir");
+    $r.addProperty("Options",0,$mod.$rtti["TOpenOptions"],"FOptions","FOptions");
+    $r.addProperty("Title",0,rtl.string,"FTitle","FTitle");
+  });
+  rtl.createClass(this,"TOpenDialog",this.TCustomFileDialog,function () {
+    this.$init = function () {
+      $mod.TCustomFileDialog.$init.call(this);
+      this.FChangeHappened = false;
+      this.FInput = null;
+    };
+    this.$final = function () {
+      this.FInput = undefined;
+      $mod.TCustomFileDialog.$final.call(this);
+    };
+    this.HandleChange = function (AEvent) {
+      var Result = false;
+      var I = 0;
+      this.FChangeHappened = true;
+      this.RemoveFocusListener();
+      this.FFiles.Clear();
+      if (this.FInput.files.length > 0) {
+        for (var $l = 0, $end = this.FInput.files.length - 1; $l <= $end; $l++) {
+          I = $l;
+          this.FFiles.Add(this.FInput.files.item(I).name);
+        };
+        this.FFileName = this.FFiles.Get(0);
+      };
+      this.DoClose(true);
+      Result = true;
+      return Result;
+    };
+    this.HandleWindowFocus = function (AEvent) {
+      var $Self = this;
+      var Result = false;
+      Result = false;
+      if (!this.FExecuting || this.FChangeHappened) return Result;
+      window.setTimeout(function () {
+        if ($Self.FExecuting && !$Self.FChangeHappened) {
+          $Self.RemoveFocusListener();
+          $Self.DoClose(false);
+        };
+      },250);
+      return Result;
+    };
+    this.AddFocusListener = function () {
+      window.addEventListener("focus",rtl.createCallback(this,"HandleWindowFocus"));
+    };
+    this.RemoveFocusListener = function () {
+      window.removeEventListener("focus",rtl.createCallback(this,"HandleWindowFocus"));
+    };
+    this.Create$1 = function (AOwner) {
+      $mod.TCustomFileDialog.Create$1.call(this,AOwner);
+      this.FChangeHappened = false;
+      this.FInput = document.createElement("input");
+      this.FInput.type = "file";
+      this.FInput.style.setProperty("position","fixed");
+      this.FInput.style.setProperty("left","-1000px");
+      this.FInput.style.setProperty("top","-1000px");
+      this.FInput.style.setProperty("width","1px");
+      this.FInput.style.setProperty("height","1px");
+      this.FInput.style.setProperty("opacity","0");
+      document.body.appendChild(this.FInput);
+      this.FInput.addEventListener("change",rtl.createCallback(this,"HandleChange"));
+      return this;
+    };
+    this.Destroy = function () {
+      this.RemoveFocusListener();
+      if (this.FInput != null) {
+        this.FInput.removeEventListener("change",rtl.createCallback(this,"HandleChange"));
+        this.FInput.remove();
+        this.FInput = null;
+      };
+      $mod.TCustomFileDialog.Destroy.call(this);
+    };
+    this.Execute = function (AOnClose) {
+      if (this.FExecuting) return;
+      this.FOnClose = AOnClose;
+      this.FExecuting = true;
+      this.FChangeHappened = false;
+      this.FInput.multiple = $mod.TOpenOption.ofAllowMultiSelect in this.FOptions;
+      this.FInput.accept = this.FilterToAccept();
+      this.FInput.value = "";
+      this.AddFocusListener();
+      this.FInput.click();
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+  });
+  rtl.createClass(this,"TSaveDialog",this.TCustomFileDialog,function () {
+    this.FallbackSave = function () {
+      var $Self = this;
+      $mod.InputBox("Save file","File name:",this.FFileName,function (Value, ModalResult) {
+        if (ModalResult === 1) {
+          $Self.FFileName = Value;
+          $Self.DoClose(true);
+        } else $Self.DoClose(false);
+      });
+    };
+    this.Execute = function (AOnClose) {
+      if (this.FExecuting) return;
+      this.FOnClose = AOnClose;
+      this.FExecuting = true;
+      var self = this;
+      if (window.showSaveFilePicker) {
+        window.showSaveFilePicker({ suggestedName: this.FFileName || 'file.txt' }).then(
+          function(handle) {
+            self.FFileName = handle.name;
+            self.DoClose(true);
+          },
+          function() {
+            self.DoClose(false);
+          }
+        );
+      } else {
+        self.FallbackSave();
+      };
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+  });
+  rtl.createClass(this,"TColorDialog",this.TCustomDialog,function () {
+    this.$init = function () {
+      $mod.TCustomDialog.$init.call(this);
+      this.FChangeHappened = false;
+      this.FColor = 0;
+      this.FInput = null;
+    };
+    this.$final = function () {
+      this.FInput = undefined;
+      $mod.TCustomDialog.$final.call(this);
+    };
+    this.HandleChange = function (AEvent) {
+      var Result = false;
+      this.FColor = $impl.HTMLColorToTColor(this.FInput.value);
+      this.FChangeHappened = true;
+      this.RemoveFocusListener();
+      this.DoClose(true);
+      Result = true;
+      return Result;
+    };
+    this.HandleWindowFocus = function (AEvent) {
+      var $Self = this;
+      var Result = false;
+      Result = false;
+      if (!this.FExecuting || this.FChangeHappened) return Result;
+      window.setTimeout(function () {
+        if ($Self.FExecuting && !$Self.FChangeHappened) {
+          $Self.RemoveFocusListener();
+          $Self.DoClose(false);
+        };
+      },250);
+      return Result;
+    };
+    this.AddFocusListener = function () {
+      window.addEventListener("focus",rtl.createCallback(this,"HandleWindowFocus"));
+    };
+    this.RemoveFocusListener = function () {
+      window.removeEventListener("focus",rtl.createCallback(this,"HandleWindowFocus"));
+    };
+    this.Create$1 = function (AOwner) {
+      $mod.TCustomDialog.Create$1.call(this,AOwner);
+      this.FChangeHappened = false;
+      this.FColor = 0;
+      this.FInput = document.createElement("input");
+      this.FInput.type = "color";
+      this.FInput.style.setProperty("position","fixed");
+      this.FInput.style.setProperty("left","-1000px");
+      this.FInput.style.setProperty("top","-1000px");
+      this.FInput.style.setProperty("width","1px");
+      this.FInput.style.setProperty("height","1px");
+      this.FInput.style.setProperty("opacity","0");
+      document.body.appendChild(this.FInput);
+      this.FInput.addEventListener("change",rtl.createCallback(this,"HandleChange"));
+      return this;
+    };
+    this.Destroy = function () {
+      this.RemoveFocusListener();
+      if (this.FInput != null) {
+        this.FInput.removeEventListener("change",rtl.createCallback(this,"HandleChange"));
+        this.FInput.remove();
+        this.FInput = null;
+      };
+      pas.Classes.TComponent.Destroy.call(this);
+    };
+    this.Execute = function (AOnClose) {
+      if (this.FExecuting) return;
+      this.FOnClose = AOnClose;
+      this.FExecuting = true;
+      this.FChangeHappened = false;
+      this.FInput.value = pas.Graphics.JSColor(this.FColor);
+      this.AddFocusListener();
+      this.FInput.click();
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+    $r.addProperty("Color",0,rtl.longint,"FColor","FColor",{Default: 0});
+  });
+  rtl.createClass(this,"TFontDialog",this.TCustomDialog,function () {
+    this.$init = function () {
+      $mod.TCustomDialog.$init.call(this);
+      this.FFont = null;
+      this.FTitle = "";
+    };
+    this.$final = function () {
+      this.FFont = undefined;
+      $mod.TCustomDialog.$final.call(this);
+    };
+    this.SetFont = function (AValue) {
+      this.FFont.Assign(AValue);
+    };
+    this.Create$1 = function (AOwner) {
+      $mod.TCustomDialog.Create$1.call(this,AOwner);
+      this.FFont = pas.Graphics.TFont.$create("Create$1");
+      this.FTitle = "Font";
+      return this;
+    };
+    this.Destroy = function () {
+      rtl.free(this,"FFont");
+      this.FFont = null;
+      pas.Classes.TComponent.Destroy.call(this);
+    };
+    this.Execute = function (AOnClose) {
+      var $Self = this;
+      var VOwner = null;
+      var VDlg = null;
+      var VPanel = null;
+      var VCombo = null;
+      var VSize = null;
+      var VBold = null;
+      var VItalic = null;
+      var VColor = null;
+      var VPreview = null;
+      var VBtnOk = null;
+      var VBtnCancel = null;
+      if (this.FExecuting) return;
+      VOwner = pas.Forms.Application().FActiveForm;
+      if (!(VOwner != null)) VOwner = pas.Forms.Application().FMainForm;
+      this.FOnClose = AOnClose;
+      this.FExecuting = true;
+      if (!(VOwner != null)) {
+        this.DoClose(false);
+        return;
+      };
+      VDlg = pas.Forms.TWForm.$create("Create$1",[VOwner]);
+      VDlg.SetText(this.FTitle);
+      VDlg.SetBounds(100,100,420,330);
+      VDlg.FHandleElement.classList.add("modal-dialog");
+      VPanel = pas.WebCtrls.TWPanel.$create("Create$1",[VDlg]);
+      VPanel.SetParent(VDlg);
+      VPanel.SetAlign(pas.Controls.TAlign.alBottom);
+      VPanel.SetHeight(52);
+      VBtnOk = pas.WebCtrls.TWButton.$create("Create$1",[VPanel]);
+      VBtnOk.SetParent(VPanel);
+      VBtnOk.SetAlign(pas.Controls.TAlign.alRight);
+      VBtnOk.SetWidth(90);
+      VBtnOk.FBorderSpacing.SetAround(5);
+      VBtnOk.SetText("Ok");
+      VBtnCancel = pas.WebCtrls.TWButton.$create("Create$1",[VPanel]);
+      VBtnCancel.SetParent(VPanel);
+      VBtnCancel.SetAlign(pas.Controls.TAlign.alRight);
+      VBtnCancel.SetWidth(90);
+      VBtnCancel.FBorderSpacing.SetAround(5);
+      VBtnCancel.SetText("Cancel");
+      VCombo = pas.WebCtrls.TWComboBox.$create("Create$1",[VDlg]);
+      VCombo.SetParent(VDlg);
+      VCombo.SetBounds(20,20,200,28);
+      VCombo.SetStyle(pas.StdCtrls.TComboBoxStyle.csDropDown);
+      VCombo.FItems.Add("Arial");
+      VCombo.FItems.Add("Verdana");
+      VCombo.FItems.Add("Tahoma");
+      VCombo.FItems.Add("Times New Roman");
+      VCombo.FItems.Add("Courier New");
+      VCombo.FItems.Add("Georgia");
+      VCombo.FItems.Add("Segoe UI");
+      VCombo.FItems.Add("monospace");
+      VCombo.FItems.Add("serif");
+      VCombo.FItems.Add("sans-serif");
+      if (VCombo.FItems.IndexOf(this.FFont.FName) >= 0) {
+        VCombo.SetItemIndex(VCombo.FItems.IndexOf(this.FFont.FName))}
+       else VCombo.SetText(this.FFont.FName);
+      VSize = pas.WebCtrls.TWSpinEdit.$create("Create$1",[VDlg]);
+      VSize.SetParent(VDlg);
+      VSize.SetBounds(240,20,100,28);
+      VSize.SetMinValue(6);
+      VSize.SetMaxValue(96);
+      VSize.SetValue(this.FFont.FSize);
+      VBold = pas.WebCtrls.TWCheckbox.$create("Create$1",[VDlg]);
+      VBold.SetParent(VDlg);
+      VBold.SetBounds(20,60,100,24);
+      VBold.SetText("Bold");
+      VBold.SetChecked(pas.Graphics.TFontStyle.fsBold in this.FFont.FStyle);
+      VItalic = pas.WebCtrls.TWCheckbox.$create("Create$1",[VDlg]);
+      VItalic.SetParent(VDlg);
+      VItalic.SetBounds(130,60,100,24);
+      VItalic.SetText("Italic");
+      VItalic.SetChecked(pas.Graphics.TFontStyle.fsItalic in this.FFont.FStyle);
+      VColor = pas.WebCtrls.TWColorPicker.$create("Create$1",[VDlg]);
+      VColor.SetParent(VDlg);
+      VColor.SetBounds(240,60,60,28);
+      VColor.SetColor$1(this.FFont.FColor);
+      VPreview = pas.WebCtrls.TWLabel.$create("Create$1",[VDlg]);
+      VPreview.SetParent(VDlg);
+      VPreview.SetBounds(20,100,360,80);
+      VPreview.SetText("The quick brown fox");
+      VPreview.FFont.Assign(this.FFont);
+      VPreview.SetTransparent(true);
+      VCombo.FOnChange = function (Sender) {
+        VPreview.FFont.SetName(VCombo.GetText());
+      };
+      VSize.FOnChange = function (Sender) {
+        VPreview.FFont.SetSize(VSize.GetValue());
+      };
+      VBold.FOnChange = function (Sender) {
+        if (VBold.GetChecked()) {
+          VPreview.FFont.SetStyle(rtl.includeSet(VPreview.FFont.FStyle,pas.Graphics.TFontStyle.fsBold))}
+         else VPreview.FFont.SetStyle(rtl.excludeSet(VPreview.FFont.FStyle,pas.Graphics.TFontStyle.fsBold));
+      };
+      VItalic.FOnChange = function (Sender) {
+        if (VItalic.GetChecked()) {
+          VPreview.FFont.SetStyle(rtl.includeSet(VPreview.FFont.FStyle,pas.Graphics.TFontStyle.fsItalic))}
+         else VPreview.FFont.SetStyle(rtl.excludeSet(VPreview.FFont.FStyle,pas.Graphics.TFontStyle.fsItalic));
+      };
+      VColor.FOnChange = function (Sender) {
+        VPreview.FFont.SetColor(VColor.FColor$1);
+      };
+      VBtnOk.FOnClick = function (Sender) {
+        $Self.FFont.SetName(VCombo.GetText());
+        $Self.FFont.SetSize(VSize.GetValue());
+        $Self.FFont.SetStyle({});
+        if (VBold.GetChecked()) $Self.FFont.SetStyle(rtl.includeSet($Self.FFont.FStyle,pas.Graphics.TFontStyle.fsBold));
+        if (VItalic.GetChecked()) $Self.FFont.SetStyle(rtl.includeSet($Self.FFont.FStyle,pas.Graphics.TFontStyle.fsItalic));
+        $Self.FFont.SetColor(VColor.FColor$1);
+        VDlg.SetModalResult(1);
+      };
+      VBtnCancel.FOnClick = function (Sender) {
+        VDlg.SetModalResult(2);
+      };
+      VDlg.ShowModal(function (ASender, AResult) {
+        $Self.DoClose(AResult === 1);
+      });
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+    $r.addProperty("Font",2,pas.Graphics.$rtti["TFont"],"FFont","SetFont");
+    $r.addProperty("Title",0,rtl.string,"FTitle","FTitle");
+  });
   $mod.$implcode = function () {
     $mod.$rtti.$StaticArray("DialogCaption$a",{dims: [5], eltype: rtl.string});
     $impl.DialogCaption = ["Warning","Error","Information","Confirmation",""];
@@ -56813,11 +57262,25 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
     $impl.ApplicationMessageBox = function (AOwner, AMessage, ACaption, AFlags, AModalResultProc) {
       $mod.MessageBox(AOwner,AMessage,ACaption,AFlags,AModalResultProc);
     };
+    $impl.HTMLColorToTColor = function (AValue) {
+      var Result = 0;
+      var R = 0;
+      var G = 0;
+      var B = 0;
+      Result = 0;
+      if ((AValue.length === 7) && (AValue.charAt(0) === "#")) {
+        R = pas.SysUtils.StrToIntDef("$" + pas.System.Copy(AValue,2,2),0);
+        G = pas.SysUtils.StrToIntDef("$" + pas.System.Copy(AValue,4,2),0);
+        B = pas.SysUtils.StrToIntDef("$" + pas.System.Copy(AValue,6,2),0);
+        Result = R + (G << 8) + (B << 16);
+      };
+      return Result;
+    };
   };
   $mod.$init = function () {
     pas.Forms.Application().FMessageBoxHandler = $impl.ApplicationMessageBox;
   };
-},["Web"]);
+},[]);
 rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Graphics","StdCtrls"],function () {
   "use strict";
   var $mod = this;
@@ -59047,6 +59510,12 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FWidgetCombo = null;
       this.FWidgetInfo = null;
       this.FAccelEdit = null;
+      this.FOpenDialog = null;
+      this.FSaveDialog = null;
+      this.FColorDialog = null;
+      this.FFontDialog = null;
+      this.FDialogInfo = null;
+      this.FDialogSample = null;
     };
     this.$final = function () {
       this.btnAggiornaApp = undefined;
@@ -59132,6 +59601,12 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FWidgetCombo = undefined;
       this.FWidgetInfo = undefined;
       this.FAccelEdit = undefined;
+      this.FOpenDialog = undefined;
+      this.FSaveDialog = undefined;
+      this.FColorDialog = undefined;
+      this.FFontDialog = undefined;
+      this.FDialogInfo = undefined;
+      this.FDialogSample = undefined;
       pas.Forms.TWForm.$final.call(this);
     };
     this.btnAggiornaAppClick = function (Sender) {
@@ -59612,6 +60087,85 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
     this.WidgetUpdateInfo = function () {
       if (!(this.FWidgetInfo != null)) return;
       this.FWidgetInfo.SetText("Scroll H: " + pas.SysUtils.IntToStr(this.FScrollH.FPosition) + "   V: " + pas.SysUtils.IntToStr(this.FScrollV.FPosition) + "\n" + "Spin: " + pas.SysUtils.IntToStr(this.FSpin.GetValue()) + "   UpDown: " + pas.SysUtils.IntToStr(this.FUpDown.GetPosition()) + "\n" + "Combo: " + this.FWidgetCombo.GetText());
+    };
+    this.BuildDialogsTab = function () {
+      var $Self = this;
+      var VSheet = null;
+      var VButton = null;
+      function AddButton(ACaption, ATop, AHandler) {
+        var Result = null;
+        Result = pas.WebCtrls.TWButton.$create("Create$1",[$Self]);
+        Result.SetParent(VSheet);
+        Result.SetBounds(16,ATop,170,31);
+        Result.SetText(ACaption);
+        Result.FOnClick = AHandler;
+        return Result;
+      };
+      VSheet = this.WPageControl1.AddTabSheet();
+      VSheet.SetText("Dialogs");
+      VSheet.SetBounds(0,0,this.WPageControl1.FWidth,this.WPageControl1.FHeight);
+      this.FOpenDialog = pas.Dialogs.TOpenDialog.$create("Create$1",[$Self]);
+      this.FOpenDialog.FFilter = "Text files (*.txt)|*.txt|All files (*.*)|*.*";
+      this.FOpenDialog.FTitle = "Open file";
+      this.FSaveDialog = pas.Dialogs.TSaveDialog.$create("Create$1",[$Self]);
+      this.FSaveDialog.FFilter = "Text files (*.txt)|*.txt|All files (*.*)|*.*";
+      this.FSaveDialog.FFileName = "document.txt";
+      this.FSaveDialog.FTitle = "Save file";
+      this.FColorDialog = pas.Dialogs.TColorDialog.$create("Create$1",[$Self]);
+      this.FFontDialog = pas.Dialogs.TFontDialog.$create("Create$1",[$Self]);
+      this.FDialogSample = pas.WebCtrls.TWLabel.$create("Create$1",[$Self]);
+      this.FDialogSample.SetParent(VSheet);
+      this.FDialogSample.SetBounds(220,16,360,100);
+      this.FDialogSample.SetAutoSize(false);
+      this.FDialogSample.SetTransparent(false);
+      this.FDialogSample.SetColor(16777215);
+      this.FDialogSample.SetText("Sample text");
+      this.FDialogSample.FFont.SetSize(20);
+      this.FDialogSample.FFont.SetStyle(rtl.createSet(pas.Graphics.TFontStyle.fsBold));
+      this.FDialogInfo = pas.WebCtrls.TWLabel.$create("Create$1",[$Self]);
+      this.FDialogInfo.SetParent(VSheet);
+      this.FDialogInfo.SetBounds(16,190,600,90);
+      this.FDialogInfo.SetText("Use the buttons to open the browser dialogs.");
+      AddButton("Open file",16,rtl.createCallback($Self,"DialogOpenFile"));
+      AddButton("Save file",54,rtl.createCallback($Self,"DialogSaveFile"));
+      AddButton("Pick colour",92,rtl.createCallback($Self,"DialogPickColor"));
+      AddButton("Pick font",130,rtl.createCallback($Self,"DialogPickFont"));
+    };
+    this.DialogOpenFile = function (Sender) {
+      var $Self = this;
+      this.FOpenDialog.Execute(function (ASender, Accepted) {
+        if (Accepted) {
+          $Self.FDialogInfo.SetText("Open: " + $Self.FOpenDialog.FFileName)}
+         else $Self.FDialogInfo.SetText("Open cancelled");
+      });
+    };
+    this.DialogSaveFile = function (Sender) {
+      var $Self = this;
+      this.FSaveDialog.Execute(function (ASender, Accepted) {
+        if (Accepted) {
+          $Self.FDialogInfo.SetText("Save: " + $Self.FSaveDialog.FFileName)}
+         else $Self.FDialogInfo.SetText("Save cancelled");
+      });
+    };
+    this.DialogPickColor = function (Sender) {
+      var $Self = this;
+      this.FColorDialog.FColor = this.FDialogSample.FFont.FColor;
+      this.FColorDialog.Execute(function (ASender, Accepted) {
+        if (Accepted) {
+          $Self.FDialogSample.FFont.SetColor($Self.FColorDialog.FColor);
+          $Self.FDialogInfo.SetText("Colour selected");
+        } else $Self.FDialogInfo.SetText("Colour cancelled");
+      });
+    };
+    this.DialogPickFont = function (Sender) {
+      var $Self = this;
+      this.FFontDialog.FFont.Assign(this.FDialogSample.FFont);
+      this.FFontDialog.Execute(function (ASender, Accepted) {
+        if (Accepted) {
+          $Self.FDialogSample.FFont.Assign($Self.FFontDialog.FFont);
+          $Self.FDialogInfo.SetText("Font selected: " + $Self.FFontDialog.FFont.FName);
+        } else $Self.FDialogInfo.SetText("Font cancelled");
+      });
     };
     this.BuildGridModesTab = function () {
       var VSheet = null;
@@ -60204,6 +60758,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.BuildListTab();
       this.BuildDragTab();
       this.BuildWidgetsTab();
+      this.BuildDialogsTab();
       this.SetupStringGrid();
       this.SetupMenu();
       this.SetupActions();

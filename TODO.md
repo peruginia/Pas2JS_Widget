@@ -75,13 +75,15 @@ compatibility. `TListBox` supports `TopIndex`/`Columns`. `TLabel.ShowAccelChar`
 renders `&X` as an underlined accelerator and focuses `FocusControl` on
 Alt+X.
 
-## 7. File, colour and font dialogs
+## 7. File, colour and font dialogs — done
 
-Only `MessageDlg`/`ShowMessage`/`InputBox` exist. Add `TOpenDialog`/
-`TSaveDialog` as wrappers around `<input type="file">` (with `Filter`,
-`FileName`, `Execute` callback), `TColorDialog` around `<input type="color">`,
-and `TFontDialog` with a small built-in picker. Keep the asynchronous callback
-style already used by `ShowModal`.
+`TOpenDialog`/`TSaveDialog` expose `Filter`, `FileName`, `Files`,
+`DefaultExt`, `InitialDir`, `Options` and an asynchronous `Execute`.
+The open dialog uses a hidden `<input type="file">`; the save dialog uses
+`showSaveFilePicker` when available and otherwise asks for a file name.
+`TColorDialog` wraps `<input type="color">`, and `TFontDialog` opens a small
+form with family, size, bold/italic, colour and a live preview. All use the
+same `TDialogResultProc(Sender, Accepted)` callback style as `ShowModal`.
 
 ## Also worth considering
 

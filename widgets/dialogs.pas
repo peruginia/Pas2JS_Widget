@@ -36,6 +36,7 @@ uses
   StdCtrls,
   ExtCtrls,
   Forms,
+  Web,
   WebCtrls;
 
 type
@@ -101,9 +102,117 @@ procedure MessageBox(const AMessage, ACaption: string; AFlags: Longint;
 //function InputBox(const ACaption, APrompt, ADefault : string) : string;
 procedure InputBox(const ACaption, APrompt, ADefault: string; AOnClose: TInputBoxResultProc);
 
-implementation
+type
+  TDialogResultProc = reference to procedure(Sender: TObject; Accepted: Boolean);
 
-uses web;
+  TOpenOption = (ofReadOnly, ofOverwritePrompt, ofHideReadOnly,
+    ofNoChangeDir, ofShowHelp, ofNoValidate, ofAllowMultiSelect,
+    ofExtensionDifferent, ofPathMustExist, ofFileMustExist, ofCreatePrompt,
+    ofShareAware, ofNoTestFileCreate, ofNoNetworkButton, ofNoLongNames,
+    ofOldStyleDialog, ofNoDereferenceLinks, ofEnableSizing, ofDontAddToRecent,
+    ofForceShowHidden);
+  TOpenOptions = set of TOpenOption;
+
+  { TCustomDialog }
+
+  TCustomDialog = class(TComponent)
+  protected
+    FExecuting: Boolean;
+    FOnClose: TDialogResultProc;
+    procedure DoClose(Accepted: Boolean); virtual;
+  public
+    constructor Create(AOwner: TComponent); override;
+  end;
+
+  { TCustomFileDialog }
+
+  TCustomFileDialog = class(TCustomDialog)
+  private
+    FDefaultExt: string;
+    FFilter: string;
+    FFilterIndex: Integer;
+    FFileName: string;
+    FFiles: TStrings;
+    FInitialDir: string;
+    FOptions: TOpenOptions;
+    FTitle: string;
+  protected
+    function FilterToAccept: string; virtual;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    property Files: TStrings read FFiles;
+  published
+    property DefaultExt: string read FDefaultExt write FDefaultExt;
+    property FileName: string read FFileName write FFileName;
+    property Filter: string read FFilter write FFilter;
+    property FilterIndex: Integer read FFilterIndex write FFilterIndex default 1;
+    property InitialDir: string read FInitialDir write FInitialDir;
+    property Options: TOpenOptions read FOptions write FOptions;
+    property Title: string read FTitle write FTitle;
+  end;
+
+  { TOpenDialog }
+
+  TOpenDialog = class(TCustomFileDialog)
+  private
+    FChangeHappened: Boolean;
+    FInput: TJSHTMLInputElement;
+    function HandleChange(AEvent: TJSEvent): Boolean;
+    function HandleWindowFocus(AEvent: TJSEvent): Boolean;
+    procedure AddFocusListener;
+    procedure RemoveFocusListener;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    procedure Execute(AOnClose: TDialogResultProc = nil);
+  end;
+
+  { TSaveDialog }
+
+  TSaveDialog = class(TCustomFileDialog)
+  private
+    procedure FallbackSave;
+  public
+    procedure Execute(AOnClose: TDialogResultProc = nil);
+  end;
+
+  { TColorDialog }
+
+  TColorDialog = class(TCustomDialog)
+  private
+    FChangeHappened: Boolean;
+    FColor: TColor;
+    FInput: TJSHTMLInputElement;
+    function HandleChange(AEvent: TJSEvent): Boolean;
+    function HandleWindowFocus(AEvent: TJSEvent): Boolean;
+    procedure AddFocusListener;
+    procedure RemoveFocusListener;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    procedure Execute(AOnClose: TDialogResultProc = nil);
+  published
+    property Color: TColor read FColor write FColor default clBlack;
+  end;
+
+  { TFontDialog }
+
+  TFontDialog = class(TCustomDialog)
+  private
+    FFont: TFont;
+    FTitle: string;
+    procedure SetFont(AValue: TFont);
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    procedure Execute(AOnClose: TDialogResultProc = nil);
+  published
+    property Font: TFont read FFont write SetFont;
+    property Title: string read FTitle write FTitle;
+  end;
+
+implementation
 
 const
   {$ifdef lang_en}
@@ -890,6 +999,472 @@ begin
           Memo.SetFocus;
        end;
    end, 50);
+end;
+
+function HTMLColorToTColor(const AValue: string): TColor;
+var
+  R, G, B: Integer;
+begin
+  Result := clBlack;
+  if (Length(AValue) = 7) and (AValue[1] = '#') then
+  begin
+    R := StrToIntDef('$' + Copy(AValue, 2, 2), 0);
+    G := StrToIntDef('$' + Copy(AValue, 4, 2), 0);
+    B := StrToIntDef('$' + Copy(AValue, 6, 2), 0);
+    Result := R + (G shl 8) + (B shl 16);
+  end;
+end;
+
+{ TCustomDialog }
+
+constructor TCustomDialog.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FExecuting := False;
+  FOnClose := nil;
+end;
+
+procedure TCustomDialog.DoClose(Accepted: Boolean);
+var
+  VProc: TDialogResultProc;
+begin
+  if (not FExecuting) then
+    Exit;
+  FExecuting := False;
+  VProc := FOnClose;
+  FOnClose := nil;
+  if Assigned(VProc) then
+    VProc(Self, Accepted);
+end;
+
+{ TCustomFileDialog }
+
+constructor TCustomFileDialog.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FDefaultExt := '';
+  FFilter := '';
+  FFilterIndex := 1;
+  FFileName := '';
+  FFiles := TStringList.Create;
+  FInitialDir := '';
+  FOptions := [];
+  FTitle := '';
+end;
+
+destructor TCustomFileDialog.Destroy;
+begin
+  FFiles.Free;
+  FFiles := nil;
+  inherited Destroy;
+end;
+
+function TCustomFileDialog.FilterToAccept: string;
+var
+  VList: TStringList;
+  VIndex: Integer;
+begin
+  Result := '';
+  if (FFilter = '') then
+    Exit;
+  VList := TStringList.Create;
+  try
+    VList.Delimiter := '|';
+    VList.StrictDelimiter := True;
+    VList.DelimitedText := FFilter;
+    VIndex := ((FFilterIndex - 1) * 2) + 1;
+    if (VIndex >= 0) and (VIndex < VList.Count) then
+      Result := VList[VIndex]
+    else
+    begin
+      VIndex := 1;
+      while (VIndex < VList.Count) do
+      begin
+        if (Result <> '') then
+          Result := Result + ';';
+        Result := Result + VList[VIndex];
+        Inc(VIndex, 2);
+      end;
+    end;
+    Result := StringReplace(Result, ';', ',', [rfReplaceAll]);
+  finally
+    VList.Free;
+  end;
+end;
+
+{ TOpenDialog }
+
+constructor TOpenDialog.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FChangeHappened := False;
+  FInput := TJSHTMLInputElement(Document.CreateElement('input'));
+  FInput._type := 'file';
+  FInput.Style.SetProperty('position', 'fixed');
+  FInput.Style.SetProperty('left', '-1000px');
+  FInput.Style.SetProperty('top', '-1000px');
+  FInput.Style.SetProperty('width', '1px');
+  FInput.Style.SetProperty('height', '1px');
+  FInput.Style.SetProperty('opacity', '0');
+  Document.Body.AppendChild(FInput);
+  FInput.addEventListener('change', TJSEventHandler(@HandleChange));
+end;
+
+destructor TOpenDialog.Destroy;
+begin
+  RemoveFocusListener;
+  if Assigned(FInput) then
+  begin
+    FInput.removeEventListener('change', TJSEventHandler(@HandleChange));
+    FInput.remove;
+    FInput := nil;
+  end;
+  inherited Destroy;
+end;
+
+procedure TOpenDialog.AddFocusListener;
+begin
+  Window.AddEventListener('focus', TJSEventHandler(@HandleWindowFocus));
+end;
+
+procedure TOpenDialog.RemoveFocusListener;
+begin
+  Window.RemoveEventListener('focus', TJSEventHandler(@HandleWindowFocus));
+end;
+
+procedure TOpenDialog.Execute(AOnClose: TDialogResultProc);
+begin
+  if FExecuting then
+    Exit;
+  FOnClose := AOnClose;
+  FExecuting := True;
+  FChangeHappened := False;
+  FInput.multiple := ofAllowMultiSelect in FOptions;
+  FInput.accept := FilterToAccept;
+  FInput.value := '';
+  AddFocusListener;
+  FInput.click;
+end;
+
+function TOpenDialog.HandleChange(AEvent: TJSEvent): Boolean;
+var
+  I: Integer;
+begin
+  FChangeHappened := True;
+  RemoveFocusListener;
+  FFiles.Clear;
+  if (FInput.Files.Length > 0) then
+  begin
+    for I := 0 to (FInput.Files.Length - 1) do
+      FFiles.Add(FInput.Files[I].Name);
+    FFileName := FFiles[0];
+  end;
+  DoClose(True);
+  Result := True;
+end;
+
+function TOpenDialog.HandleWindowFocus(AEvent: TJSEvent): Boolean;
+begin
+  Result := False;
+  if (not FExecuting) or FChangeHappened then
+    Exit;
+  window.setTimeout(procedure
+  begin
+    if FExecuting and (not FChangeHappened) then
+    begin
+      RemoveFocusListener;
+      DoClose(False);
+    end;
+  end, 250);
+end;
+
+{ TSaveDialog }
+
+procedure TSaveDialog.Execute(AOnClose: TDialogResultProc);
+begin
+  if FExecuting then
+    Exit;
+  FOnClose := AOnClose;
+  FExecuting := True;
+  asm
+    var self = this;
+    if (window.showSaveFilePicker) {
+      window.showSaveFilePicker({ suggestedName: this.FFileName || 'file.txt' }).then(
+        function(handle) {
+          self.FFileName = handle.name;
+          self.DoClose(true);
+        },
+        function() {
+          self.DoClose(false);
+        }
+      );
+    } else {
+      self.FallbackSave();
+    }
+  end;
+end;
+
+procedure TSaveDialog.FallbackSave;
+begin
+  InputBox('Save file', 'File name:', FFileName,
+    procedure(const Value: string; ModalResult: TModalResult)
+    begin
+      if (ModalResult = mrOk) then
+      begin
+        FFileName := Value;
+        DoClose(True);
+      end
+      else
+        DoClose(False);
+    end);
+end;
+
+{ TColorDialog }
+
+constructor TColorDialog.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FChangeHappened := False;
+  FColor := clBlack;
+  FInput := TJSHTMLInputElement(Document.CreateElement('input'));
+  FInput._type := 'color';
+  FInput.Style.SetProperty('position', 'fixed');
+  FInput.Style.SetProperty('left', '-1000px');
+  FInput.Style.SetProperty('top', '-1000px');
+  FInput.Style.SetProperty('width', '1px');
+  FInput.Style.SetProperty('height', '1px');
+  FInput.Style.SetProperty('opacity', '0');
+  Document.Body.AppendChild(FInput);
+  FInput.addEventListener('change', TJSEventHandler(@HandleChange));
+end;
+
+destructor TColorDialog.Destroy;
+begin
+  RemoveFocusListener;
+  if Assigned(FInput) then
+  begin
+    FInput.removeEventListener('change', TJSEventHandler(@HandleChange));
+    FInput.remove;
+    FInput := nil;
+  end;
+  inherited Destroy;
+end;
+
+procedure TColorDialog.AddFocusListener;
+begin
+  Window.AddEventListener('focus', TJSEventHandler(@HandleWindowFocus));
+end;
+
+procedure TColorDialog.RemoveFocusListener;
+begin
+  Window.RemoveEventListener('focus', TJSEventHandler(@HandleWindowFocus));
+end;
+
+procedure TColorDialog.Execute(AOnClose: TDialogResultProc);
+begin
+  if FExecuting then
+    Exit;
+  FOnClose := AOnClose;
+  FExecuting := True;
+  FChangeHappened := False;
+  FInput.value := JSColor(FColor);
+  AddFocusListener;
+  FInput.click;
+end;
+
+function TColorDialog.HandleChange(AEvent: TJSEvent): Boolean;
+begin
+  FColor := HTMLColorToTColor(FInput.value);
+  FChangeHappened := True;
+  RemoveFocusListener;
+  DoClose(True);
+  Result := True;
+end;
+
+function TColorDialog.HandleWindowFocus(AEvent: TJSEvent): Boolean;
+begin
+  Result := False;
+  if (not FExecuting) or FChangeHappened then
+    Exit;
+  window.setTimeout(procedure
+  begin
+    if FExecuting and (not FChangeHappened) then
+    begin
+      RemoveFocusListener;
+      DoClose(False);
+    end;
+  end, 250);
+end;
+
+{ TFontDialog }
+
+constructor TFontDialog.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FFont := TFont.Create;
+  FTitle := 'Font';
+end;
+
+destructor TFontDialog.Destroy;
+begin
+  FFont.Free;
+  FFont := nil;
+  inherited Destroy;
+end;
+
+procedure TFontDialog.SetFont(AValue: TFont);
+begin
+  FFont.Assign(AValue);
+end;
+
+procedure TFontDialog.Execute(AOnClose: TDialogResultProc);
+var
+  VOwner: TCustomForm;
+  VDlg: TWForm;
+  VPanel: TWPanel;
+  VCombo: TWComboBox;
+  VSize: TWSpinEdit;
+  VBold, VItalic: TWCheckBox;
+  VColor: TWColorPicker;
+  VPreview: TWLabel;
+  VBtnOk, VBtnCancel: TWButton;
+begin
+  if FExecuting then
+    Exit;
+  VOwner := Application.ActiveForm;
+  if (not Assigned(VOwner)) then
+    VOwner := Application.MainForm;
+  FOnClose := AOnClose;
+  FExecuting := True;
+  if (not Assigned(VOwner)) then
+  begin
+    DoClose(False);
+    Exit;
+  end;
+
+  VDlg := TWForm.Create(VOwner);
+  VDlg.Caption := FTitle;
+  VDlg.SetBounds(100, 100, 420, 330);
+  VDlg.HandleElement.classList.add('modal-dialog');
+
+  VPanel := TWPanel.Create(VDlg);
+  VPanel.Parent := VDlg;
+  VPanel.Align := alBottom;
+  VPanel.Height := 52;
+
+  VBtnOk := TWButton.Create(VPanel);
+  VBtnOk.Parent := VPanel;
+  VBtnOk.Align := alRight;
+  VBtnOk.Width := 90;
+  VBtnOk.BorderSpacing.Around := 5;
+  VBtnOk.Caption := 'Ok';
+
+  VBtnCancel := TWButton.Create(VPanel);
+  VBtnCancel.Parent := VPanel;
+  VBtnCancel.Align := alRight;
+  VBtnCancel.Width := 90;
+  VBtnCancel.BorderSpacing.Around := 5;
+  VBtnCancel.Caption := 'Cancel';
+
+  VCombo := TWComboBox.Create(VDlg);
+  VCombo.Parent := VDlg;
+  VCombo.SetBounds(20, 20, 200, 28);
+  VCombo.Style := csDropDown;
+  VCombo.Items.Add('Arial');
+  VCombo.Items.Add('Verdana');
+  VCombo.Items.Add('Tahoma');
+  VCombo.Items.Add('Times New Roman');
+  VCombo.Items.Add('Courier New');
+  VCombo.Items.Add('Georgia');
+  VCombo.Items.Add('Segoe UI');
+  VCombo.Items.Add('monospace');
+  VCombo.Items.Add('serif');
+  VCombo.Items.Add('sans-serif');
+  if (VCombo.Items.IndexOf(FFont.Name) >= 0) then
+    VCombo.ItemIndex := VCombo.Items.IndexOf(FFont.Name)
+  else
+    VCombo.Text := FFont.Name;
+
+  VSize := TWSpinEdit.Create(VDlg);
+  VSize.Parent := VDlg;
+  VSize.SetBounds(240, 20, 100, 28);
+  VSize.MinValue := 6;
+  VSize.MaxValue := 96;
+  VSize.Value := FFont.Size;
+
+  VBold := TWCheckBox.Create(VDlg);
+  VBold.Parent := VDlg;
+  VBold.SetBounds(20, 60, 100, 24);
+  VBold.Caption := 'Bold';
+  VBold.Checked := fsBold in FFont.Style;
+
+  VItalic := TWCheckBox.Create(VDlg);
+  VItalic.Parent := VDlg;
+  VItalic.SetBounds(130, 60, 100, 24);
+  VItalic.Caption := 'Italic';
+  VItalic.Checked := fsItalic in FFont.Style;
+
+  VColor := TWColorPicker.Create(VDlg);
+  VColor.Parent := VDlg;
+  VColor.SetBounds(240, 60, 60, 28);
+  VColor.Color := FFont.Color;
+
+  VPreview := TWLabel.Create(VDlg);
+  VPreview.Parent := VDlg;
+  VPreview.SetBounds(20, 100, 360, 80);
+  VPreview.Caption := 'The quick brown fox';
+  VPreview.Font.Assign(FFont);
+  VPreview.Transparent := True;
+
+  VCombo.OnChange := TNotifyEvent(procedure(Sender: TObject)
+  begin
+    VPreview.Font.Name := VCombo.Text;
+  end);
+  VSize.OnChange := TNotifyEvent(procedure(Sender: TObject)
+  begin
+    VPreview.Font.Size := VSize.Value;
+  end);
+  VBold.OnChange := TNotifyEvent(procedure(Sender: TObject)
+  begin
+    if VBold.Checked then
+      Include(VPreview.Font.Style, fsBold)
+    else
+      Exclude(VPreview.Font.Style, fsBold);
+  end);
+  VItalic.OnChange := TNotifyEvent(procedure(Sender: TObject)
+  begin
+    if VItalic.Checked then
+      Include(VPreview.Font.Style, fsItalic)
+    else
+      Exclude(VPreview.Font.Style, fsItalic);
+  end);
+  VColor.OnChange := TNotifyEvent(procedure(Sender: TObject)
+  begin
+    VPreview.Font.Color := VColor.Color;
+  end);
+
+  VBtnOk.OnClick := TNotifyEvent(procedure(Sender: TObject)
+  begin
+    FFont.Name := VCombo.Text;
+    FFont.Size := VSize.Value;
+    FFont.Style := [];
+    if VBold.Checked then
+      Include(FFont.Style, fsBold);
+    if VItalic.Checked then
+      Include(FFont.Style, fsItalic);
+    FFont.Color := VColor.Color;
+    VDlg.ModalResult := mrOk;
+  end);
+
+  VBtnCancel.OnClick := TNotifyEvent(procedure(Sender: TObject)
+  begin
+    VDlg.ModalResult := mrCancel;
+  end);
+
+  VDlg.ShowModal(TModalResultProc(procedure(ASender: TObject; AResult: TModalResult)
+  begin
+    DoClose(AResult = mrOk);
+  end));
 end;
 
 initialization

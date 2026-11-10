@@ -39,6 +39,7 @@ uses
   ExtCtrls,
   ComCtrls,
   Spin,
+  Dialogs,
   Menus,
   ActnList,
   NumCtrlsD,
@@ -353,6 +354,26 @@ type
     property OnMouseUp;
     property OnMouseWheel;
     property OnSelectionChange;
+  end;
+
+  { TWOpenDialog }
+
+  TWOpenDialog = class(TOpenDialog)
+  end;
+
+  { TWSaveDialog }
+
+  TWSaveDialog = class(TSaveDialog)
+  end;
+
+  { TWColorDialog }
+
+  TWColorDialog = class(TColorDialog)
+  end;
+
+  { TWFontDialog }
+
+  TWFontDialog = class(TFontDialog)
   end;
 
   { TWScrollBar }
@@ -1371,6 +1392,10 @@ begin
   RegisterComponents('WCL', [
     TWComboBox,
     TWListBox,
+    TWOpenDialog,
+    TWSaveDialog,
+    TWColorDialog,
+    TWFontDialog,
     TWScrollBar,
     TWSpinEdit,
     TWUpDown,
