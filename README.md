@@ -25,7 +25,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWButton** | `<button>` | Push button with hover/active/disabled CSS, `ModalResult` |
 | **TWEdit** | `<input type="text">` | Single-line text input with `TextHint`, `Autocomplete`, `InputType` (`itEmail`/`itTel`/`itUrl`/`itSearch`), `SelStart`/`SelLength` |
 | **TWMemo** | `<textarea>` | Multi-line text input |
-| **TWComboBox** | `<input list>` | Dropdown/editable selector with `Items`, `ItemIndex`, `Style` (`csDropDown`/`csDropDownList`), `TopIndex`, `Columns`, `DropDownCount`, `ItemHeight` |
+| **TWComboBox** | `<input>` + dropdown | Editable/dropdown selector with `Items`, `ItemIndex`, `Style` (`csDropDown`/`csDropDownList`), `TopIndex`, `Columns`, `DropDownCount`, `ItemHeight` |
 | **TWListBox** | `<select multiple>` | Multi-select list, `ItemHeight`, `TopIndex`, `Columns` |
 | **TWCheckbox** | `<input type="checkbox">` | Boolean toggle with `Checked` |
 | **TWRadioButton** | `<input type="radio">` | Radio selection with `Checked` |
@@ -394,8 +394,10 @@ UpDown1.OnClick := @UpDownClick;   // TUDBtnType: btNext/btPrev
 
 `TWComboBox.Style` selects the behaviour:
 
-* `csDropDown` — editable text with the items offered by a `<datalist>`.
+* `csDropDown` — editable text; clicking the field or pressing the arrow keys opens the item list.
 * `csDropDownList` — read-only text; the value must come from the list.
+
+The list is a custom dropdown positioned under the field, so it shows every item on click, supports mouse selection and the Up/Down/Enter/Escape keys, and closes when clicking outside.
 
 ```pascal
 ComboBox1.Items.Add('Alpha');

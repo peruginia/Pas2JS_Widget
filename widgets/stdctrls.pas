@@ -155,12 +155,19 @@ type
     FItemHeight: NativeInt;
     FItemIndex: NativeInt;
     FItems: TStrings;
+    FHighlightIndex: NativeInt;
     FListElement: TJSHTMLElement;
     FListId: string;
     FOnChange: TNotifyEvent;
+    FOpen: Boolean;
     FSorted: boolean;
     FStyle: TComboBoxStyle;
     FTopIndex: NativeInt;
+    procedure CloseDropDown;
+    procedure OpenDropDown;
+    procedure ToggleDropDown;
+    procedure UpdateHighlight;
+    procedure SelectIndex(AIndex: NativeInt; AFireChange: Boolean);
     procedure SetColumns(AValue: NativeInt);
     procedure SetDropDownCount(AValue: integer);
     procedure SetItemHeight(AValue: NativeInt);
@@ -176,7 +183,11 @@ type
   protected
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   protected
+    function HandleClick(AEvent: TJSMouseEvent): boolean; virtual;
+    function HandleDocumentClick(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleInput(AEvent: TJSEvent): boolean; virtual;
+    function HandleItemClick(AEvent: TJSMouseEvent): boolean; virtual;
+    function HandleKeyDown(AEvent: TJSKeyBoardEvent): boolean; virtual;
   protected
     procedure Changed; override;
     function CreateHandleElement: TJSHTMLElement; override;
@@ -717,6 +728,37 @@ begin
     '.wcl-scrollbar-vertical input[type=range]{' +
     'writing-mode:vertical-lr;' +
     'direction:rtl;}' +
+    '.wcl-combo-dropdown{' +
+    'position:fixed;' +
+    'z-index:5000;' +
+    'background:#fff;' +
+    'border:1px solid #888;' +
+    'border-radius:4px;' +
+    'box-shadow:0 4px 12px rgba(0,0,0,0.2);' +
+    'max-height:240px;' +
+    'overflow:auto;' +
+    'box-sizing:border-box;' +
+    'padding:2px 0;}' +
+    '.wcl-combo-item{' +
+    'padding:4px 8px;' +
+    'cursor:pointer;' +
+    'white-space:nowrap;' +
+    'overflow:hidden;' +
+    'text-overflow:ellipsis;' +
+    'color:#333;}' +
+    '@media(hover:hover){' +
+    '.wcl-combo-item:hover{background:#eef3fb;}' +
+    '}' +
+    '.wcl-combo-item-active{' +
+    'background:#4A90D9;' +
+    'color:#fff;}' +
+    '.wcl-combo-list{' +
+    'cursor:pointer;' +
+    'padding-right:24px!important;' +
+    'background-image:linear-gradient(45deg,transparent 50%,#666 50%),linear-gradient(135deg,#666 50%,transparent 50%);' +
+    'background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;' +
+    'background-size:5px 5px,5px 5px;' +
+    'background-repeat:no-repeat;}' +
     /// Touch devices: readable text (16px avoids the iOS focus zoom) and
     /// finger-sized targets. Independent of the viewport width, so it also
     /// applies in fit-design mode.
@@ -775,13 +817,8 @@ procedure TCustomComboBox.SetItemIndex(AValue: NativeInt);
 begin
   if (AValue < -1) or (AValue >= FItems.Count) then
     Exit;
-  if (FItemIndex <> AValue) then
-  begin
-    FItemIndex := AValue;
-    if (AValue < 0) and Assigned(HandleElement) then
-      TJSHTMLInputElement(HandleElement).Value := '';
-    Changed;
-  end;
+  SelectIndex(AValue, False);
+  Changed;
 end;
 
 procedure TCustomComboBox.SetItems(AValue: TStrings);
@@ -806,6 +843,11 @@ begin
   if (FStyle <> AValue) then
   begin
     FStyle := AValue;
+    if (FStyle = csDropDownList) then
+    begin
+      if (FItemIndex < 0) then
+        FItemIndex := FItems.IndexOf(TJSHTMLInputElement(HandleElement).Value);
+    end;
     Changed;
   end;
 end;
@@ -836,19 +878,178 @@ begin
   end;
 end;
 
+procedure TCustomComboBox.CloseDropDown;
+begin
+  FOpen := False;
+  if Assigned(FListElement) then
+    FListElement.Style.SetProperty('display', 'none');
+end;
+
+procedure TCustomComboBox.OpenDropDown;
+var
+  VRect: TJSDOMRect;
+begin
+  if (not Assigned(FListElement)) or (FItems.Count = 0) then
+    Exit;
+  VRect := HandleElement.getBoundingClientRect;
+  FListElement.Style.SetProperty('display', 'block');
+  FListElement.Style.SetProperty('left', IntToStr(Trunc(VRect.Left)) + 'px');
+  FListElement.Style.SetProperty('top', IntToStr(Trunc(VRect.Bottom) + 2) + 'px');
+  FListElement.Style.SetProperty('min-width', IntToStr(Trunc(VRect.Width)) + 'px');
+  FOpen := True;
+  if (FItemIndex >= 0) then
+    FHighlightIndex := FItemIndex
+  else
+    FHighlightIndex := 0;
+  UpdateHighlight;
+end;
+
+procedure TCustomComboBox.ToggleDropDown;
+begin
+  if FOpen then
+    CloseDropDown
+  else
+    OpenDropDown;
+end;
+
+procedure TCustomComboBox.UpdateHighlight;
+var
+  VIndex: NativeInt;
+  VElement: TJSHTMLElement;
+begin
+  if (not Assigned(FListElement)) then
+    Exit;
+  for VIndex := 0 to (FListElement.children.length - 1) do
+  begin
+    VElement := TJSHTMLElement(FListElement.children[VIndex]);
+    if (VIndex = FHighlightIndex) then
+      VElement.classList.add('wcl-combo-item-active')
+    else
+      VElement.classList.remove('wcl-combo-item-active');
+  end;
+  if (FHighlightIndex >= 0) and (FHighlightIndex < FListElement.children.length) then
+    TJSHTMLElement(FListElement.children[FHighlightIndex]).scrollIntoView({ block: 'nearest' });
+end;
+
+procedure TCustomComboBox.SelectIndex(AIndex: NativeInt; AFireChange: Boolean);
+var
+  VInput: TJSHTMLInputElement;
+begin
+  if (AIndex < -1) or (AIndex >= FItems.Count) then
+    Exit;
+  FItemIndex := AIndex;
+  VInput := TJSHTMLInputElement(HandleElement);
+  if (AIndex >= 0) then
+    VInput.Value := FItems[AIndex]
+  else
+    VInput.Value := '';
+  CloseDropDown;
+  if AFireChange then
+    Change;
+end;
+
+function TCustomComboBox.HandleClick(AEvent: TJSMouseEvent): boolean;
+begin
+  AEvent.StopPropagation;
+  ToggleDropDown;
+  Result := True;
+end;
+
+function TCustomComboBox.HandleDocumentClick(AEvent: TJSMouseEvent): boolean;
+begin
+  Result := False;
+  if FOpen then
+    CloseDropDown;
+end;
+
 function TCustomComboBox.HandleInput(AEvent: TJSEvent): boolean;
 begin
   AEvent.StopPropagation;
   FItemIndex := FItems.IndexOf(TJSHTMLInputElement(HandleElement).Value);
+  if FOpen then
+  begin
+    FHighlightIndex := FItemIndex;
+    UpdateHighlight;
+  end;
   Change();
   Result := True;
+end;
+
+function TCustomComboBox.HandleItemClick(AEvent: TJSMouseEvent): boolean;
+var
+  VElement: TJSElement;
+  VIndex: NativeInt;
+begin
+  AEvent.StopPropagation;
+  AEvent.PreventDefault;
+  VElement := AEvent.targetElement;
+  while Assigned(VElement) and (not VElement.hasAttribute('data-wcl-combo-index')) do
+    VElement := VElement.parentElement;
+  if Assigned(VElement) then
+  begin
+    VIndex := StrToIntDef(TJSHTMLElement(VElement).getAttribute('data-wcl-combo-index'), -1);
+    SelectIndex(VIndex, True);
+  end;
+  Result := True;
+end;
+
+function TCustomComboBox.HandleKeyDown(AEvent: TJSKeyBoardEvent): boolean;
+var
+  VKey: NativeInt;
+begin
+  Result := False;
+  VKey := ExtractKeyCode(AEvent);
+  if (not FOpen) then
+  begin
+    if (VKey = 38) or (VKey = 40) then
+    begin
+      OpenDropDown;
+      AEvent.PreventDefault;
+      Result := True;
+    end;
+    Exit;
+  end;
+  case VKey of
+    /// Up
+    38:
+      begin
+        if (FHighlightIndex > 0) then
+          Dec(FHighlightIndex);
+        UpdateHighlight;
+        AEvent.PreventDefault;
+        Result := True;
+      end;
+    /// Down
+    40:
+      begin
+        if (FHighlightIndex < (FItems.Count - 1)) then
+          Inc(FHighlightIndex);
+        UpdateHighlight;
+        AEvent.PreventDefault;
+        Result := True;
+      end;
+    /// Enter
+    13:
+      begin
+        SelectIndex(FHighlightIndex, True);
+        AEvent.PreventDefault;
+        Result := True;
+      end;
+    /// Escape
+    27:
+      begin
+        CloseDropDown;
+        AEvent.PreventDefault;
+        Result := True;
+      end;
+  end;
 end;
 
 procedure TCustomComboBox.Changed;
 var
   VIndex: NativeInt;
   VInput: TJSHTMLInputElement;
-  VOption: TJSHTMLOptionElement;
+  VItem: TJSHTMLElement;
 begin
   inherited Changed;
   if (not IsUpdating) and not (csLoading in ComponentState) then
@@ -861,8 +1062,6 @@ begin
     VInput := TJSHTMLInputElement(HandleElement);
     VInput.setAttribute('name', Name);
     /// DropDownCount, TopIndex and Columns are kept for LCL compatibility.
-    /// The native datalist does not expose them, so store them as data
-    /// attributes for CSS/custom code.
     VInput.setAttribute('data-dropdown-count', IntToStr(FDropDownCount));
     VInput.setAttribute('data-top-index', IntToStr(FTopIndex));
     VInput.setAttribute('data-columns', IntToStr(FColumns));
@@ -871,12 +1070,16 @@ begin
       FListElement.InnerHTML := '';
       for VIndex := 0 to (FItems.Count - 1) do
       begin
-        VOption := TJSHTMLOptionElement(Document.CreateElement('option'));
-        VOption.Value := FItems[VIndex];
-        VOption.Text := FItems[VIndex];
-        FListElement.AppendChild(VOption);
+        VItem := TJSHTMLElement(Document.CreateElement('div'));
+        VItem.classList.add('wcl-combo-item');
+        VItem.setAttribute('data-wcl-combo-index', IntToStr(VIndex));
+        VItem.TextContent := FItems[VIndex];
+        if (FItemHeight > 0) then
+          VItem.Style.SetProperty('min-height', IntToStr(FItemHeight) + 'px');
+        FListElement.AppendChild(VItem);
       end;
-      VInput.setAttribute('list', FListId);
+      if (not FOpen) then
+        FListElement.Style.SetProperty('display', 'none');
     end;
     if (FStyle = csDropDownList) then
     begin
@@ -899,27 +1102,33 @@ begin
   TJSHTMLInputElement(Result)._type := 'text';
   Inc(_ComboSeq);
   FListId := 'wcl-combo-list-' + IntToStr(_ComboSeq);
-  FListElement := TJSHTMLElement(Document.CreateElement('datalist'));
+  FListElement := TJSHTMLElement(Document.CreateElement('div'));
+  FListElement.classList.add('wcl-combo-dropdown');
   FListElement.setAttribute('id', FListId);
+  FListElement.Style.SetProperty('display', 'none');
   Document.Body.AppendChild(FListElement);
 end;
 
 procedure TCustomComboBox.RegisterHandleEvents;
 begin
   inherited RegisterHandleEvents;
-  with HandleElement do
-  begin
-    AddEventListener('input', TJSEventHandler(@HandleInput));
-  end;
+  HandleElement.addEventListener('click', TJSEventHandler(@HandleClick));
+  HandleElement.addEventListener('input', TJSEventHandler(@HandleInput));
+  HandleElement.addEventListener('keydown', TJSEventHandler(@HandleKeyDown));
+  if Assigned(FListElement) then
+    FListElement.addEventListener('click', TJSEventHandler(@HandleItemClick));
+  Document.addEventListener('click', TJSEventHandler(@HandleDocumentClick));
 end;
 
 procedure TCustomComboBox.UnRegisterHandleEvents;
 begin
   inherited UnRegisterHandleEvents;
-  with HandleElement do
-  begin
-    RemoveEventListener('input', TJSEventHandler(@HandleInput));
-  end;
+  HandleElement.removeEventListener('click', TJSEventHandler(@HandleClick));
+  HandleElement.removeEventListener('input', TJSEventHandler(@HandleInput));
+  HandleElement.removeEventListener('keydown', TJSEventHandler(@HandleKeyDown));
+  if Assigned(FListElement) then
+    FListElement.removeEventListener('click', TJSEventHandler(@HandleItemClick));
+  Document.removeEventListener('click', TJSEventHandler(@HandleDocumentClick));
 end;
 
 {$push}
@@ -977,10 +1186,12 @@ begin
   inherited Create(AOwner);
   FColumns := 0;
   FDropDownCount := 8;
+  FHighlightIndex := -1;
   FItemHeight := 0;
   FItemIndex := -1;
   FItems := TStringList.Create;
   TStringList(FItems).OnChange := ItemsChange;
+  FOpen := False;
   FSorted := False;
   FStyle := csDropDown;
   FTopIndex := 0;
@@ -997,6 +1208,7 @@ end;
 
 destructor TCustomComboBox.Destroy;
 begin
+  CloseDropDown;
   if Assigned(FListElement) then
   begin
     FListElement.remove;
@@ -1019,6 +1231,7 @@ end;
 
 procedure TCustomComboBox.Clear;
 begin
+  CloseDropDown;
   FItems.Clear;
   FItemIndex := -1;
   if Assigned(HandleElement) then

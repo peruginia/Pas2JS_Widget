@@ -28988,9 +28988,11 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FItemHeight = 0;
       this.FItemIndex = 0;
       this.FItems = null;
+      this.FHighlightIndex = 0;
       this.FListElement = null;
       this.FListId = "";
       this.FOnChange = null;
+      this.FOpen = false;
       this.FSorted = false;
       this.FStyle = 0;
       this.FTopIndex = 0;
@@ -29000,6 +29002,53 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FListElement = undefined;
       this.FOnChange = undefined;
       pas.Controls.TWinControl.$final.call(this);
+    };
+    this.CloseDropDown = function () {
+      this.FOpen = false;
+      if (this.FListElement != null) this.FListElement.style.setProperty("display","none");
+    };
+    this.OpenDropDown = function () {
+      var VRect = null;
+      if (!(this.FListElement != null) || (this.FItems.GetCount() === 0)) return;
+      VRect = this.FHandleElement.getBoundingClientRect();
+      this.FListElement.style.setProperty("display","block");
+      this.FListElement.style.setProperty("left",pas.SysUtils.IntToStr(pas.System.Trunc(VRect.left)) + "px");
+      this.FListElement.style.setProperty("top",pas.SysUtils.IntToStr(pas.System.Trunc(VRect.bottom) + 2) + "px");
+      this.FListElement.style.setProperty("min-width",pas.SysUtils.IntToStr(pas.System.Trunc(VRect.width)) + "px");
+      this.FOpen = true;
+      if (this.FItemIndex >= 0) {
+        this.FHighlightIndex = this.FItemIndex}
+       else this.FHighlightIndex = 0;
+      this.UpdateHighlight();
+    };
+    this.ToggleDropDown = function () {
+      if (this.FOpen) {
+        this.CloseDropDown()}
+       else this.OpenDropDown();
+    };
+    this.UpdateHighlight = function () {
+      var VIndex = 0;
+      var VElement = null;
+      if (!(this.FListElement != null)) return;
+      for (var $l = 0, $end = this.FListElement.children.length - 1; $l <= $end; $l++) {
+        VIndex = $l;
+        VElement = this.FListElement.children.item(VIndex);
+        if (VIndex === this.FHighlightIndex) {
+          VElement.classList.add("wcl-combo-item-active")}
+         else VElement.classList.remove("wcl-combo-item-active");
+      };
+      if ((this.FHighlightIndex >= 0) && (this.FHighlightIndex < this.FListElement.children.length)) this.FListElement.children.item(this.FHighlightIndex).scrollIntoView();
+    };
+    this.SelectIndex = function (AIndex, AFireChange) {
+      var VInput = null;
+      if ((AIndex < -1) || (AIndex >= this.FItems.GetCount())) return;
+      this.FItemIndex = AIndex;
+      VInput = this.FHandleElement;
+      if (AIndex >= 0) {
+        VInput.value = this.FItems.Get(AIndex)}
+       else VInput.value = "";
+      this.CloseDropDown();
+      if (AFireChange) this.Change();
     };
     this.SetColumns = function (AValue) {
       if (AValue < 0) AValue = 0;
@@ -29024,11 +29073,8 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     };
     this.SetItemIndex = function (AValue) {
       if ((AValue < -1) || (AValue >= this.FItems.GetCount())) return;
-      if (this.FItemIndex !== AValue) {
-        this.FItemIndex = AValue;
-        if ((AValue < 0) && (this.FHandleElement != null)) this.FHandleElement.value = "";
-        this.Changed();
-      };
+      this.SelectIndex(AValue,false);
+      this.Changed();
     };
     this.SetItems = function (AValue) {
       this.FItems.Assign(AValue);
@@ -29044,6 +29090,9 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.SetStyle = function (AValue) {
       if (this.FStyle !== AValue) {
         this.FStyle = AValue;
+        if (this.FStyle === $mod.TComboBoxStyle.csDropDownList) {
+          if (this.FItemIndex < 0) this.FItemIndex = this.FItems.IndexOf(this.FHandleElement.value);
+        };
         this.Changed();
       };
     };
@@ -29063,18 +29112,85 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
         this.FOnChange(this);
       };
     };
+    this.HandleClick$1 = function (AEvent) {
+      var Result = false;
+      AEvent.stopPropagation();
+      this.ToggleDropDown();
+      Result = true;
+      return Result;
+    };
+    this.HandleDocumentClick = function (AEvent) {
+      var Result = false;
+      Result = false;
+      if (this.FOpen) this.CloseDropDown();
+      return Result;
+    };
     this.HandleInput = function (AEvent) {
       var Result = false;
       AEvent.stopPropagation();
       this.FItemIndex = this.FItems.IndexOf(this.FHandleElement.value);
+      if (this.FOpen) {
+        this.FHighlightIndex = this.FItemIndex;
+        this.UpdateHighlight();
+      };
       this.Change();
       Result = true;
+      return Result;
+    };
+    this.HandleItemClick = function (AEvent) {
+      var Result = false;
+      var VElement = null;
+      var VIndex = 0;
+      AEvent.stopPropagation();
+      AEvent.preventDefault();
+      VElement = pas.Web.TJSEventHelper.GetTargetElement.call(AEvent);
+      while ((VElement != null) && !VElement.hasAttribute("data-wcl-combo-index")) VElement = VElement.parentElement;
+      if (VElement != null) {
+        VIndex = pas.SysUtils.StrToIntDef(VElement.getAttribute("data-wcl-combo-index"),-1);
+        this.SelectIndex(VIndex,true);
+      };
+      Result = true;
+      return Result;
+    };
+    this.HandleKeyDown$1 = function (AEvent) {
+      var Result = false;
+      var VKey = 0;
+      Result = false;
+      VKey = pas.Controls.ExtractKeyCode(AEvent);
+      if (!this.FOpen) {
+        if ((VKey === 38) || (VKey === 40)) {
+          this.OpenDropDown();
+          AEvent.preventDefault();
+          Result = true;
+        };
+        return Result;
+      };
+      var $tmp = VKey;
+      if ($tmp === 38) {
+        if (this.FHighlightIndex > 0) this.FHighlightIndex -= 1;
+        this.UpdateHighlight();
+        AEvent.preventDefault();
+        Result = true;
+      } else if ($tmp === 40) {
+        if (this.FHighlightIndex < (this.FItems.GetCount() - 1)) this.FHighlightIndex += 1;
+        this.UpdateHighlight();
+        AEvent.preventDefault();
+        Result = true;
+      } else if ($tmp === 13) {
+        this.SelectIndex(this.FHighlightIndex,true);
+        AEvent.preventDefault();
+        Result = true;
+      } else if ($tmp === 27) {
+        this.CloseDropDown();
+        AEvent.preventDefault();
+        Result = true;
+      };
       return Result;
     };
     this.Changed = function () {
       var VIndex = 0;
       var VInput = null;
-      var VOption = null;
+      var VItem = null;
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         if (this.FHandleClass === "") {
@@ -29090,12 +29206,14 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
           this.FListElement.innerHTML = "";
           for (var $l = 0, $end = this.FItems.GetCount() - 1; $l <= $end; $l++) {
             VIndex = $l;
-            VOption = document.createElement("option");
-            VOption.value = this.FItems.Get(VIndex);
-            VOption.text = this.FItems.Get(VIndex);
-            this.FListElement.appendChild(VOption);
+            VItem = document.createElement("div");
+            VItem.classList.add("wcl-combo-item");
+            VItem.setAttribute("data-wcl-combo-index",pas.SysUtils.IntToStr(VIndex));
+            VItem.textContent = this.FItems.Get(VIndex);
+            if (this.FItemHeight > 0) VItem.style.setProperty("min-height",pas.SysUtils.IntToStr(this.FItemHeight) + "px");
+            this.FListElement.appendChild(VItem);
           };
-          VInput.setAttribute("list",this.FListId);
+          if (!this.FOpen) this.FListElement.style.setProperty("display","none");
         };
         if (this.FStyle === $mod.TComboBoxStyle.csDropDownList) {
           VInput.readOnly = true;
@@ -29113,20 +29231,28 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       Result.type = "text";
       $impl._ComboSeq += 1;
       this.FListId = "wcl-combo-list-" + pas.SysUtils.IntToStr($impl._ComboSeq);
-      this.FListElement = document.createElement("datalist");
+      this.FListElement = document.createElement("div");
+      this.FListElement.classList.add("wcl-combo-dropdown");
       this.FListElement.setAttribute("id",this.FListId);
+      this.FListElement.style.setProperty("display","none");
       document.body.appendChild(this.FListElement);
       return Result;
     };
     this.RegisterHandleEvents = function () {
       pas.Controls.TWinControl.RegisterHandleEvents.call(this);
-      var $with = this.FHandleElement;
-      $with.addEventListener("input",rtl.createCallback(this,"HandleInput"));
+      this.FHandleElement.addEventListener("click",rtl.createCallback(this,"HandleClick$1"));
+      this.FHandleElement.addEventListener("input",rtl.createCallback(this,"HandleInput"));
+      this.FHandleElement.addEventListener("keydown",rtl.createCallback(this,"HandleKeyDown$1"));
+      if (this.FListElement != null) this.FListElement.addEventListener("click",rtl.createCallback(this,"HandleItemClick"));
+      document.addEventListener("click",rtl.createCallback(this,"HandleDocumentClick"));
     };
     this.UnRegisterHandleEvents = function () {
       pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
-      var $with = this.FHandleElement;
-      $with.removeEventListener("input",rtl.createCallback(this,"HandleInput"));
+      this.FHandleElement.removeEventListener("click",rtl.createCallback(this,"HandleClick$1"));
+      this.FHandleElement.removeEventListener("input",rtl.createCallback(this,"HandleInput"));
+      this.FHandleElement.removeEventListener("keydown",rtl.createCallback(this,"HandleKeyDown$1"));
+      if (this.FListElement != null) this.FListElement.removeEventListener("click",rtl.createCallback(this,"HandleItemClick"));
+      document.removeEventListener("click",rtl.createCallback(this,"HandleDocumentClick"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -29167,10 +29293,12 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       pas.Controls.TControl.Create$1.call(this,AOwner);
       this.FColumns = 0;
       this.FDropDownCount = 8;
+      this.FHighlightIndex = -1;
       this.FItemHeight = 0;
       this.FItemIndex = -1;
       this.FItems = pas.Classes.TStringList.$create("Create$1");
       this.FItems.FOnChange = rtl.createCallback(this,"ItemsChange");
+      this.FOpen = false;
       this.FSorted = false;
       this.FStyle = $mod.TComboBoxStyle.csDropDown;
       this.FTopIndex = 0;
@@ -29184,6 +29312,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       return this;
     };
     this.Destroy = function () {
+      this.CloseDropDown();
       if (this.FListElement != null) {
         this.FListElement.remove();
         this.FListElement = null;
@@ -29199,6 +29328,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FItems.Append(AItem);
     };
     this.Clear = function () {
+      this.CloseDropDown();
       this.FItems.Clear();
       this.FItemIndex = -1;
       if (this.FHandleElement != null) this.FHandleElement.value = "";
@@ -30662,7 +30792,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     $impl._WCLStdRulesRegistered = false;
     $impl._RegisterWCLStdRules = function () {
       if ($impl._WCLStdRulesRegistered) return;
-      pas.Controls.RegisterWCLStyle(".wcl-btn{" + "padding:6px 16px;" + "border-radius:4px;" + "border:1px solid #888;" + "background-color:#f0f0f0;" + "color:#333;" + "cursor:pointer;" + "font-size:14px!important;" + "display:inline-flex;" + "align-items:center;" + "justify-content:center;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;" + "transition:background-color 0.15s,border-color 0.15s;}" + "@media(hover:hover){" + ".wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}" + "}" + ".wcl-btn:active{background-color:#d0d0d0;border-color:#555;}" + ".wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "padding:6px 8px;" + "border-radius:4px;" + "border:1px solid #888;" + "font-family:inherit;" + "font-size:inherit;" + "background-color:#fff;" + "box-sizing:border-box;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;}" + "select.wcl-input{" + "padding:3px 4px!important;" + "border-radius:4px;" + "border:1px solid #888;" + "font-size:14px!important;" + "background-color:#fff;}" + ".wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}" + ".wcl-input:disabled{opacity:0.5;}" + ".wcl-scrollbar{" + "box-sizing:border-box;" + "display:flex;" + "align-items:center;" + "justify-content:center;" + "min-width:24px;" + "min-height:24px;}" + ".wcl-scrollbar input[type=range]{" + "width:100%;" + "height:100%;" + "margin:0;" + "padding:0;" + "cursor:pointer;" + "accent-color:#4A90D9;}" + ".wcl-scrollbar-vertical input[type=range]{" + "writing-mode:vertical-lr;" + "direction:rtl;}" + "@media(pointer:coarse){" + ".wcl-btn{min-height:36px;padding:8px 14px!important;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "min-height:36px;font-size:16px!important;padding:8px 10px!important;}" + "select.wcl-input{min-height:36px;font-size:16px!important;padding:6px 8px!important;}" + "}" + "@media(prefers-reduced-motion:reduce){" + ".wcl-btn{transition:none;}" + "}");
+      pas.Controls.RegisterWCLStyle(".wcl-btn{" + "padding:6px 16px;" + "border-radius:4px;" + "border:1px solid #888;" + "background-color:#f0f0f0;" + "color:#333;" + "cursor:pointer;" + "font-size:14px!important;" + "display:inline-flex;" + "align-items:center;" + "justify-content:center;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;" + "transition:background-color 0.15s,border-color 0.15s;}" + "@media(hover:hover){" + ".wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}" + "}" + ".wcl-btn:active{background-color:#d0d0d0;border-color:#555;}" + ".wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "padding:6px 8px;" + "border-radius:4px;" + "border:1px solid #888;" + "font-family:inherit;" + "font-size:inherit;" + "background-color:#fff;" + "box-sizing:border-box;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;}" + "select.wcl-input{" + "padding:3px 4px!important;" + "border-radius:4px;" + "border:1px solid #888;" + "font-size:14px!important;" + "background-color:#fff;}" + ".wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}" + ".wcl-input:disabled{opacity:0.5;}" + ".wcl-scrollbar{" + "box-sizing:border-box;" + "display:flex;" + "align-items:center;" + "justify-content:center;" + "min-width:24px;" + "min-height:24px;}" + ".wcl-scrollbar input[type=range]{" + "width:100%;" + "height:100%;" + "margin:0;" + "padding:0;" + "cursor:pointer;" + "accent-color:#4A90D9;}" + ".wcl-scrollbar-vertical input[type=range]{" + "writing-mode:vertical-lr;" + "direction:rtl;}" + ".wcl-combo-dropdown{" + "position:fixed;" + "z-index:5000;" + "background:#fff;" + "border:1px solid #888;" + "border-radius:4px;" + "box-shadow:0 4px 12px rgba(0,0,0,0.2);" + "max-height:240px;" + "overflow:auto;" + "box-sizing:border-box;" + "padding:2px 0;}" + ".wcl-combo-item{" + "padding:4px 8px;" + "cursor:pointer;" + "white-space:nowrap;" + "overflow:hidden;" + "text-overflow:ellipsis;" + "color:#333;}" + "@media(hover:hover){" + ".wcl-combo-item:hover{background:#eef3fb;}" + "}" + ".wcl-combo-item-active{" + "background:#4A90D9;" + "color:#fff;}" + ".wcl-combo-list{" + "cursor:pointer;" + "padding-right:24px!important;" + "background-image:linear-gradient(45deg,transparent 50%,#666 50%),linear-gradient(135deg,#666 50%,transparent 50%);" + "background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;" + "background-size:5px 5px,5px 5px;" + "background-repeat:no-repeat;}" + "@media(pointer:coarse){" + ".wcl-btn{min-height:36px;padding:8px 14px!important;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "min-height:36px;font-size:16px!important;padding:8px 10px!important;}" + "select.wcl-input{min-height:36px;font-size:16px!important;padding:6px 8px!important;}" + "}" + "@media(prefers-reduced-motion:reduce){" + ".wcl-btn{transition:none;}" + "}");
       $impl._WCLStdRulesRegistered = true;
     };
     $impl._ComboSeq = 0;
