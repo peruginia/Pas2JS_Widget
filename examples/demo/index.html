@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web Component Library (WCL)</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --line: #d9dee5;
+      --text: #263238;
+      --muted: #7b8794;
+      --accent: #2f80ed;
+      --accent-soft: #e8f1ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.5 "Segoe UI", Tahoma, Arial, sans-serif;
+    }
+    header {
+      padding: 48px 24px 28px;
+      background: #1f2937;
+      color: #fff;
+    }
+    header .wrap, main { max-width: 980px; margin: 0 auto; }
+    header h1 { margin: 0 0 6px; font-size: 28px; }
+    header p { margin: 0; color: #c9d2dc; }
+    main { padding: 28px 24px 56px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      display: block;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      color: inherit;
+      text-decoration: none;
+      box-shadow: 0 6px 20px rgba(31, 45, 61, 0.07);
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .card h2 {
+      margin: 0 0 6px;
+      font-size: 17px;
+      color: var(--accent);
+    }
+    .card p { margin: 0; color: var(--muted); font-size: 13px; }
+    .tag {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    footer {
+      padding: 18px 24px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>Web Component Library</h1>
+      <p>Lazarus / pas2js RAD widgetset — demos</p>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <a class="card" href="project1.html" data-site="project1.html"
+         data-repo="examples/demo/project1.html">
+        <span class="tag">Components</span>
+        <h2>All components demo</h2>
+        <p>Every WCL control, DataGrid with progressive loading, TreeView,
+           ListView, dialogs, drag and drop, and the multi-form login flow.</p>
+      </a>
+
+      <a class="card" href="MobileDemo/mobile.html" data-site="MobileDemo/mobile.html"
+         data-repo="examples/mobile/mobile.html">
+        <span class="tag">Mobile</span>
+        <h2>Mobile / PWA</h2>
+        <p>Phone-first layout built in code, safe areas, touch sizes and an
+           installable app shell with a service worker.</p>
+      </a>
+
+      <a class="card" href="examples/host/project1.html" data-site="examples/host/project1.html"
+         data-repo="examples/host/project1.html">
+        <span class="tag">Modules</span>
+        <h2>Host + loaded module</h2>
+        <p>A base shell that loads a module at runtime through its manifest,
+           registers its screens in the shared AppHost and embeds the module
+           panel.</p>
+      </a>
+
+      <a class="card" href="examples/module/project1.html" data-site="examples/module/project1.html"
+         data-repo="examples/module/project1.html">
+        <span class="tag">Module</span>
+        <h2>Module standalone test</h2>
+        <p>The module page that loads every generated unit JavaScript file and
+           runs the module program. The host + module demo is the interactive
+           one.</p>
+      </a>
+    </div>
+  </main>
+
+  <footer>
+    Built with Object Pascal, Lazarus and pas2js.
+  </footer>
+
+  <script>
+    // The page is published at the site root, but in the repository it lives
+    // in examples/demo. Rewrite the links so both layouts work.
+    (function () {
+      var inRepo = location.pathname.indexOf("/examples/demo/") >= 0;
+      var prefix = inRepo ? "../../" : "";
+      var links = document.querySelectorAll("a[data-site]");
+      for (var i = 0; i < links.length; i++) {
+        var path = inRepo ? links[i].getAttribute("data-repo") : links[i].getAttribute("data-site");
+        links[i].href = prefix + path;
+      }
+    })();
+  </script>
+</body>
+</html>

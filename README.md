@@ -3,6 +3,7 @@
 RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LCL-compatible components.
 
 ### Live Demo
+- [**peruginia.github.io/Pas2JS_Widget/**](https://peruginia.github.io/Pas2JS_Widget/) - start page with all demos
 🔗 [**peruginia.github.io/Pas2JS_Widget/project1.html**](https://peruginia.github.io/Pas2JS_Widget/project1.html) — all components demo (DataGrid with progressive loading, filtering, sorting)
 🔗 [**peruginia.github.io/Pas2JS_Widget/MobileDemo/mobile.html**](https://peruginia.github.io/Pas2JS_Widget/MobileDemo/mobile.html) — mobile/PWA demo (responsive layout, touch sizes, safe area, installable)
 - [**peruginia.github.io/Pas2JS_Widget/examples/host/project1.html**](https://peruginia.github.io/Pas2JS_Widget/examples/host/project1.html) - host + dynamically loaded module example
