@@ -94,6 +94,18 @@ discards unsaved changes after a confirmation; the component tree, canvas and
 Source tab follow the selected form. Save writes the selected LFM and
 synchronises the selected form's unit.
 
+The **Project…** button opens a dialog with the forms and units of the
+project:
+
+- **New form** creates `unitN.lfm` + `unitN.pas` (`TFormN` / `FormN`), adds
+  them to the project and opens the new form;
+- **New unit** creates a plain `unitN.pas` (or the file name you type) and
+  opens it in the Source tab;
+- **Open** switches to a form or opens a unit in the Source tab;
+- **Remove** deletes the entry from `project.json`; with **Also delete files**
+  checked it also deletes the LFM/unit file. The last form cannot be removed;
+- form units are listed as `form` and are removed together with their form.
+
 ## Canvas editing
 
 Components on the canvas can be moved and resized with the mouse:
@@ -256,6 +268,10 @@ All responses are JSON.
 | `unit` | GET | `project=<id>` and optional `unit=<pas>` |
 | `saveUnit` | POST | JSON `{ "project": "<id>", "unit": "<pas>", "source": "..." }` |
 | `save` | POST | JSON `{ "project": "<id>", "form": "<lfm>", "lfm": "...", "formClass": "TForm1", "components": [{ "name": "Button1", "className": "TWButton", "unit": "WebCtrls" }] }` |
+| `createForm` | POST | JSON `{ "project": "<id>", "title": "..." }` |
+| `deleteForm` | POST | JSON `{ "project": "<id>", "form": "<lfm>", "deleteFiles": true }` |
+| `createUnit` | POST | JSON `{ "project": "<id>", "name": "<unit>.pas" }` |
+| `deleteUnit` | POST | JSON `{ "project": "<id>", "unit": "<pas>", "deleteFile": true }` |
 | `import` | POST | JSON `{ "id": "...", "name": "...", "lfm": "..." }` |
 
 `load` uses `mainForm` when `form` is omitted; `unit` uses the main form's unit

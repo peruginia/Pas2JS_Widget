@@ -26,6 +26,7 @@ const state = {
   project: null,
   forms: [],
   currentForm: null,
+  currentUnit: '',
   roots: [],
   selected: null,
   activeTabs: new Map(),
@@ -44,6 +45,7 @@ const els = {
   form: document.getElementById('formSelect'),
   reload: document.getElementById('reloadBtn'),
   save: document.getElementById('saveBtn'),
+  projectBtn: document.getElementById('projectBtn'),
   importFile: document.getElementById('importFile'),
   importBtn: document.getElementById('importBtn'),
   status: document.getElementById('status'),
@@ -61,6 +63,13 @@ const els = {
   sourceSave: document.getElementById('sourceSaveBtn'),
   sourceEditor: document.getElementById('sourceEditor'),
   sourceGutter: document.getElementById('sourceGutter'),
+  projectDialog: document.getElementById('projectDialog'),
+  dialogForms: document.getElementById('dialogForms'),
+  dialogUnits: document.getElementById('dialogUnits'),
+  newFormBtn: document.getElementById('newFormBtn'),
+  newUnitBtn: document.getElementById('newUnitBtn'),
+  projectCloseBtn: document.getElementById('projectCloseBtn'),
+  deleteFilesCheck: document.getElementById('deleteFilesCheck'),
 };
 
 const nonVisual = new Set();
@@ -213,9 +222,25 @@ function setView(view) {
 }
 
 function currentUnitName() {
+  if (state.currentUnit) return state.currentUnit;
   if (state.currentForm && state.currentForm.unit) return state.currentForm.unit;
   if (state.project && state.project.unit) return state.project.unit;
   return '';
+}
+
+async function ensureFormUnit() {
+  const unitName = state.currentForm ? state.currentForm.unit : '';
+  if (!unitName) return false;
+  if (state.currentUnit === unitName && state.source !== null) return true;
+  if (state.currentUnit !== unitName && state.sourceDirty) {
+    await saveSource();
+    if (state.sourceDirty) return false;
+  }
+  state.currentUnit = unitName;
+  state.source = null;
+  state.sourceTarget = null;
+  await loadSource(true);
+  return state.source !== null;
 }
 
 async function loadSource(force = false) {
@@ -1834,12 +1859,13 @@ function eventButton(prop) {
   return button;
 }
 
-function gotoHandler(prop) {
+async function gotoHandler(prop) {
   const name = String(prop.value ?? prop.raw ?? '').trim();
   if (!name) {
     setStatus('No handler assigned to this event.', true);
     return;
   }
+  if (!(await ensureFormUnit())) return;
   state.sourceTarget = { kind: 'method', name };
   if (state.view === 'source') {
     applySourceNavigation({ focus: true });
@@ -1857,28 +1883,6 @@ const NOTIFY_EVENTS = new Set([
   'OnShow', 'OnShowPage', 'OnStartTimer', 'OnStopTimer', 'OnTimer',
   'OnTopLeftChanged', 'OnUnload', 'OnUpdate',
 ]);
-
-async function ensureSourceLoaded() {
-  if (state.source !== null) return true;
-  if (!state.project) {
-    setStatus('No project selected.', true);
-    return false;
-  }
-  try {
-    const data = await api('unit', { project: state.project.id, unit: currentUnitName() });
-    state.sourceEol = data.source.includes('\r\n') ? '\r\n' : '\n';
-    state.source = data.source.replace(/\r\n/g, '\n');
-    state.sourceDirty = false;
-    els.sourceName.textContent = data.unit;
-    els.sourceEditor.value = state.source;
-    updateSourceGutter();
-    updateSourceStatus();
-    return true;
-  } catch (error) {
-    setStatus(error.message, true);
-    return false;
-  }
-}
 
 function handlerNameExists(lines, name) {
   return findDeclarationLine(lines, name) >= 0 || findImplementationLine(lines, name) >= 0;
@@ -1943,7 +1947,7 @@ async function createHandler(node, prop) {
     setStatus(`${prop.name} needs a hand-written signature.`, true);
     return;
   }
-  if (!(await ensureSourceLoaded())) return;
+  if (!(await ensureFormUnit())) return;
 
   const assigned = String(prop.value ?? prop.raw ?? '').trim();
   const name = assigned !== '' ? assigned : defaultHandlerName(node, prop.name);
@@ -2449,7 +2453,9 @@ function selectNode(node) {
   renderTree();
   renderCanvas();
   renderInspector();
-  if (state.view === 'source') applySourceNavigation();
+  if (state.view === 'source' && (!state.currentForm || state.currentUnit === state.currentForm.unit)) {
+    applySourceNavigation();
+  }
 }
 
 function renderAll() {
@@ -2506,6 +2512,206 @@ async function loadForm(formName) {
   await loadProject(state.project.id, formName);
 }
 
+function closeProjectDialog() {
+  if (els.projectDialog.close) {
+    els.projectDialog.close();
+  } else {
+    els.projectDialog.removeAttribute('open');
+  }
+}
+
+function dialogButton(text, title) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'dialog-btn';
+  button.textContent = text;
+  button.title = title;
+  return button;
+}
+
+function renderProjectDialog() {
+  els.dialogForms.innerHTML = '';
+  els.dialogUnits.innerHTML = '';
+  if (!state.project) return;
+
+  const formUnits = new Set(state.forms.map((form) => form.unit));
+
+  for (const form of state.forms) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = form.title || form.form;
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = `${form.form} · ${form.unit}`;
+    const open = dialogButton('Open', 'Open this form');
+    open.addEventListener('click', async () => {
+      closeProjectDialog();
+      await loadForm(form.form);
+    });
+    const remove = dialogButton('Remove', 'Remove this form from the project');
+    remove.disabled = state.forms.length <= 1;
+    remove.addEventListener('click', () => deleteForm(form));
+    li.append(name, meta, open, remove);
+    els.dialogForms.appendChild(li);
+  }
+
+  for (const unit of state.project.units || []) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = unit;
+    const open = dialogButton('Open', 'Open this unit in the Source tab');
+    open.addEventListener('click', async () => {
+      closeProjectDialog();
+      await openUnit(unit);
+    });
+    li.append(name);
+    if (formUnits.has(unit)) {
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = 'form';
+      li.appendChild(meta);
+    }
+    li.appendChild(open);
+    if (!formUnits.has(unit)) {
+      const remove = dialogButton('Remove', 'Remove this unit from the project');
+      remove.addEventListener('click', () => deleteUnit(unit));
+      li.appendChild(remove);
+    }
+    els.dialogUnits.appendChild(li);
+  }
+}
+
+function openProjectDialog() {
+  if (!state.project) {
+    setStatus('No project selected.', true);
+    return;
+  }
+  renderProjectDialog();
+  if (els.projectDialog.showModal) {
+    els.projectDialog.showModal();
+  } else {
+    els.projectDialog.setAttribute('open', '');
+  }
+}
+
+async function openUnit(unit) {
+  if (!state.project || !unit) return;
+  if (state.sourceDirty && state.currentUnit !== unit) {
+    if (!window.confirm('Discard the unsaved changes to the unit?')) return;
+  }
+  state.currentUnit = unit;
+  state.source = null;
+  state.sourceTarget = null;
+  state.sourceDirty = false;
+  state.sourceCaret = { start: 0, end: 0 };
+  state.sourceScrollTop = 0;
+  els.sourceEditor.value = '';
+  els.sourceGutter.textContent = '';
+  if (state.view === 'source') {
+    await loadSource(true);
+  } else {
+    setView('source');
+  }
+}
+
+async function createForm() {
+  if (!state.project) return;
+  const title = window.prompt('Form title', '');
+  if (title === null) return;
+  try {
+    const result = await api('createForm', {}, { project: state.project.id, title });
+    closeProjectDialog();
+    state.project = result.project;
+    state.forms = result.project.forms || [];
+    await loadProject(state.project.id, result.form.form);
+    setStatus(`Created ${result.form.title || result.form.form}`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function createUnit() {
+  if (!state.project) return;
+  const name = window.prompt('Unit file name (empty for the next unitN.pas)', '');
+  if (name === null) return;
+  try {
+    const result = await api('createUnit', {}, { project: state.project.id, name });
+    state.project = result.project;
+    state.forms = result.project.forms || [];
+    closeProjectDialog();
+    await openUnit(result.unit);
+    setStatus(`Created ${result.unit}`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function deleteForm(form) {
+  if (!state.project) return;
+  const deleteFiles = els.deleteFilesCheck.checked;
+  const label = form.title || form.form;
+  const message = deleteFiles
+    ? `Remove ${label} from the project and delete ${form.form} and ${form.unit}?`
+    : `Remove ${label} from the project? The files are kept.`;
+  if (!window.confirm(message)) return;
+  try {
+    const result = await api('deleteForm', {}, {
+      project: state.project.id,
+      form: form.form,
+      deleteFiles,
+    });
+    state.project = result.project;
+    state.forms = result.project.forms || [];
+    const currentRemoved = !state.currentForm
+      || !state.forms.some((entry) => entry.form === state.currentForm.form);
+    if (currentRemoved) {
+      closeProjectDialog();
+      await loadProject(state.project.id, result.project.mainForm);
+      setStatus(`Removed ${label}`);
+      return;
+    }
+    if (state.currentUnit === form.unit) {
+      state.currentUnit = state.currentForm.unit;
+      state.source = null;
+      if (state.view === 'source') await loadSource(true);
+    }
+    renderFormSelect();
+    renderProjectDialog();
+    setStatus(`Removed ${label}`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function deleteUnit(unit) {
+  if (!state.project) return;
+  const deleteFile = els.deleteFilesCheck.checked;
+  const message = deleteFile
+    ? `Remove ${unit} from the project and delete the file?`
+    : `Remove ${unit} from the project? The file is kept.`;
+  if (!window.confirm(message)) return;
+  try {
+    const result = await api('deleteUnit', {}, {
+      project: state.project.id,
+      unit,
+      deleteFile,
+    });
+    state.project = result.project;
+    state.forms = result.project.forms || [];
+    if (state.currentUnit === unit) {
+      state.currentUnit = state.currentForm ? state.currentForm.unit : '';
+      state.source = null;
+      if (state.view === 'source') await loadSource(true);
+    }
+    renderProjectDialog();
+    setStatus(`Removed ${unit}`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
 async function loadProject(id, formName = '') {
   try {
     setStatus(`Loading ${id}...`);
@@ -2516,6 +2722,7 @@ async function loadProject(id, formName = '') {
     state.project = data.project;
     state.forms = data.project.forms || [];
     state.currentForm = data.form || state.forms[0] || null;
+    state.currentUnit = state.currentForm ? state.currentForm.unit : '';
     state.roots = roots;
     state.selected = null;
     state.activeTabs.clear();
@@ -2612,6 +2819,10 @@ async function boot() {
     loadProject(state.project.id, state.currentForm ? state.currentForm.form : '');
   });
   els.save.addEventListener('click', saveProject);
+  els.projectBtn.addEventListener('click', openProjectDialog);
+  els.projectCloseBtn.addEventListener('click', closeProjectDialog);
+  els.newFormBtn.addEventListener('click', createForm);
+  els.newUnitBtn.addEventListener('click', createUnit);
   els.designTab.addEventListener('click', () => setView('design'));
   els.sourceTab.addEventListener('click', () => setView('source'));
   els.sourceReload.addEventListener('click', () => {

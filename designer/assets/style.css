@@ -871,6 +871,128 @@ body.dragging {
   pointer-events: none;
 }
 
+/* Project dialog */
+
+.project-dialog {
+  width: min(560px, 92vw);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 18px 50px rgba(31, 45, 61, 0.25);
+}
+
+.project-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #fafbfc;
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.dialog-head button,
+.dialog-title button,
+.dialog-btn {
+  border: 1px solid #cfd6de;
+  border-radius: 4px;
+  background: #fff;
+  color: #34495e;
+  padding: 3px 8px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.dialog-head button:hover,
+.dialog-title button:hover,
+.dialog-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dialog-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dialog-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: #34495e;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.dialog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dialog-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.dialog-list .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialog-list .meta {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.dialog-btn {
+  flex: none;
+}
+
+.dialog-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dialog-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 16px;
+  color: #4b5b6b;
+  font-size: 12px;
+}
+
 .resize-handle {
   position: absolute;
   width: 8px;

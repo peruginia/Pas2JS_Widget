@@ -22,6 +22,7 @@
       <select id="formSelect"></select>
       <button id="reloadBtn" type="button">Reload</button>
       <button id="saveBtn" type="button">Save</button>
+      <button id="projectBtn" type="button">Project…</button>
       <button id="importBtn" type="button">Import .lfm</button>
       <input id="importFile" type="file" accept=".lfm" hidden>
     </div>
@@ -67,6 +68,31 @@
       <div id="inspector" class="inspector"></div>
     </aside>
   </main>
+
+  <dialog id="projectDialog" class="project-dialog">
+    <div class="dialog-head">
+      <h2>Project</h2>
+      <button id="projectCloseBtn" type="button">Close</button>
+    </div>
+    <div class="dialog-section">
+      <div class="dialog-title">
+        <span>Forms</span>
+        <button id="newFormBtn" type="button">New form</button>
+      </div>
+      <ul id="dialogForms" class="dialog-list"></ul>
+    </div>
+    <div class="dialog-section">
+      <div class="dialog-title">
+        <span>Units</span>
+        <button id="newUnitBtn" type="button">New unit</button>
+      </div>
+      <ul id="dialogUnits" class="dialog-list"></ul>
+    </div>
+    <label class="dialog-check">
+      <input id="deleteFilesCheck" type="checkbox">
+      Also delete files when removing
+    </label>
+  </dialog>
 
   <script type="module" src="assets/app.js"></script>
 </body>

@@ -175,6 +175,144 @@ function readProject(string $dir, string $id): array
     return $config;
 }
 
+function lfmString(string $value): string
+{
+    $value = str_replace(["\r\n", "\n", "\r"], ['#13#10', '#10', '#13'], $value);
+    return "'" . str_replace("'", "''", $value) . "'";
+}
+
+function newFormUnitSource(int $number): string
+{
+    $source = <<<'PAS'
+unit Unit{{N}};
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, Forms, WebCtrls;
+
+type
+  TForm{{N}} = class(TWForm)
+  private
+  public
+  end;
+
+var
+  Form{{N}}: TForm{{N}};
+
+implementation
+
+end.
+PAS;
+    return str_replace('{{N}}', (string) $number, $source) . "\n";
+}
+
+function newUnitSource(string $unitName): string
+{
+    $source = <<<'PAS'
+unit {{NAME}};
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils;
+
+implementation
+
+end.
+PAS;
+    return str_replace('{{NAME}}', $unitName, $source) . "\n";
+}
+
+/**
+ * Write the normalized project back to project.json. The units of the forms
+ * are not repeated in the "units" list.
+ */
+function writeProject(string $dir, array $config): void
+{
+    $formUnits = array_map(static fn(array $entry): string => $entry['unit'], $config['forms']);
+    $units = [];
+    foreach ($config['units'] as $unit) {
+        if (!in_array($unit, $formUnits, true)) {
+            $units[] = $unit;
+        }
+    }
+
+    $data = [
+        'name' => $config['name'],
+        'mainForm' => $config['mainForm'],
+        'forms' => $config['forms'],
+        'units' => array_values(array_unique($units)),
+    ];
+    if (($config['program'] ?? '') !== '') {
+        $data['program'] = $config['program'];
+    }
+
+    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
+    if (file_put_contents($dir . DIRECTORY_SEPARATOR . 'project.json', $json) === false) {
+        fail('Cannot write project.json.', 500);
+    }
+}
+
+/**
+ * Find the next free unitN.lfm / unitN.pas pair for a new form.
+ *
+ * @return array{0: int, 1: string, 2: string}
+ */
+function nextFormName(string $dir, array $config): array
+{
+    $used = [];
+    foreach ($config['forms'] as $entry) {
+        $used[strtolower($entry['form'])] = true;
+        $used[strtolower($entry['unit'])] = true;
+    }
+    foreach ($config['units'] as $unit) {
+        $used[strtolower($unit)] = true;
+    }
+
+    for ($number = 1; $number < 10000; $number++) {
+        $form = "unit{$number}.lfm";
+        $unit = "unit{$number}.pas";
+        if (isset($used[strtolower($form)]) || isset($used[strtolower($unit)])) {
+            continue;
+        }
+        if (is_file($dir . DIRECTORY_SEPARATOR . $form) || is_file($dir . DIRECTORY_SEPARATOR . $unit)) {
+            continue;
+        }
+        return [$number, $form, $unit];
+    }
+
+    fail('Cannot find a free form name.');
+}
+
+function nextUnitFileName(string $dir, array $config): string
+{
+    $used = [];
+    foreach ($config['forms'] as $entry) {
+        $used[strtolower($entry['unit'])] = true;
+    }
+    foreach ($config['units'] as $unit) {
+        $used[strtolower($unit)] = true;
+    }
+
+    for ($number = 1; $number < 10000; $number++) {
+        $unit = "unit{$number}.pas";
+        if (isset($used[strtolower($unit)])) {
+            continue;
+        }
+        if (is_file($dir . DIRECTORY_SEPARATOR . $unit)) {
+            continue;
+        }
+        return $unit;
+    }
+
+    fail('Cannot find a free unit name.');
+}
+
 function listProjects(string $projectsDir): array
 {
     $result = [];
@@ -381,6 +519,184 @@ try {
                 'bytes' => strlen($lfm),
                 'pasChanged' => $pasChanged,
                 'warnings' => $warnings,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'createForm': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $config = readProject($dir, $id);
+            [$number, $form, $unit] = nextFormName($dir, $config);
+            $title = trim((string) ($data['title'] ?? ''));
+            if ($title === '') {
+                $title = 'Form ' . $number;
+            }
+
+            $lfm = 'object Form' . $number . ': TForm' . $number . "\n"
+                . "  Left = 0\n  Top = 0\n  Width = 640\n  Height = 480\n"
+                . '  Caption = ' . lfmString($title) . "\nend\n";
+            $source = newFormUnitSource($number);
+            if (file_put_contents($dir . DIRECTORY_SEPARATOR . $form, $lfm) === false
+                || file_put_contents($dir . DIRECTORY_SEPARATOR . $unit, $source) === false) {
+                fail('Cannot write the new form.', 500);
+            }
+
+            $entry = ['form' => $form, 'unit' => $unit, 'title' => $title];
+            $config['forms'][] = $entry;
+            if (count($config['forms']) === 1) {
+                $config['mainForm'] = $form;
+            }
+            writeProject($dir, $config);
+            $updated = readProject($dir, $id);
+            echo json_encode([
+                'ok' => true,
+                'form' => $entry,
+                'project' => $updated,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'deleteForm': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $config = readProject($dir, $id);
+            $formEntry = findProjectForm($config, trim((string) ($data['form'] ?? '')));
+            if ($formEntry === null) {
+                fail('Form not found in project.', 404);
+            }
+            if (count($config['forms']) <= 1) {
+                fail('A project needs at least one form.');
+            }
+
+            $remaining = [];
+            foreach ($config['forms'] as $entry) {
+                if ($entry['form'] !== $formEntry['form']) {
+                    $remaining[] = $entry;
+                }
+            }
+            $config['forms'] = $remaining;
+            if ($config['mainForm'] === $formEntry['form']) {
+                $config['mainForm'] = $remaining[0]['form'];
+            }
+            $config['units'] = array_values(array_filter(
+                $config['units'],
+                static fn(string $unit): bool => $unit !== $formEntry['unit'],
+            ));
+            writeProject($dir, $config);
+
+            if (!empty($data['deleteFiles'])) {
+                @unlink($dir . DIRECTORY_SEPARATOR . $formEntry['form']);
+                $stillUsed = in_array($formEntry['unit'], array_column($config['forms'], 'unit'), true)
+                    || in_array($formEntry['unit'], $config['units'], true);
+                if (!$stillUsed) {
+                    @unlink($dir . DIRECTORY_SEPARATOR . $formEntry['unit']);
+                }
+            }
+
+            $updated = readProject($dir, $id);
+            echo json_encode([
+                'ok' => true,
+                'removed' => $formEntry,
+                'project' => $updated,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'createUnit': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $config = readProject($dir, $id);
+
+            $name = trim((string) ($data['name'] ?? ''));
+            if ($name !== '' && !preg_match('/\.pas$/i', $name)) {
+                $name .= '.pas';
+            }
+            if ($name !== '') {
+                $name = (string) preg_replace('/\.pas$/i', '.pas', $name);
+                if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*\.pas$/', $name)) {
+                    fail('Invalid unit name. Use letters, digits and _.');
+                }
+                if (is_file($dir . DIRECTORY_SEPARATOR . $name) || in_array($name, $config['units'], true)) {
+                    fail('Unit already exists.', 409);
+                }
+            } else {
+                $name = nextUnitFileName($dir, $config);
+            }
+
+            $unitName = ucfirst((string) pathinfo($name, PATHINFO_FILENAME));
+            if (file_put_contents($dir . DIRECTORY_SEPARATOR . $name, newUnitSource($unitName)) === false) {
+                fail('Cannot write the unit.', 500);
+            }
+
+            $config['units'][] = $name;
+            writeProject($dir, $config);
+            $updated = readProject($dir, $id);
+            echo json_encode([
+                'ok' => true,
+                'unit' => $name,
+                'project' => $updated,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'deleteUnit': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $config = readProject($dir, $id);
+            $unitName = trim((string) ($data['unit'] ?? ''));
+            if ($unitName === '') {
+                fail('Missing unit.');
+            }
+            if (in_array($unitName, array_column($config['forms'], 'unit'), true)) {
+                fail('The unit belongs to a form; remove the form instead.');
+            }
+            if (!in_array($unitName, $config['units'], true)) {
+                fail('Unit not found in project.', 404);
+            }
+
+            $config['units'] = array_values(array_filter(
+                $config['units'],
+                static fn(string $unit): bool => $unit !== $unitName,
+            ));
+            writeProject($dir, $config);
+            if (!empty($data['deleteFile'])) {
+                @unlink($dir . DIRECTORY_SEPARATOR . $unitName);
+            }
+
+            $updated = readProject($dir, $id);
+            echo json_encode([
+                'ok' => true,
+                'unit' => $unitName,
+                'project' => $updated,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             break;
         }
