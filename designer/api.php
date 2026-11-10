@@ -3,6 +3,35 @@ declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'PasSync.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'ModuleManifest.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'SimpleZip.php';
+
+// Cross-origin access for a static frontend hosted elsewhere. Set
+// WCL_CORS_ORIGINS to a comma-separated list of origins (for example
+// "https://user.github.io"); when it is empty any origin is accepted.
+$corsOrigins = getenv('WCL_CORS_ORIGINS');
+if ($corsOrigins === false) {
+    $corsOrigins = $_SERVER['WCL_CORS_ORIGINS'] ?? false;
+}
+$requestOrigin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
+if ($corsOrigins === false || trim($corsOrigins) === '') {
+    header('Access-Control-Allow-Origin: *');
+} elseif ($requestOrigin !== '') {
+    $allowedOrigins = array_values(array_filter(array_map('trim', explode(',', $corsOrigins))));
+    if (in_array($requestOrigin, $allowedOrigins, true)) {
+        header('Access-Control-Allow-Origin: ' . $requestOrigin);
+        header('Vary: Origin');
+    }
+}
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Max-Age: 86400');
+if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
+    header('Access-Control-Allow-Private-Network: true');
+}
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -240,6 +269,31 @@ function readProject(string $dir, string $id): array
     $config['units'] = array_values(array_unique($units));
 
     return $config;
+}
+
+/**
+ * Resolve a source file requested by the editor: a project unit, the project
+ * program (.lpr) or, when the request is empty, the main form's unit / program.
+ */
+function projectSourceFile(array $config, string $requested): string
+{
+    $requested = trim($requested);
+    if ($requested !== '') {
+        if (($config['program'] ?? '') !== '' && $requested === $config['program']) {
+            return programFile($requested);
+        }
+        if (in_array($requested, $config['units'], true)) {
+            return unitFile($requested);
+        }
+        fail('Source file not found in project.', 404);
+    }
+    if (($config['unit'] ?? '') !== '') {
+        return unitFile((string) $config['unit']);
+    }
+    if (($config['program'] ?? '') !== '') {
+        return programFile((string) $config['program']);
+    }
+    fail('The project has no source file.', 404);
 }
 
 function lfmString(string $value): string
@@ -697,6 +751,29 @@ HTML;
 }
 
 /**
+ * Return the program file to compile. When the program links a Windows .res
+ * file, a copy without those directives is written in preview/: pas2js does
+ * not need the resource and an imported project may not contain it.
+ */
+function previewProgramPath(string $programPath, string $previewDir, callable $write): string
+{
+    $source = file_get_contents($programPath);
+    if ($source === false) {
+        fail('Cannot read the program file.', 500);
+    }
+    if (!preg_match('/{\$R\s+[^}]*\.res\s*}/i', $source)) {
+        return $programPath;
+    }
+    $stripped = preg_replace('/{\$R\s+[^}]*\.res\s*}/i', '', $source);
+    if ($stripped === null) {
+        return $programPath;
+    }
+    $name = basename($programPath);
+    $write($name, $stripped);
+    return $previewDir . DIRECTORY_SEPARATOR . $name;
+}
+
+/**
  * RTL and search paths shared by every build.
  *
  * @return list<string>
@@ -713,6 +790,7 @@ function pas2jsPaths(string $widgetsDir, string $dir, string $previewDir): array
         '-Fi' . $widgetsDir,
         '-Fu' . $dir,
         '-Fu' . $previewDir,
+        '-Fi' . $dir,
     ];
 }
 
@@ -808,6 +886,485 @@ function previewIcon(): string
         . str_repeat("\x00", 8);
 }
 
+/**
+ * Extensions accepted by the project import. Server-side scripts are kept out
+ * because designer/projects is served by Apache.
+ *
+ * @return list<string>
+ */
+function importAllowedExtensions(): array
+{
+    return [
+        'lfm', 'pas', 'lpr', 'lpi', 'lps', 'html', 'htm', 'js', 'css', 'json',
+        'map', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'woff',
+        'woff2', 'ttf', 'eot', 'res', 'txt', 'md',
+    ];
+}
+
+function importPathIgnored(string $path): bool
+{
+    foreach (explode('/', strtolower($path)) as $part) {
+        if (in_array($part, ['backup', 'backups', '.git', '.svn', 'node_modules', '__macosx'], true)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** @return list<string>|null */
+function importEntryPath(string $name): ?string
+{
+    $name = str_replace('\\', '/', $name);
+    $name = ltrim($name, '/');
+    if ($name === '' || str_ends_with($name, '/')) {
+        return null;
+    }
+    if (strlen($name) > 240) {
+        return null;
+    }
+    $parts = explode('/', $name);
+    foreach ($parts as $part) {
+        if ($part === '' || $part === '.' || $part === '..' || strlen($part) > 120) {
+            return null;
+        }
+        if ($part[0] === '.' || rtrim($part, ' .') !== $part) {
+            return null;
+        }
+        if (!preg_match('/^[A-Za-z0-9._ -]+$/', $part)) {
+            return null;
+        }
+        if (preg_match('/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i', $part)) {
+            return null;
+        }
+    }
+    return implode('/', $parts);
+}
+
+function importEntryAllowed(string $path): bool
+{
+    $extension = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+    return $extension !== '' && in_array($extension, importAllowedExtensions(), true);
+}
+
+function removeDirectory(string $dir): void
+{
+    if (!is_dir($dir)) {
+        return;
+    }
+    try {
+        $items = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        );
+        foreach ($items as $item) {
+            if ($item->isDir()) {
+                @rmdir($item->getPathname());
+            } else {
+                @unlink($item->getPathname());
+            }
+        }
+    } catch (Throwable $error) {
+        // Best effort: leave what cannot be removed.
+    }
+    @rmdir($dir);
+}
+
+/**
+ * Choose the folder inside the ZIP that holds the project sources.
+ *
+ * @param list<array{path: string, size: int}> $entries
+ */
+function importRootPrefix(array $entries): string
+{
+    $scores = [];
+    $hasProgram = [];
+    foreach ($entries as $entry) {
+        $path = $entry['path'];
+        $slash = strrpos($path, '/');
+        $dir = $slash === false ? '' : substr($path, 0, $slash);
+        $extension = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+        if (!in_array($extension, ['lpr', 'lfm', 'pas', 'html', 'htm'], true)) {
+            continue;
+        }
+        $scores[$dir] = ($scores[$dir] ?? 0) + 1;
+        if ($extension === 'lpr') {
+            $hasProgram[$dir] = true;
+        }
+    }
+
+    if (($scores[''] ?? 0) > 0 || $scores === []) {
+        return '';
+    }
+    $top = [];
+    foreach ($scores as $dir => $score) {
+        if (!str_contains($dir, '/')) {
+            $top[$dir] = $score;
+        }
+    }
+    if (count($top) === 1) {
+        return (string) array_key_first($top) . '/';
+    }
+
+    $best = '';
+    $bestWeight = -1;
+    $bestDepth = PHP_INT_MAX;
+    foreach ($scores as $dir => $score) {
+        $weight = $score + (isset($hasProgram[$dir]) ? 100 : 0);
+        $depth = $dir === '' ? 0 : substr_count($dir, '/');
+        if ($weight > $bestWeight || ($weight === $bestWeight && $depth < $bestDepth)) {
+            $best = $dir;
+            $bestWeight = $weight;
+            $bestDepth = $depth;
+        }
+    }
+    return $best === '' ? '' : $best . '/';
+}
+
+/** @return array{program: string, html: string, output: string, manifest: string, entry: string, modules: list<string>} */
+function importProjectSettings(string $dir): array
+{
+    $settings = [
+        'program' => '',
+        'html' => '',
+        'output' => '',
+        'manifest' => '',
+        'entry' => '',
+        'modules' => [],
+    ];
+    $file = $dir . DIRECTORY_SEPARATOR . 'project.json';
+    if (!is_file($file)) {
+        return $settings;
+    }
+    $raw = (string) file_get_contents($file);
+    $raw = (string) preg_replace('/^\xEF\xBB\xBF/', '', $raw);
+    $json = json_decode($raw, true);
+    if (!is_array($json)) {
+        return $settings;
+    }
+
+    $program = trim((string) ($json['program'] ?? ''));
+    if (preg_match('/^[A-Za-z0-9_.-]+\.lpr$/', $program) && is_file($dir . DIRECTORY_SEPARATOR . $program)) {
+        $settings['program'] = $program;
+    }
+    $html = trim((string) ($json['html'] ?? ''));
+    if (preg_match('/^[A-Za-z0-9_.-]+\.html?$/i', $html) && is_file($dir . DIRECTORY_SEPARATOR . $html)) {
+        $settings['html'] = $html;
+    }
+    $output = trim((string) ($json['output'] ?? ''));
+    if (preg_match('/^[A-Za-z0-9_.-]+\.js$/i', $output)) {
+        $settings['output'] = $output;
+    }
+    $manifest = trim((string) ($json['manifest'] ?? ''));
+    if (preg_match('/^[A-Za-z0-9_.-]+\.json$/i', $manifest)) {
+        $settings['manifest'] = $manifest;
+    }
+    $entry = trim((string) ($json['entry'] ?? ''));
+    if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $entry)) {
+        $settings['entry'] = $entry;
+    }
+    if (isset($json['modules']) && is_array($json['modules'])) {
+        $modules = [];
+        foreach ($json['modules'] as $module) {
+            if (!is_string($module)) {
+                continue;
+            }
+            $module = trim($module);
+            if ($module !== '' && strlen($module) <= 1024 && !preg_match('/[\r\n]/', $module)) {
+                $modules[] = $module;
+            }
+        }
+        $settings['modules'] = array_values(array_unique($modules));
+    }
+    return $settings;
+}
+
+/** @return array{name: string, class: string}|null */
+function lfmRootInfo(string $lfm): ?array
+{
+    if (!preg_match('/^\s*(?:object|inherited)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*)/m', $lfm, $match)) {
+        return null;
+    }
+    return ['name' => $match[1], 'class' => $match[2]];
+}
+
+function lfmCaption(string $lfm): string
+{
+    if (preg_match("/^\\s*Caption\\s*=\\s*'((?:[^']|'')*)'/m", $lfm, $match)) {
+        return str_replace("''", "'", $match[1]);
+    }
+    return '';
+}
+
+function declaredUnitName(string $source): string
+{
+    if (preg_match('/^\s*unit\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/mi', $source, $match)) {
+        return $match[1];
+    }
+    return '';
+}
+
+function importFormStub(string $unitName, string $className, string $instanceName): string
+{
+    $source = <<<'PAS'
+unit {{UNIT}};
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, Forms, WebCtrls;
+
+type
+  {{CLASS}} = class(TWForm)
+  end;
+
+var
+  {{INSTANCE}}: {{CLASS}};
+
+implementation
+
+{$R *.lfm}
+
+end.
+PAS;
+    return str_replace(
+        ['{{UNIT}}', '{{CLASS}}', '{{INSTANCE}}'],
+        [$unitName, $className, $instanceName],
+        $source,
+    ) . "\n";
+}
+
+/**
+ * Infer forms, units and the entry point from the extracted files.
+ *
+ * @param array{program: string, html: string, output: string, manifest: string, entry: string, modules: list<string>} $imported
+ * @return array{config: array, warnings: list<string>}
+ */
+function inferProjectConfig(string $dir, string $id, string $name, string $kind, array $imported): array
+{
+    $warnings = [];
+    $rootFiles = [];
+    foreach (scandir($dir) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        if (is_file($dir . DIRECTORY_SEPARATOR . $entry)) {
+            $rootFiles[] = $entry;
+        }
+    }
+
+    $byExtension = ['lpr' => [], 'lfm' => [], 'pas' => [], 'html' => []];
+    foreach ($rootFiles as $file) {
+        $extension = strtolower((string) pathinfo($file, PATHINFO_EXTENSION));
+        if (isset($byExtension[$extension])) {
+            $byExtension[$extension][] = $file;
+        }
+    }
+    foreach ($byExtension as &$list) {
+        usort($list, 'strcasecmp');
+    }
+    unset($list);
+
+    $program = '';
+    if ($imported['program'] !== '' && in_array($imported['program'], $byExtension['lpr'], true)) {
+        $program = $imported['program'];
+    } elseif (count($byExtension['lpr']) === 1) {
+        $program = $byExtension['lpr'][0];
+    } elseif (count($byExtension['lpr']) > 1) {
+        $wanted = [
+            strtolower($id),
+            strtolower((string) preg_replace('/[^A-Za-z0-9_-]+/', '-', $name)),
+        ];
+        foreach ($byExtension['lpr'] as $candidate) {
+            if (in_array(strtolower((string) pathinfo($candidate, PATHINFO_FILENAME)), $wanted, true)) {
+                $program = $candidate;
+                break;
+            }
+        }
+        if ($program === '') {
+            $program = $byExtension['lpr'][0];
+        }
+        $warnings[] = 'Multiple .lpr files found; using ' . $program . '.';
+    }
+
+    $createClasses = [];
+    $programUnits = [];
+    if ($program !== '') {
+        $source = (string) file_get_contents($dir . DIRECTORY_SEPARATOR . $program);
+        preg_match_all('/Application\s*\.\s*CreateForm\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)/i', $source, $matches);
+        $createClasses = $matches[1];
+        if (preg_match('/^\s*uses\b(.*?);/ims', $source, $usesMatch)) {
+            foreach (explode(',', $usesMatch[1]) as $unit) {
+                $unit = trim($unit);
+                if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $unit)) {
+                    $programUnits[] = $unit;
+                }
+            }
+        }
+    }
+
+    $pasByBase = [];
+    foreach ($byExtension['pas'] as $file) {
+        $pasByBase[strtolower((string) pathinfo($file, PATHINFO_FILENAME))] = $file;
+    }
+
+    $forms = [];
+    $formUnits = [];
+    $formByClass = [];
+    foreach ($byExtension['lfm'] as $lfmFile) {
+        $base = (string) pathinfo($lfmFile, PATHINFO_FILENAME);
+        $unitFile = $pasByBase[strtolower($base)] ?? '';
+        $lfm = (string) file_get_contents($dir . DIRECTORY_SEPARATOR . $lfmFile);
+        $info = lfmRootInfo($lfm);
+        if ($info === null) {
+            $warnings[] = "Cannot read the root class of {$lfmFile}.";
+            continue;
+        }
+        if ($unitFile === '') {
+            $unitName = ucfirst($base);
+            $unitFile = $base . '.pas';
+            $suffix = 1;
+            while (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $unitName)
+                || isset($pasByBase[strtolower((string) preg_replace('/\.pas$/i', '', $unitFile))])
+                || is_file($dir . DIRECTORY_SEPARATOR . $unitFile)
+            ) {
+                $unitName = 'Unit' . $suffix;
+                $unitFile = $unitName . '.pas';
+                $suffix++;
+            }
+            if (file_put_contents($dir . DIRECTORY_SEPARATOR . $unitFile, importFormStub($unitName, $info['class'], $info['name'])) === false) {
+                $warnings[] = "Cannot create {$unitFile} for {$lfmFile}.";
+                continue;
+            }
+            $warnings[] = "Created {$unitFile} from {$lfmFile} (no unit found).";
+        }
+        $title = lfmCaption($lfm);
+        if ($title === '') {
+            $title = $info['class'];
+        }
+        $entry = ['form' => $lfmFile, 'unit' => $unitFile, 'title' => $title];
+        $forms[] = $entry;
+        $formUnits[strtolower($unitFile)] = true;
+        $formByClass[strtolower($info['class'])] = $entry;
+    }
+
+    $main = null;
+    foreach ($createClasses as $class) {
+        if (isset($formByClass[strtolower($class)])) {
+            $main = $formByClass[strtolower($class)];
+            break;
+        }
+    }
+    if ($main === null && $forms !== []) {
+        $main = $forms[0];
+    }
+    if ($main !== null) {
+        $forms = array_values(array_filter($forms, static fn(array $form): bool => $form['form'] !== $main['form']));
+        array_unshift($forms, $main);
+    }
+
+    $units = [];
+    foreach ($byExtension['pas'] as $file) {
+        if (!isset($formUnits[strtolower($file)])) {
+            $units[] = $file;
+        }
+    }
+
+    if ($program === '' && $forms === [] && $units === []) {
+        throw new RuntimeException('No .lpr, .lfm or .pas files found in the project root.');
+    }
+
+    $html = '';
+    if ($imported['html'] !== '' && in_array($imported['html'], $byExtension['html'], true)) {
+        $html = $imported['html'];
+    } elseif ($program !== '') {
+        $jsName = (string) preg_replace('/\.lpr$/i', '.js', $program);
+        foreach ($byExtension['html'] as $candidate) {
+            $text = (string) file_get_contents($dir . DIRECTORY_SEPARATOR . $candidate);
+            if (stripos($text, $jsName) !== false) {
+                $html = $candidate;
+                break;
+            }
+        }
+    }
+    if ($html === '' && count($byExtension['html']) === 1) {
+        $html = $byExtension['html'][0];
+    }
+
+    $entry = $imported['entry'];
+    if ($kind === 'module' && $entry === '') {
+        $declaredByFile = [];
+        $formUnitFiles = array_column($forms, 'unit');
+        foreach (array_merge($units, $formUnitFiles) as $file) {
+            $declared = declaredUnitName((string) file_get_contents($dir . DIRECTORY_SEPARATOR . $file));
+            if ($declared !== '') {
+                $declaredByFile[strtolower($declared)] = $declared;
+            }
+        }
+        foreach (array_reverse($programUnits) as $unit) {
+            if (isset($declaredByFile[strtolower($unit)])) {
+                $entry = $declaredByFile[strtolower($unit)];
+                break;
+            }
+        }
+        if ($entry === '') {
+            foreach ($units as $file) {
+                $declared = declaredUnitName((string) file_get_contents($dir . DIRECTORY_SEPARATOR . $file));
+                if ($declared !== '') {
+                    $entry = $declared;
+                    break;
+                }
+            }
+        }
+        if ($entry === '' && $forms !== []) {
+            $declared = declaredUnitName((string) file_get_contents($dir . DIRECTORY_SEPARATOR . $forms[0]['unit']));
+            if ($declared !== '') {
+                $entry = $declared;
+            }
+        }
+    }
+
+    $nested = 0;
+    try {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+            $relative = (string) substr($file->getPathname(), strlen($dir) + 1);
+            if (!str_contains($relative, DIRECTORY_SEPARATOR) && !str_contains($relative, '/')) {
+                continue;
+            }
+            if (in_array(strtolower($file->getExtension()), ['pas', 'lfm', 'lpr'], true)) {
+                $nested++;
+            }
+        }
+    } catch (Throwable $error) {
+        // A scan failure is not fatal.
+    }
+    if ($nested > 0) {
+        $warnings[] = "{$nested} nested Pascal/LFM files are kept as assets but are not part of the designer project.";
+    }
+
+    $config = [
+        'name' => $name,
+        'kind' => $kind,
+        'mainForm' => $main['form'] ?? '',
+        'forms' => $forms,
+        'units' => $units,
+        'program' => $program,
+        'html' => $html,
+        'output' => $imported['output'],
+        'manifest' => $imported['manifest'] !== '' ? $imported['manifest'] : ($kind === 'module' ? 'modules.json' : ''),
+        'entry' => $entry,
+        'modules' => $imported['modules'],
+    ];
+    return ['config' => $config, 'warnings' => $warnings];
+}
+
 function listProjects(string $projectsDir): array
 {
     $result = [];
@@ -835,7 +1392,15 @@ function listProjects(string $projectsDir): array
             // Skip broken projects instead of breaking the whole list.
         }
     }
-    usort($result, static fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+    usort($result, static function (array $a, array $b): int {
+        if ($a['id'] === 'demo' && $b['id'] !== 'demo') {
+            return -1;
+        }
+        if ($b['id'] === 'demo' && $a['id'] !== 'demo') {
+            return 1;
+        }
+        return strcasecmp($a['name'], $b['name']);
+    });
     return $result;
 }
 
@@ -910,22 +1475,14 @@ try {
                 fail('Project not found.', 404);
             }
             $config = readProject($dir, $id);
-            $requestedUnit = trim((string) ($_GET['unit'] ?? ''));
-            if ($requestedUnit !== '') {
-                if (!in_array($requestedUnit, $config['units'], true)) {
-                    fail('Unit not found in project.', 404);
-                }
-                $selectedUnit = $requestedUnit;
-            } else {
-                $selectedUnit = (string) $config['unit'];
-            }
+            $selectedUnit = projectSourceFile($config, (string) ($_GET['unit'] ?? ''));
             $file = $dir . DIRECTORY_SEPARATOR . $selectedUnit;
             if (!is_file($file)) {
-                fail('Unit file not found.', 404);
+                fail('Source file not found.', 404);
             }
             $source = file_get_contents($file);
             if ($source === false) {
-                fail('Cannot read the unit file.', 500);
+                fail('Cannot read the source file.', 500);
             }
             echo json_encode([
                 'unit' => $selectedUnit,
@@ -949,17 +1506,13 @@ try {
                 fail('Project not found.', 404);
             }
             $config = readProject($dir, $id);
-            $requestedUnit = trim((string) ($data['unit'] ?? ''));
-            if ($requestedUnit !== '' && !in_array($requestedUnit, $config['units'], true)) {
-                fail('Unit not found in project.', 404);
-            }
-            $selectedUnit = $requestedUnit !== '' ? $requestedUnit : (string) $config['unit'];
+            $selectedUnit = projectSourceFile($config, (string) ($data['unit'] ?? ''));
             $file = $dir . DIRECTORY_SEPARATOR . $selectedUnit;
             if (!is_file($file)) {
-                fail('Unit file not found.', 404);
+                fail('Source file not found.', 404);
             }
             if (file_put_contents($file, $source) === false) {
-                fail('Cannot write the unit file.', 500);
+                fail('Cannot write the source file.', 500);
             }
             echo json_encode([
                 'ok' => true,
@@ -1477,6 +2030,7 @@ try {
                     $programPath = $previewDir . DIRECTORY_SEPARATOR . $programName;
                     $write($programName, moduleProgramSource($unitNames));
                 }
+                $programPath = previewProgramPath($programPath, $previewDir, $write);
 
                 $outputName = $config['output'] !== ''
                     ? $config['output']
@@ -1567,6 +2121,7 @@ try {
                 }
                 $write($programName, previewProgram($meta['unit'], $meta['class'], $unitNames));
             }
+            $programPath = previewProgramPath($programPath, $previewDir, $write);
 
             $outputName = $config['output'] !== ''
                 ? $config['output']
@@ -1600,43 +2155,177 @@ try {
             break;
         }
 
-        case 'import': {
+        case 'deleteProject': {
             if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
                 fail('POST required.', 405);
             }
             $data = jsonBody();
-            $id = projectId((string) ($data['id'] ?? ''));
-            $lfm = $data['lfm'] ?? null;
-            $name = trim((string) ($data['name'] ?? $id));
-            if (!is_string($lfm) || trim($lfm) === '') {
-                fail('Missing LFM text.');
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
             }
-            if (!preg_match('/^\s*(object|inherited|inline)\b/', $lfm)) {
-                fail('The uploaded file does not look like an LFM form.');
+            removeDirectory($dir);
+            if (is_dir($dir)) {
+                fail('Cannot delete the project folder.', 500);
             }
+            echo json_encode([
+                'ok' => true,
+                'removed' => $id,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'importProject': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            if (!class_exists('SimpleZip')) {
+                fail('The ZIP reader is not available.', 500);
+            }
+            $id = projectId((string) ($_POST['id'] ?? ''));
+            $name = trim((string) ($_POST['name'] ?? ''));
+            if ($name === '') {
+                $name = $id;
+            }
+            $kind = strtolower(trim((string) ($_POST['kind'] ?? 'application')));
+            if (!in_array($kind, ['application', 'host', 'module'], true)) {
+                fail('Invalid project kind.');
+            }
+            $upload = $_FILES['archive'] ?? null;
+            if (!is_array($upload)) {
+                if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0 && $_POST === []) {
+                    fail('The upload exceeds the PHP post_max_size limit. Increase it or use a smaller ZIP.', 413);
+                }
+                fail('Missing ZIP archive.');
+            }
+            $uploadError = (int) ($upload['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($uploadError !== UPLOAD_ERR_OK) {
+                $messages = [
+                    UPLOAD_ERR_INI_SIZE => 'The ZIP exceeds the PHP upload_max_filesize limit.',
+                    UPLOAD_ERR_FORM_SIZE => 'The ZIP exceeds the form size limit.',
+                    UPLOAD_ERR_PARTIAL => 'The ZIP upload was interrupted.',
+                    UPLOAD_ERR_NO_FILE => 'Choose a ZIP archive.',
+                    UPLOAD_ERR_NO_TMP_DIR => 'The PHP temporary folder is missing.',
+                    UPLOAD_ERR_CANT_WRITE => 'PHP cannot write the uploaded file.',
+                    UPLOAD_ERR_EXTENSION => 'A PHP extension stopped the upload.',
+                ];
+                fail($messages[$uploadError] ?? 'Upload failed.', 400);
+            }
+            $tmp = (string) ($upload['tmp_name'] ?? '');
+            if (!is_uploaded_file($tmp)) {
+                fail('Invalid upload.');
+            }
+            $uploadSize = (int) ($upload['size'] ?? 0);
+            if ($uploadSize <= 0 || $uploadSize > 20 * 1024 * 1024) {
+                fail('The ZIP must be between 1 byte and 20 MB.', 413);
+            }
+
             $dir = projectDir($projectsDir, $id);
             if (is_dir($dir)) {
                 fail('Project already exists.', 409);
             }
             if (!mkdir($dir, 0775, true) && !is_dir($dir)) {
-                fail('Cannot create project folder.', 500);
+                fail('Cannot create the project folder.', 500);
             }
-            $config = [
-                'name' => $name !== '' ? $name : $id,
-                'mainForm' => 'unit1.lfm',
-                'forms' => [
-                    ['form' => 'unit1.lfm', 'unit' => 'unit1.pas', 'title' => 'Imported form'],
-                ],
-                'units' => [],
-            ];
-            if (file_put_contents($dir . DIRECTORY_SEPARATOR . 'unit1.lfm', $lfm) === false ||
-                file_put_contents($dir . DIRECTORY_SEPARATOR . 'project.json', json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) === false) {
-                fail('Cannot write imported project.', 500);
+
+            try {
+                $zip = SimpleZip::open($tmp);
+            } catch (Throwable $error) {
+                removeDirectory($dir);
+                fail($error->getMessage());
             }
-            echo json_encode([
-                'ok' => true,
-                'project' => $config + ['id' => $id],
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            try {
+                $entries = [];
+                $names = $zip->entries();
+                if (count($names) > 2000) {
+                    throw new RuntimeException('The ZIP has too many files.');
+                }
+                foreach ($names as $rawName) {
+                    if ($rawName === '' || str_ends_with(str_replace('\\', '/', $rawName), '/')) {
+                        continue;
+                    }
+                    $relative = importEntryPath($rawName);
+                    if ($relative === null || importPathIgnored($relative) || !importEntryAllowed($relative)) {
+                        continue;
+                    }
+                    $stat = $zip->stat($rawName);
+                    if ($stat === null) {
+                        continue;
+                    }
+                    $entries[] = [
+                        'name' => $rawName,
+                        'path' => $relative,
+                        'size' => (int) $stat['size'],
+                    ];
+                }
+                if ($entries === []) {
+                    throw new RuntimeException('No project files found in the ZIP.');
+                }
+
+                $root = importRootPrefix($entries);
+                $totalSize = 0;
+                $copied = 0;
+                $skippedSources = 0;
+                foreach ($entries as $entry) {
+                    if ($root !== '' && !str_starts_with($entry['path'], $root)) {
+                        $extension = strtolower((string) pathinfo($entry['path'], PATHINFO_EXTENSION));
+                        if (in_array($extension, ['lpr', 'lfm', 'pas'], true)) {
+                            $skippedSources++;
+                        }
+                        continue;
+                    }
+                    $relative = $root === '' ? $entry['path'] : substr($entry['path'], strlen($root));
+                    if ($relative === '') {
+                        continue;
+                    }
+                    if ($entry['size'] > 10 * 1024 * 1024) {
+                        throw new RuntimeException("{$relative} exceeds the 10 MB file limit.");
+                    }
+                    $totalSize += $entry['size'];
+                    if ($totalSize > 50 * 1024 * 1024) {
+                        throw new RuntimeException('The extracted project exceeds the 50 MB limit.');
+                    }
+                    $content = $zip->read($entry['name']);
+                    $target = $dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+                    $parent = dirname($target);
+                    if (!is_dir($parent) && !mkdir($parent, 0775, true) && !is_dir($parent)) {
+                        throw new RuntimeException("Cannot create the folder for {$relative}.");
+                    }
+                    if (file_put_contents($target, $content) === false) {
+                        throw new RuntimeException("Cannot write {$relative}.");
+                    }
+                    $copied++;
+                }
+                if ($copied === 0) {
+                    throw new RuntimeException('No project files found in the ZIP.');
+                }
+
+                $imported = importProjectSettings($dir);
+                $inferred = inferProjectConfig($dir, $id, $name, $kind, $imported);
+                if ($skippedSources > 0) {
+                    array_unshift(
+                        $inferred['warnings'],
+                        "{$skippedSources} source files outside the detected project folder were ignored.",
+                    );
+                }
+                writeProject($dir, $inferred['config']);
+                $project = readProject($dir, $id);
+                echo json_encode([
+                    'ok' => true,
+                    'project' => $project,
+                    'summary' => [
+                        'kind' => $inferred['config']['kind'],
+                        'forms' => count($inferred['config']['forms']),
+                        'units' => count($inferred['config']['units']),
+                        'program' => $inferred['config']['program'],
+                    ],
+                    'warnings' => $inferred['warnings'],
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            } catch (Throwable $error) {
+                removeDirectory($dir);
+                fail($error->getMessage(), 400);
+            }
             break;
         }
 

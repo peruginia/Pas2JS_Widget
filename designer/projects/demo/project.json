@@ -1,9 +1,20 @@
 {
-  "name": "WCL Demo",
-  "mainForm": "unit1.lfm",
-  "forms": [
-    { "form": "unit1.lfm", "unit": "unit1.pas", "title": "Components" },
-    { "form": "uLogin.lfm", "unit": "uLogin.pas", "title": "Login" }
-  ],
-  "units": []
+    "name": "WCL Demo",
+    "kind": "application",
+    "mainForm": "uLogin.lfm",
+    "forms": [
+        {
+            "form": "uLogin.lfm",
+            "unit": "uLogin.pas",
+            "title": "WCL Demo - Accesso"
+        },
+        {
+            "form": "unit1.lfm",
+            "unit": "unit1.pas",
+            "title": "WCL Component Demo"
+        }
+    ],
+    "units": [],
+    "program": "project1.lpr",
+    "html": "project1.html"
 }

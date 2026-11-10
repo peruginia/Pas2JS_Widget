@@ -94,7 +94,7 @@ procedure TFormLogin.DoLogin; async;
 const
   /// Relative URL: it works when the page is served by PHP (php -S).
   /// On static hosting the request fails and the demo/demo fallback kicks in.
-  API_LOGIN = 'api.php?cmd=Login';
+  API_LOGIN = 'https://www.perugini.it/ExWidget/api.php?cmd=Login';
 var
   VBase, VPass, VText, VUser, VName: string;
   VOk: Boolean;

@@ -22,7 +22,7 @@
       <label for="formSelect" class="sr-only">Form</label>
       <select id="formSelect"></select>
       <button id="reloadBtn" type="button">Reload</button>
-      <button id="saveBtn" type="button">Save</button>
+      <button id="saveBtn" type="button" title="Save all unsaved forms and units">Save all</button>
       <label for="previewMode" class="sr-only">Preview target</label>
       <select id="previewMode" title="What Preview builds">
         <option value="project">Project</option>
@@ -30,8 +30,7 @@
       </select>
       <button id="previewBtn" type="button" title="Build and run the project or the selected form">Preview</button>
       <button id="projectBtn" type="button">Project…</button>
-      <button id="importBtn" type="button">Import .lfm</button>
-      <input id="importFile" type="file" accept=".lfm" hidden>
+      <button id="importBtn" type="button" title="Import a project from a ZIP archive">Import project…</button>
     </div>
     <div id="status" class="status">Starting...</div>
   </header>
@@ -57,9 +56,9 @@
         <div id="canvas" class="canvas"></div>
         <div id="sourceView" class="source-view hidden-view">
           <div class="source-head">
-            <span id="sourceName">unit1.pas</span>
+            <span id="sourceName">No source</span>
             <span id="sourceStatus" class="source-status"></span>
-            <button id="sourceSaveBtn" type="button" title="Save the unit; also saves the form when it has changes">Save</button>
+            <button id="sourceSaveBtn" type="button" title="Save the source file; also saves the form when it has changes">Save</button>
             <button id="sourceReloadBtn" type="button">Reload</button>
           </div>
           <div class="source-editor-wrap">
@@ -84,7 +83,10 @@
     <div class="dialog-section">
       <div class="dialog-title">
         <span>Settings</span>
-        <button id="saveSettingsBtn" type="button">Save</button>
+        <span class="dialog-title-actions">
+          <button id="deleteProjectBtn" type="button" class="dialog-danger" title="Delete the project and all its files">Delete project</button>
+          <button id="saveSettingsBtn" type="button">Save</button>
+        </span>
       </div>
       <div class="dialog-form settings-form">
         <label class="dialog-field">
@@ -125,6 +127,12 @@
         </label>
         <p class="dialog-hint host-only">One module manifest per line.</p>
       </div>
+    </div>
+    <div class="dialog-section">
+      <div class="dialog-title">
+        <span>Program</span>
+      </div>
+      <ul id="dialogProgram" class="dialog-list"></ul>
     </div>
     <div class="dialog-section">
       <div class="dialog-title">
@@ -177,6 +185,41 @@
     </div>
   </dialog>
 
+  <dialog id="importDialog" class="project-dialog">
+    <div class="dialog-head">
+      <h2>Import project</h2>
+      <button id="importCloseBtn" type="button">Close</button>
+    </div>
+    <div class="dialog-section">
+      <div class="dialog-form">
+        <label class="dialog-field">
+          <span>ZIP file</span>
+          <input id="importArchive" type="file" accept=".zip,application/zip">
+        </label>
+        <label class="dialog-field">
+          <span>Name</span>
+          <input id="importName" type="text" placeholder="Project name">
+        </label>
+        <label class="dialog-field">
+          <span>Folder id</span>
+          <input id="importId" type="text" placeholder="folder-id">
+        </label>
+        <label class="dialog-field">
+          <span>Type</span>
+          <select id="importKind">
+            <option value="application">Application</option>
+            <option value="host">Host application</option>
+            <option value="module">Module</option>
+          </select>
+        </label>
+        <p id="importHint" class="dialog-hint"></p>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button id="importCreateBtn" type="button" class="dialog-primary">Import</button>
+    </div>
+  </dialog>
+
   <dialog id="previewDialog" class="preview-dialog">
     <div class="dialog-head">
       <h2 id="previewTitle">Preview</h2>
@@ -198,6 +241,7 @@
     <pre id="buildOutput" class="build-output"></pre>
   </dialog>
 
+  <script src="config.js"></script>
   <script type="module" src="assets/app.js"></script>
 </body>
 </html>

@@ -946,6 +946,22 @@ body.dragging {
   text-transform: uppercase;
 }
 
+.dialog-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dialog-danger {
+  border-color: #e0a3a0 !important;
+  color: #b00020 !important;
+}
+
+.dialog-danger:hover {
+  border-color: #b00020 !important;
+  background: #fdecea !important;
+}
+
 .dialog-list {
   display: flex;
   flex-direction: column;
@@ -964,6 +980,11 @@ body.dragging {
   border-radius: 4px;
   background: #fff;
   font-size: 12px;
+}
+
+.dialog-list li.empty {
+  color: var(--muted);
+  font-style: italic;
 }
 
 .dialog-list .name {

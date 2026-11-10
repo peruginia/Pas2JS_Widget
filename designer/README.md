@@ -10,10 +10,14 @@ drag & drop, moving/resizing on the canvas, tree/list item editing, the
 
 ## Requirements
 
-- Apache + PHP 8 (XAMPP is fine)
-- A project folder served by Apache
-- The pas2js compiler: set the `PAS2JS` environment variable to its path, or
-  use the default `C:\lazarus\pas2js\bin\x86_64-win64\pas2js.exe`
+- Apache + PHP 8 on the **API server** (XAMPP is fine)
+- The API server serves `designer/projects` and can write to it
+- The pas2js compiler on the API server: set the `PAS2JS` environment variable
+  to its path, or use the default
+  `C:\lazarus\pas2js\bin\x86_64-win64\pas2js.exe`
+- A static web server for `index.html`, `assets/`, `manifest/` and `config.js`
+  (the same Apache folder is fine; see
+  [Frontend and API on different servers](#frontend-and-api-on-different-servers))
 - Optional: Node.js only for the LFM parser tests
 
 The current XAMPP setup exposes this folder as:
@@ -57,17 +61,55 @@ Make sure `designer/projects` is writable by Apache.
   editor; the canvas preview shows the tree nodes and list rows.
 - Saves the generated LFM back through `api.php` and synchronises the unit of
   the selected form.
-- Shows and edits the `.pas` unit of the selected form in a **Source** tab;
-  component fields and event handlers can be reached from the tree and the
-  inspector.
+- Shows and edits the project sources in a **Source** tab: the selected form's
+  unit, extra units and the project program (`.lpr`); component fields and
+  event handlers can be reached from the tree and the inspector.
 - Creates application, host application and module projects.
 - Builds the whole project (or the selected form) with pas2js and runs it in a
   preview dialog.
-- Imports an existing `.lfm` as a new project.
+- Imports a project from a ZIP archive (LFM, PAS, LPR, HTML and assets).
 
 Unknown properties, collections (`Columns = <...>`), string lists and binary
 properties the designer does not decode are preserved as raw text, so saving a
 form does not drop data the designer does not understand yet.
+
+## Frontend and API on different servers
+
+`index.html`, `assets/` and `config.js` are a static frontend; `api.php` and
+its folders run on the API server. To publish the frontend on GitHub Pages or
+another static host:
+
+1. copy `index.html`, `assets/`, `manifest/` and `config.js` to the static
+   host;
+2. set `apiBase` in `config.js` to the full URL of `api.php`, for example
+   `https://example.com/Editor/api.php`;
+3. optionally set `previewBase` to the folder that serves `designer/projects/`.
+   By default the preview is resolved next to `api.php`;
+4. serve `designer/projects/` from the API server: the browser loads the
+   generated preview page and its scripts directly from there;
+5. allow the frontend origin with `WCL_CORS_ORIGINS` (comma-separated origins)
+   or leave it empty to accept any origin. Use the origin only, without the
+   repository path: `https://user.github.io`, not
+   `https://user.github.io/repo/`;
+6. use HTTPS on both sides: an HTTPS frontend cannot call an HTTP API.
+
+The API server needs PHP 8, `zlib`, the `widgets/` folder and pas2js; the
+static host needs none of them.
+
+Apache example:
+
+```apache
+SetEnv WCL_CORS_ORIGINS "https://user.github.io"
+```
+
+`api.php` answers `OPTIONS` preflights and sends the CORS headers. The preview
+is a separate static document loaded from the API server; do not block it with
+`X-Frame-Options` if you use the preview dialog.
+
+CORS is not authentication. Anyone who can reach `api.php` can read, change,
+delete projects and run pas2js. Use it on a trusted network or protect it with
+a reverse proxy or HTTP authentication: a public static frontend cannot keep
+an API secret.
 
 ## Projects
 
@@ -109,14 +151,17 @@ A project is a folder in `designer/projects/<id>/` with a `project.json`:
   is accepted and normalized automatically.
 
 A project may have no forms (a module or a unit-only project): the form
-selector shows **No form**, the canvas is empty and the Source tab opens the
-units.
+selector shows **No form** and the project opens directly in the Source tab, on
+the entry unit when one is configured (or the first unit).
 
-The toolbar shows the project selector and the form selector. Switching forms
-discards unsaved changes after a confirmation; the component tree, canvas and
-Source tab follow the selected form. Save writes the selected LFM and
-synchronises the selected form's unit; in a project without forms it saves the
-open unit.
+The built-in **demo** project is listed first and opened at startup; it
+contains the Components and Login forms.
+
+The toolbar shows the project selector and the form selector. The component
+tree, canvas and Source tab follow the selected form. Moving between forms and
+units keeps the changes in memory; **Save all** writes every modified LFM and
+unit. Unsaved changes are discarded only when you switch project or reload,
+after a confirmation.
 
 The **New project…** button asks for a name, a folder id and a type:
 
@@ -127,11 +172,15 @@ The **New project…** button asks for a name, a folder id and a type:
 - **Module** creates `module1.pas` with a `TModule1.Register` skeleton and a
   `project1.lpr` stub, compiled with `-Jc-`.
 
+The **Import project…** button imports an existing project from a ZIP archive
+(see below).
+
 The **Project…** button opens a dialog with:
 
 - **Settings**: name, type, program, HTML and output; modules also have the
   entry unit and the manifest, hosts have the module manifest list (one per
-  line);
+  line). **Delete project** removes the whole project folder;
+- **Program** opens the `.lpr` configured in Settings in the Source tab;
 - **Forms**/**Units**:
   - **New form** creates `unitN.lfm` + `unitN.pas` (`TFormN` / `FormN`), adds
     them to the project and opens the new form;
@@ -141,6 +190,57 @@ The **Project…** button opens a dialog with:
   - **Remove** deletes the entry from `project.json`; with **Also delete files**
     checked it also deletes the LFM/unit file. The last form cannot be removed;
   - form units are listed as `form` and are removed together with their form.
+
+## Unsaved changes
+
+Moving between forms, units and the Design/Source tabs never saves or discards
+anything. Modified forms and source files stay in memory:
+
+- the toolbar **Save all** writes every modified LFM and source file (Ctrl+S
+  outside the source editor does the same); forms are saved after their units,
+  so the `.pas` synchronisation sees the latest unit text;
+- the Source **Save** (or Ctrl+S in the editor) writes the current source file
+  and writes its form when the form is modified;
+- switching project or pressing **Reload** discards all unsaved changes after a
+  confirmation; deleting a form or unit warns when it has unsaved changes;
+- the browser warns before closing the page while something is unsaved.
+
+Changes live in the browser: a page reload without the prompt (for example a
+crash) loses them.
+
+## Importing a project
+
+**Import project…** takes a ZIP of the project folder (LFM, PAS, LPR, LPI,
+HTML, JS, CSS, images, fonts and `.res`). It asks for the folder id, the name
+and the project type; the type is not guessed because host and application
+projects look alike.
+
+- The ZIP is limited to 20 MB, 2000 files, 10 MB per file and 50 MB
+  uncompressed. Files inside `backup/`, `backups/`, `.git/`, `node_modules/`
+  and `__MACOSX/` are skipped.
+- If the archive has a single top-level folder, it becomes the project root;
+  asset subfolders are preserved.
+- The program is the `.lpr` (preferring one matching the project name when
+  there are several). The main form is the first `Application.CreateForm` in
+  the program; otherwise the first form.
+- Every `.lfm` becomes a form with the `.pas` of the same name; when the unit
+  is missing a stub with the LFM class and `{$R *.lfm}` is created. The form
+  title comes from the LFM `Caption`.
+- Other `.pas` files become project units. For a module, `entry` is the last
+  project unit in the program `uses` clause (falling back to the first unit).
+- An HTML file that references the compiled JS becomes `html`. A `project.json`
+  already in the archive keeps its program, HTML, output, manifest, entry and
+  module list when those values are valid.
+- Only the whitelisted extensions are written. Server-side files (`.php`,
+  `.phtml`, `.phar`, `.htaccess`, `.ini`, ...) and paths with `..` or absolute
+  names are rejected, because the project folder is served by Apache.
+- Nested `.pas`/`.lfm`/`.lpr` files are copied as assets but are not part of
+  the designer project: the project model keeps forms and units flat.
+- Warnings (multiple programs, generated units, ignored nested sources) are
+  reported in the status line and its tooltip.
+
+The importer uses an internal ZIP reader, so the PHP `zip` extension is not
+required; only `zlib` is used for deflate entries.
 
 ## Build and preview
 
@@ -163,11 +263,13 @@ dialog. The selector next to it chooses the target:
 
 The build then:
 
-- writes unsaved form and unit changes first, so the preview matches the
-  designer;
+- writes all unsaved changes first, so the preview matches the designer;
 - requires form units to link their resource with `{$R *.lfm}` (the template
   used by **New form** does); a missing directive is reported instead of
   opening an empty form;
+- compiles a copy of the program without `{$R ...res}` directives when the
+  program links a Windows resource file: the browser build does not need it and
+  an imported project may not contain the `.res`;
 - runs pas2js with the runtime `widgets` folder and the project folder on its
   unit path, so the project units can use each other;
 - resolves relative paths in the form (images, URLs) against the project
@@ -210,34 +312,47 @@ runtime code.
 
 ## Source view
 
-The **Design / Source** switch in the canvas header shows the `.pas` unit
-declared in `project.json` next to the form:
+The **Design / Source** switch in the canvas header shows a source file of the
+project: the selected form's `.pas` unit, an extra unit, or the program
+(`.lpr`) opened from the **Program** section of the Project dialog.
 
-- the source is loaded on demand with the `unit` API action and rendered in a
-  text editor with a line-number gutter;
+- the source is loaded on demand with the `unit` API action (which also serves
+  the configured program) and rendered in a text editor with a line-number
+  gutter;
 - selecting a component in the component tree scrolls to its field
-  declaration;
+  declaration when the form's unit is shown;
 - event properties (`OnClick`, `OnChange`, ...) have a **{ }** button that
   opens the source at the handler implementation;
 - the same rows have a **+** button that creates the handler skeleton: the
   declaration in the form class and the implementation at the end of the
   unit. When the property is empty it also assigns a unique name such as
   `Button1Click`. This covers `TNotifyEvent` handlers (`Sender: TObject`);
-  events with other signatures must be written by hand. The unit is left
+  events with other signatures must be written by hand. The source is left
   modified; saving it (or the form) persists both the unit and the event
   association;
-- the pane is always editable: **Save** (or Ctrl+S) writes the unit with the
-  `saveUnit` API action; if the form has unsaved changes (for example a new
-  event association) it also writes the LFM, so the two files stay in sync.
-  The status shows "Modified" until the text is saved, and the original line
-  endings are preserved;
+- the pane is always editable: **Save** (or Ctrl+S) writes the source file
+  with the `saveUnit` API action; if the form has unsaved changes (for example
+  a new event association) it also writes the LFM, so the two files stay in
+  sync. The status shows "Modified" until the text is saved, and the original
+  line endings are preserved;
 - switching between Design and Source keeps the editor content, caret,
   selection and scroll position (and returns the focus to the editor);
   **Reload** re-reads the file (asking before discarding unsaved changes), and
   a save or project reload refreshes it automatically;
-- **F12** toggles between the form and the unit. Browsers that reserve F12 for
-  the developer tools also accept **Ctrl+`**. The Design/Source buttons show
-  the same switch.
+- **F12** toggles between the form and the source. Browsers that reserve F12
+  for the developer tools also accept **Ctrl+`**. The Design/Source buttons
+  show the same switch.
+
+The project program is the place for initialization order, command-line-style
+setup and application options, for example:
+
+```pascal
+Application.Initialize;
+Application.ViewportMode := vmResponsive;
+Application.ViewportFit := True;
+Application.CreateForm(TForm1, Form1);
+Application.Run;
+```
 
 ## Properties
 
@@ -327,9 +442,11 @@ that could not be located).
 ```text
 designer/
   index.html              designer shell
+  config.js               API/preview base for static deployments
   api.php                 projects/forms/units/build API
   lib/PasSync.php         add-only .pas field/uses synchronisation
   lib/ModuleManifest.php  modules.json generation for -Jc- builds
+  lib/SimpleZip.php       internal ZIP reader used by the project import
   assets/lfm.js           LFM parser + writer
   assets/lfm-binary.js    tree/list binary item codecs
   assets/app.js           palette, tree, canvas, inspector
@@ -343,7 +460,10 @@ designer/
 
 ## API
 
-All responses are JSON.
+All responses are JSON. The API answers `OPTIONS` preflights and sends CORS
+headers; set `WCL_CORS_ORIGINS` on the server to restrict the allowed origins
+(empty means any origin). See
+[Frontend and API on different servers](#frontend-and-api-on-different-servers).
 
 | Action | Method | Parameters |
 |---|---|---|
@@ -358,19 +478,27 @@ All responses are JSON.
 | `deleteUnit` | POST | JSON `{ "project": "<id>", "unit": "<pas>", "deleteFile": true }` |
 | `createProject` | POST | JSON `{ "id": "<id>", "name": "...", "kind": "application\|host\|module" }` |
 | `updateProject` | POST | JSON `{ "project": "<id>", "settings": { "name": "...", "kind": "...", "program": "...", "html": "...", "output": "...", "entry": "...", "manifest": "...", "modules": ["..."] } }` |
+| `deleteProject` | POST | JSON `{ "project": "<id>" }` |
 | `build` | POST | JSON `{ "project": "<id>", "mode": "project\|form", "form": "<lfm>" }` |
-| `import` | POST | JSON `{ "id": "...", "name": "...", "lfm": "..." }` |
+| `importProject` | POST | multipart `id`, `name`, `kind` and `archive` (ZIP file) |
 
 `load` uses `mainForm` when `form` is omitted; `unit` uses the main form's unit
-when `unit` is omitted. A project without forms returns `form: null` and an
-empty `lfm`. `save` returns `ok`, `form`, `unit`, `bytes`, `pasChanged` and
-`warnings`. The `formClass` and `components` fields are optional; when they are
-omitted the `.pas` file is not touched.
+(or the program in a project without units) when `unit` is omitted. `unit` and
+`saveUnit` accept a form unit, an extra unit or the configured `program`
+(`.lpr`). A project without forms returns `form: null` and an empty `lfm`.
+`save` returns `ok`, `form`, `unit`, `bytes`, `pasChanged` and `warnings`. The
+`formClass` and `components` fields are optional; when they are omitted the
+`.pas` file is not touched.
 
 `build` returns `ok`, `url`, `kind`, `program` and `output`; a module build also
 returns `manifest`, and form mode returns `form`, `unit` and `formClass`. When
 the compiler fails, `ok` is `false` and `output` contains the compiler log (or
 the reason the build could not start).
+
+`deleteProject` removes the whole project folder (forms, units, preview and
+assets). `importProject` returns `ok`, `project`, `summary` (kind, forms,
+units, program) and `warnings`; the project folder is created only after the
+ZIP has been validated.
 
 ## Tests
 

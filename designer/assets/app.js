@@ -38,6 +38,8 @@ const state = {
   sourceCaret: { start: 0, end: 0 },
   sourceScrollTop: 0,
   dirty: false,
+  formCache: new Map(),
+  unitCache: new Map(),
 };
 
 const els = {
@@ -54,8 +56,15 @@ const els = {
   newProjectHint: document.getElementById('newProjectHint'),
   newProjectCreateBtn: document.getElementById('newProjectCreateBtn'),
   newProjectCloseBtn: document.getElementById('newProjectCloseBtn'),
+  importDialog: document.getElementById('importDialog'),
+  importArchive: document.getElementById('importArchive'),
+  importName: document.getElementById('importName'),
+  importId: document.getElementById('importId'),
+  importKind: document.getElementById('importKind'),
+  importHint: document.getElementById('importHint'),
+  importCreateBtn: document.getElementById('importCreateBtn'),
+  importCloseBtn: document.getElementById('importCloseBtn'),
   projectBtn: document.getElementById('projectBtn'),
-  importFile: document.getElementById('importFile'),
   importBtn: document.getElementById('importBtn'),
   status: document.getElementById('status'),
   palette: document.getElementById('palette'),
@@ -84,6 +93,7 @@ const els = {
   projectDialog: document.getElementById('projectDialog'),
   dialogForms: document.getElementById('dialogForms'),
   dialogUnits: document.getElementById('dialogUnits'),
+  dialogProgram: document.getElementById('dialogProgram'),
   settingName: document.getElementById('settingName'),
   settingKind: document.getElementById('settingKind'),
   settingProgram: document.getElementById('settingProgram'),
@@ -93,6 +103,7 @@ const els = {
   settingManifest: document.getElementById('settingManifest'),
   settingModules: document.getElementById('settingModules'),
   saveSettingsBtn: document.getElementById('saveSettingsBtn'),
+  deleteProjectBtn: document.getElementById('deleteProjectBtn'),
   newFormBtn: document.getElementById('newFormBtn'),
   newUnitBtn: document.getElementById('newUnitBtn'),
   projectCloseBtn: document.getElementById('projectCloseBtn'),
@@ -141,12 +152,33 @@ const fallbackDefaults = {
   TWTimeEditBox: { width: 120, height: 28 },
 };
 
-async function api(action, params = {}, body = null) {
-  const url = new URL('api.php', window.location.href);
+function apiEndpoint() {
+  const configured = String(window.WCL_CONFIG?.apiBase || '').trim();
+  return new URL(configured !== '' ? configured : 'api.php', window.location.href);
+}
+
+function apiUrl(action, params = {}) {
+  const url = new URL(apiEndpoint().href);
   url.searchParams.set('action', action);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
+  return url;
+}
+
+function previewUrl(relative) {
+  const configured = String(window.WCL_CONFIG?.previewBase || '').trim();
+  let base;
+  if (configured !== '') {
+    base = new URL(configured.endsWith('/') ? configured : `${configured}/`, window.location.href);
+  } else {
+    base = new URL('.', apiEndpoint());
+  }
+  return new URL(relative, base);
+}
+
+async function api(action, params = {}, body = null) {
+  const url = apiUrl(action, params);
   const options = body === null ? {} : {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -163,17 +195,64 @@ async function api(action, params = {}, body = null) {
 function setStatus(message, error = false) {
   els.status.textContent = message;
   els.status.classList.toggle('error', error);
+  els.status.title = '';
 }
 
 function setDirty(value) {
   state.dirty = value;
-  els.save.classList.toggle('dirty', value);
-  document.title = `${value ? '● ' : ''}WCL Designer`;
+  updateSaveIndicator();
+}
+
+function hasUnsavedChanges() {
+  return state.dirty || state.sourceDirty || state.formCache.size > 0 || state.unitCache.size > 0;
+}
+
+function updateSaveIndicator() {
+  const dirty = hasUnsavedChanges();
+  els.save.classList.toggle('dirty', dirty);
+  document.title = `${dirty ? '● ' : ''}WCL Designer`;
 }
 
 function markDirty() {
-  setDirty(true);
+  state.dirty = true;
+  updateSaveIndicator();
   setStatus('Modified');
+}
+
+function stashCurrentForm() {
+  if (!state.currentForm) return;
+  if (state.dirty) {
+    state.formCache.set(state.currentForm.form, {
+      roots: state.roots,
+      activeTabs: new Map(state.activeTabs),
+    });
+  } else {
+    state.formCache.delete(state.currentForm.form);
+  }
+}
+
+function stashCurrentUnit() {
+  if (!state.currentUnit || state.source === null) return;
+  if (state.view === 'source') rememberSourcePosition();
+  if (state.sourceDirty) {
+    state.unitCache.set(state.currentUnit, {
+      text: sourceText(),
+      baseline: state.source,
+      eol: state.sourceEol,
+      caret: { ...state.sourceCaret },
+      scrollTop: state.sourceScrollTop,
+    });
+  } else {
+    state.unitCache.delete(state.currentUnit);
+  }
+}
+
+function discardAllChanges() {
+  state.formCache.clear();
+  state.unitCache.clear();
+  state.dirty = false;
+  state.sourceDirty = false;
+  updateSaveIndicator();
 }
 
 function escapeRegExp(text) {
@@ -259,20 +338,18 @@ async function ensureFormUnit() {
   const unitName = state.currentForm ? state.currentForm.unit : '';
   if (!unitName) return false;
   if (state.currentUnit === unitName && state.source !== null) return true;
-  if (state.currentUnit !== unitName && state.sourceDirty) {
-    await saveSource();
-    if (state.sourceDirty) return false;
-  }
+  stashCurrentUnit();
   state.currentUnit = unitName;
   state.source = null;
   state.sourceTarget = null;
+  state.sourceDirty = false;
   await loadSource(true);
   return state.source !== null;
 }
 
 async function loadSource(force = false) {
   if (!state.project) {
-    els.sourceName.textContent = 'No unit';
+    els.sourceName.textContent = 'No source';
     els.sourceStatus.textContent = 'Select a project.';
     els.sourceEditor.value = '';
     els.sourceGutter.textContent = '';
@@ -280,16 +357,35 @@ async function loadSource(force = false) {
     return;
   }
   if (!currentUnitName()) {
-    els.sourceName.textContent = 'No unit';
-    els.sourceStatus.textContent = 'The project has no unit.';
+    els.sourceName.textContent = 'No source';
+    els.sourceStatus.textContent = 'The project has no source file.';
     els.sourceEditor.value = '';
     els.sourceGutter.textContent = '';
     state.source = null;
     state.sourceDirty = false;
+    updateSaveIndicator();
     return;
   }
   els.sourceName.textContent = currentUnitName() || 'unit';
   if (state.source !== null && !force) {
+    return;
+  }
+  const unitName = currentUnitName();
+  const cached = state.unitCache.get(unitName);
+  if (cached) {
+    state.unitCache.delete(unitName);
+    state.sourceEol = cached.eol || '\n';
+    state.source = cached.baseline;
+    state.sourceDirty = true;
+    state.sourceCaret = cached.caret || { start: 0, end: 0 };
+    state.sourceScrollTop = cached.scrollTop || 0;
+    els.sourceEditor.value = cached.text;
+    updateSourceGutter();
+    updateSourceStatus();
+    updateSaveIndicator();
+    const hadTarget = !!state.sourceTarget;
+    applySourceNavigation({ focus: hadTarget });
+    if (!hadTarget) focusSourceEditor({ restore: true });
     return;
   }
   els.sourceStatus.textContent = 'Loading...';
@@ -302,6 +398,7 @@ async function loadSource(force = false) {
     els.sourceEditor.value = state.source;
     updateSourceGutter();
     updateSourceStatus();
+    updateSaveIndicator();
     const hadTarget = !!state.sourceTarget;
     applySourceNavigation({ focus: hadTarget });
     if (!hadTarget) focusSourceEditor();
@@ -311,6 +408,7 @@ async function loadSource(force = false) {
     els.sourceEditor.value = '';
     els.sourceGutter.textContent = '';
     els.sourceStatus.textContent = error.message;
+    updateSaveIndicator();
   }
 }
 
@@ -319,6 +417,7 @@ function onSourceInput() {
   state.sourceDirty = sourceText() !== state.source;
   updateSourceGutter();
   updateSourceStatus();
+  updateSaveIndicator();
 }
 
 async function saveSource({ saveForm = false } = {}) {
@@ -337,8 +436,10 @@ async function saveSource({ saveForm = false } = {}) {
     const result = await api('saveUnit', {}, { project: state.project.id, unit: currentUnitName(), source: text });
     state.source = sourceText();
     state.sourceDirty = false;
+    state.unitCache.delete(currentUnitName());
     updateSourceStatus();
-    setStatus(`Unit saved (${result.bytes} bytes)`);
+    updateSaveIndicator();
+    setStatus(`Source saved (${result.bytes} bytes)`);
     if (saveForm && state.dirty) {
       // The form may hold the event association that was just generated;
       // saving the unit alone would leave the LFM without it.
@@ -347,6 +448,103 @@ async function saveSource({ saveForm = false } = {}) {
   } catch (error) {
     els.sourceStatus.textContent = error.message;
     setStatus(error.message, true);
+  }
+}
+
+async function saveCachedUnit(unit) {
+  const cache = state.unitCache.get(unit);
+  if (!cache) return;
+  const text = cache.text.split('\n').join(cache.eol || '\n');
+  const result = await api('saveUnit', {}, { project: state.project.id, unit, source: text });
+  state.unitCache.delete(unit);
+  if (state.currentUnit === unit) {
+    state.source = cache.text;
+    state.sourceDirty = false;
+    updateSourceStatus();
+  }
+  updateSaveIndicator();
+  return result;
+}
+
+async function saveAll() {
+  if (!state.project) {
+    setStatus('No project selected.', true);
+    return false;
+  }
+  stashCurrentUnit();
+  stashCurrentForm();
+  if (!hasUnsavedChanges()) {
+    setStatus('No changes to save.');
+    return true;
+  }
+
+  const unitCount = state.unitCache.size;
+  const formCount = state.formCache.size;
+  const warnings = [];
+  const syncedUnits = new Set();
+  els.save.disabled = true;
+  setStatus('Saving...');
+  try {
+    const sourceFiles = new Set(
+      [...(state.project.units || []), state.project.program].filter(Boolean),
+    );
+    for (const unit of [...state.unitCache.keys()]) {
+      if (!sourceFiles.has(unit)) {
+        state.unitCache.delete(unit);
+        continue;
+      }
+      await saveCachedUnit(unit);
+    }
+    for (const formFile of [...state.formCache.keys()]) {
+      const cache = state.formCache.get(formFile);
+      const formEntry = state.forms.find((entry) => entry.form === formFile);
+      if (!formEntry) {
+        state.formCache.delete(formFile);
+        continue;
+      }
+      const lfm = writeLfm(cache.roots);
+      const formClass = cache.roots[0] ? cache.roots[0].className : '';
+      const components = collectComponents(cache.roots, false);
+      const result = await api('save', {}, {
+        project: state.project.id,
+        form: formFile,
+        lfm,
+        formClass,
+        components,
+      });
+      state.formCache.delete(formFile);
+      if (result.warnings && result.warnings.length > 0) {
+        warnings.push(...result.warnings);
+      }
+      syncedUnits.add(formEntry.unit);
+    }
+
+    state.dirty = false;
+    state.sourceDirty = false;
+    if (syncedUnits.has(state.currentUnit)) {
+      // Saving a form may have synchronized its unit on disk.
+      state.source = null;
+      if (state.view === 'source') {
+        await loadSource(true);
+      }
+    } else {
+      updateSourceStatus();
+    }
+    updateSaveIndicator();
+
+    const total = unitCount + formCount;
+    let message = `Saved ${total} file${total === 1 ? '' : 's'}`;
+    if (warnings.length > 0) {
+      message += `; ${warnings.join('; ')}`;
+    }
+    setStatus(message, warnings.length > 0);
+    return true;
+  } catch (error) {
+    updateSaveIndicator();
+    setStatus(error.message, true);
+    return false;
+  } finally {
+    els.save.disabled = false;
   }
 }
 
@@ -2578,7 +2776,35 @@ function renderAll() {
   renderTree();
   renderCanvas();
   renderInspector();
+}
+
+function clearProjectView() {
+  state.project = null;
+  state.forms = [];
+  state.currentForm = null;
+  state.currentUnit = '';
+  state.roots = [];
+  state.selected = null;
+  state.activeTabs.clear();
+  state.source = null;
+  state.sourceTarget = null;
+  state.sourceDirty = false;
+  state.dirty = false;
+  state.formCache.clear();
+  state.unitCache.clear();
+  els.project.value = '';
+  els.form.innerHTML = '';
+  els.form.disabled = true;
+  els.sourceEditor.value = '';
+  els.sourceGutter.textContent = '';
+  els.sourceName.textContent = 'No source';
+  els.sourceStatus.textContent = '';
+  renderAll();
   setDirty(false);
+  els.canvas.textContent = 'No project selected.';
+  els.formTitle.textContent = 'No form';
+  els.tree.textContent = 'No project selected.';
+  els.inspector.textContent = 'Select a component.';
 }
 
 async function loadProjects(loadFirst = true) {
@@ -2592,7 +2818,8 @@ async function loadProjects(loadFirst = true) {
     els.project.appendChild(option);
   }
   if (state.projects.length === 0) {
-    setStatus('No projects found. Import an .lfm file.', true);
+    clearProjectView();
+    setStatus('No projects found. Create or import a project.', true);
     return;
   }
   if (loadFirst) {
@@ -2623,12 +2850,8 @@ function renderFormSelect() {
 async function loadForm(formName) {
   if (!state.project || !formName) return;
   if (state.currentForm && state.currentForm.form === formName) return;
-  if (state.dirty || state.sourceDirty) {
-    if (!window.confirm('Discard the unsaved changes?')) {
-      if (state.currentForm) els.form.value = state.currentForm.form;
-      return;
-    }
-  }
+  stashCurrentForm();
+  stashCurrentUnit();
   await loadProject(state.project.id, formName);
 }
 
@@ -2701,8 +2924,31 @@ async function saveProjectSettings() {
 function renderProjectDialog() {
   els.dialogForms.innerHTML = '';
   els.dialogUnits.innerHTML = '';
+  els.dialogProgram.innerHTML = '';
   if (!state.project) return;
   renderProjectSettings();
+
+  if (state.project.program) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = state.project.program;
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = 'program';
+    const open = dialogButton('Open', 'Open the program in the Source tab');
+    open.addEventListener('click', async () => {
+      closeProjectDialog();
+      await openUnit(state.project.program);
+    });
+    li.append(name, meta, open);
+    els.dialogProgram.appendChild(li);
+  } else {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = 'No program configured (set Program in Settings).';
+    els.dialogProgram.appendChild(li);
+  }
 
   const formUnits = new Set(state.forms.map((form) => form.unit));
 
@@ -2811,10 +3057,14 @@ async function createNewProject() {
     setStatus('Project name and folder id are required.', true);
     return;
   }
+  if (hasUnsavedChanges() && !window.confirm('Discard all unsaved changes in the current project?')) {
+    return;
+  }
   els.newProjectCreateBtn.disabled = true;
   try {
     const result = await api('createProject', {}, { id, name, kind: els.newProjectKind.value });
     closeDialog(els.newProjectDialog);
+    discardAllChanges();
     await loadProjects(false);
     els.project.value = result.project.id;
     await loadProject(result.project.id);
@@ -2843,13 +3093,9 @@ async function buildPreview() {
   if (mode === 'form' && !state.currentForm) {
     mode = 'project';
   }
-  if (state.sourceDirty) {
-    await saveSource();
-    if (state.sourceDirty) return;
-  }
-  if (state.dirty) {
-    await saveProject();
-    if (state.dirty) return;
+  if (hasUnsavedChanges()) {
+    const saved = await saveAll();
+    if (!saved) return;
   }
 
   const form = state.currentForm;
@@ -2865,7 +3111,7 @@ async function buildPreview() {
       setStatus('Build failed', true);
       return;
     }
-    const url = new URL(result.url, window.location.href);
+    const url = previewUrl(result.url);
     url.searchParams.set('t', Date.now().toString());
     els.previewTitle.textContent = mode === 'form' && form
       ? `Preview · ${form.title || form.form}`
@@ -2885,9 +3131,11 @@ async function buildPreview() {
 
 async function openUnit(unit) {
   if (!state.project || !unit) return;
-  if (state.sourceDirty && state.currentUnit !== unit) {
-    if (!window.confirm('Discard the unsaved changes to the unit?')) return;
+  if (state.currentUnit === unit && state.source !== null) {
+    if (state.view !== 'source') setView('source');
+    return;
   }
+  stashCurrentUnit();
   state.currentUnit = unit;
   state.source = null;
   state.sourceTarget = null;
@@ -2912,7 +3160,10 @@ async function createForm() {
     closeProjectDialog();
     state.project = result.project;
     state.forms = result.project.forms || [];
+    stashCurrentForm();
+    stashCurrentUnit();
     await loadProject(state.project.id, result.form.form);
+    setView('design');
     setStatus(`Created ${result.form.title || result.form.form}`);
   } catch (error) {
     setStatus(error.message, true);
@@ -2939,9 +3190,13 @@ async function deleteForm(form) {
   if (!state.project) return;
   const deleteFiles = els.deleteFilesCheck.checked;
   const label = form.title || form.form;
-  const message = deleteFiles
+  const hasChanges = (state.currentForm && state.currentForm.form === form.form && state.dirty)
+    || state.formCache.has(form.form)
+    || state.unitCache.has(form.unit);
+  const message = (deleteFiles
     ? `Remove ${label} from the project and delete ${form.form} and ${form.unit}?`
-    : `Remove ${label} from the project? The files are kept.`;
+    : `Remove ${label} from the project? The files are kept.`)
+    + (hasChanges ? '\n\nUnsaved changes in this form and its unit will be lost.' : '');
   if (!window.confirm(message)) return;
   try {
     const result = await api('deleteForm', {}, {
@@ -2951,6 +3206,8 @@ async function deleteForm(form) {
     });
     state.project = result.project;
     state.forms = result.project.forms || [];
+    state.formCache.delete(form.form);
+    state.unitCache.delete(form.unit);
     const currentRemoved = !state.currentForm
       || !state.forms.some((entry) => entry.form === state.currentForm.form);
     if (currentRemoved) {
@@ -2962,6 +3219,7 @@ async function deleteForm(form) {
     if (state.currentUnit === form.unit) {
       state.currentUnit = state.currentForm.unit;
       state.source = null;
+      state.sourceDirty = false;
       if (state.view === 'source') await loadSource(true);
     }
     renderFormSelect();
@@ -2975,9 +3233,11 @@ async function deleteForm(form) {
 async function deleteUnit(unit) {
   if (!state.project) return;
   const deleteFile = els.deleteFilesCheck.checked;
-  const message = deleteFile
+  const hasChanges = (state.currentUnit === unit && state.sourceDirty) || state.unitCache.has(unit);
+  const message = (deleteFile
     ? `Remove ${unit} from the project and delete the file?`
-    : `Remove ${unit} from the project? The file is kept.`;
+    : `Remove ${unit} from the project? The file is kept.`)
+    + (hasChanges ? '\n\nUnsaved changes in this unit will be lost.' : '');
   if (!window.confirm(message)) return;
   try {
     const result = await api('deleteUnit', {}, {
@@ -2987,9 +3247,11 @@ async function deleteUnit(unit) {
     });
     state.project = result.project;
     state.forms = result.project.forms || [];
+    state.unitCache.delete(unit);
     if (state.currentUnit === unit) {
       state.currentUnit = state.currentForm ? state.currentForm.unit : '';
       state.source = null;
+      state.sourceDirty = false;
       if (state.view === 'source') await loadSource(true);
     }
     renderProjectDialog();
@@ -2999,22 +3261,39 @@ async function deleteUnit(unit) {
   }
 }
 
+function defaultProjectUnit(project) {
+  const units = project.units || [];
+  if (units.length === 0) return project.program || '';
+  const entry = String(project.entry || '').trim().toLowerCase();
+  if (entry !== '') {
+    const match = units.find((unit) => unit.replace(/\.pas$/i, '').toLowerCase() === entry);
+    if (match) return match;
+  }
+  return units[0];
+}
+
 async function loadProject(id, formName = '') {
   try {
     setStatus(`Loading ${id}...`);
     const params = { project: id };
     if (formName) params.form = formName;
     const data = await api('load', params);
-    const roots = data.lfm && String(data.lfm).trim() !== '' ? parseLfm(data.lfm) : [];
+    const cachedForm = data.form ? state.formCache.get(data.form.form) : null;
+    const roots = cachedForm
+      ? cachedForm.roots
+      : (data.lfm && String(data.lfm).trim() !== '' ? parseLfm(data.lfm) : []);
+    if (cachedForm && data.form) {
+      state.formCache.delete(data.form.form);
+    }
     state.project = data.project;
     state.forms = data.project.forms || [];
     state.currentForm = data.form || state.forms[0] || null;
     state.currentUnit = state.currentForm
       ? state.currentForm.unit
-      : (state.project.units[0] || '');
+      : defaultProjectUnit(state.project);
     state.roots = roots;
     state.selected = null;
-    state.activeTabs.clear();
+    state.activeTabs = cachedForm ? new Map(cachedForm.activeTabs) : new Map();
     state.source = null;
     state.sourceTarget = null;
     state.sourceDirty = false;
@@ -3025,8 +3304,17 @@ async function loadProject(id, formName = '') {
     els.project.value = id;
     renderFormSelect();
     renderAll();
+    setDirty(cachedForm ? true : false);
     setStatus(`${data.project.name} loaded`);
-    if (state.view === 'source') loadSource(true);
+    if (!state.currentForm && state.currentUnit) {
+      if (state.view === 'source') {
+        loadSource(true);
+      } else {
+        setView('source');
+      }
+    } else if (state.view === 'source') {
+      loadSource(true);
+    }
   } catch (error) {
     if (state.currentForm) els.form.value = state.currentForm.form;
     if (state.project) els.project.value = state.project.id;
@@ -3047,9 +3335,17 @@ async function saveProject() {
     }
     return;
   }
-  if (state.sourceDirty) {
+  const formUnit = state.currentForm.unit;
+  if (state.currentUnit === formUnit && state.sourceDirty) {
     await saveSource();
     if (state.sourceDirty) return;
+  } else if (state.unitCache.has(formUnit)) {
+    try {
+      await saveCachedUnit(formUnit);
+    } catch (error) {
+      setStatus(error.message, true);
+      return;
+    }
   }
   try {
     const lfm = writeLfm(state.roots);
@@ -3057,14 +3353,22 @@ async function saveProject() {
     const components = collectComponents(state.roots, false);
     const result = await api('save', {}, {
       project: state.project.id,
-      form: state.currentForm ? state.currentForm.form : '',
+      form: state.currentForm.form,
       lfm,
       formClass,
       components,
     });
+    state.formCache.delete(state.currentForm.form);
     setDirty(false);
-    state.source = null;
-    if (state.view === 'source') loadSource(true);
+    if (state.currentUnit === formUnit) {
+      // Saving the form synchronizes its unit on disk.
+      state.source = null;
+      state.sourceDirty = false;
+      if (state.view === 'source') {
+        await loadSource(true);
+      }
+    }
+    updateSaveIndicator();
     const warnings = result.warnings || [];
     if (warnings.length > 0) {
       setStatus(`Saved ${result.bytes} bytes; ${warnings.join('; ')}`, true);
@@ -3076,20 +3380,116 @@ async function saveProject() {
   }
 }
 
-async function importFile(file) {
+let importIdTouched = false;
+
+function updateImportHint() {
+  const hints = {
+    application: 'The .lpr is compiled with -Jc and its main form is opened.',
+    host: 'The .lpr is compiled with -Jc and loads the module manifests configured later.',
+    module: 'The units are compiled with -Jc- and a modules.json manifest is generated.',
+  };
+  els.importHint.textContent = hints[els.importKind.value] || '';
+}
+
+function openImportDialog() {
+  els.importArchive.value = '';
+  els.importName.value = '';
+  els.importId.value = '';
+  els.importKind.value = 'application';
+  importIdTouched = false;
+  updateImportHint();
+  openDialog(els.importDialog);
+  els.importArchive.focus();
+}
+
+function onImportArchiveChange() {
+  const file = els.importArchive.files[0];
+  if (!file) return;
+  const base = file.name.replace(/\.zip$/i, '') || 'imported';
+  if (!els.importName.value.trim()) els.importName.value = base;
+  if (!importIdTouched || !els.importId.value.trim()) els.importId.value = deriveProjectId(base);
+}
+
+async function importProjectArchive() {
+  const file = els.importArchive.files[0];
+  const name = els.importName.value.trim();
+  const id = els.importId.value.trim();
+  const kind = els.importKind.value;
+  if (!file) {
+    setStatus('Choose a ZIP archive.', true);
+    return;
+  }
+  if (!name || !id) {
+    setStatus('Project name and folder id are required.', true);
+    return;
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    setStatus('The ZIP is too large (max 20 MB).', true);
+    return;
+  }
+  if (hasUnsavedChanges() && !window.confirm('Discard all unsaved changes in the current project?')) {
+    return;
+  }
+  const form = new FormData();
+  form.append('id', id);
+  form.append('name', name);
+  form.append('kind', kind);
+  form.append('archive', file);
+  els.importCreateBtn.disabled = true;
+  setStatus(`Importing ${file.name}...`);
   try {
-    const lfm = await file.text();
-    parseLfm(lfm); // validate before sending
-    const id = (window.prompt('Project id', 'imported') || '').trim();
-    if (!id) return;
-    const name = (window.prompt('Project name', id) || id).trim();
-    await api('import', {}, { id, name, lfm });
-    setStatus(`Imported ${name}`);
+    const url = apiUrl('importProject');
+    const response = await fetch(url, { method: 'POST', body: form });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error
+        || (response.status === 413 ? 'The upload is too large for PHP.' : `HTTP ${response.status}`));
+    }
+    closeDialog(els.importDialog);
+    discardAllChanges();
     await loadProjects(false);
-    els.project.value = id;
-    await loadProject(id);
+    els.project.value = data.project.id;
+    await loadProject(data.project.id);
+    const summary = data.summary || {};
+    const warnings = data.warnings || [];
+    let message = `Imported ${data.project.name} · ${summary.forms || 0} forms, ${summary.units || 0} units`;
+    if (summary.program) message += ` · ${summary.program}`;
+    if (warnings.length) message += ` · ${warnings.length} warning${warnings.length === 1 ? '' : 's'}`;
+    setStatus(message);
+    if (warnings.length) els.status.title = warnings.join('\n');
   } catch (error) {
     setStatus(error.message, true);
+  } finally {
+    els.importCreateBtn.disabled = false;
+  }
+}
+
+async function deleteProject() {
+  if (!state.project) return;
+  const name = state.project.name;
+  const id = state.project.id;
+  const dirty = hasUnsavedChanges();
+  const message = `Delete the project "${name}" and all its files?`
+    + (dirty ? '\n\nUnsaved changes will be lost.' : '')
+    + '\n\nThis deletes the whole folder and cannot be undone.';
+  if (!window.confirm(message)) return;
+  els.deleteProjectBtn.disabled = true;
+  try {
+    await api('deleteProject', {}, { project: id });
+    closeProjectDialog();
+    discardAllChanges();
+    await loadProjects(false);
+    if (state.projects.length > 0) {
+      els.project.value = state.projects[0].id;
+      await loadProject(state.projects[0].id);
+    } else {
+      clearProjectView();
+    }
+    setStatus(`Deleted ${name}`);
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    els.deleteProjectBtn.disabled = false;
   }
 }
 
@@ -3112,10 +3512,11 @@ async function boot() {
   document.addEventListener('dragend', clearDropTargets);
   els.reload.addEventListener('click', () => {
     if (!state.project) return;
-    if ((state.dirty || state.sourceDirty) && !window.confirm('Discard the unsaved changes?')) return;
+    if (hasUnsavedChanges() && !window.confirm('Discard all unsaved changes?')) return;
+    discardAllChanges();
     loadProject(state.project.id, state.currentForm ? state.currentForm.form : '');
   });
-  els.save.addEventListener('click', saveProject);
+  els.save.addEventListener('click', saveAll);
   els.previewBtn.addEventListener('click', buildPreview);
   els.previewCloseBtn.addEventListener('click', () => closeDialog(els.previewDialog));
   els.buildCloseBtn.addEventListener('click', () => closeDialog(els.buildDialog));
@@ -3143,6 +3544,7 @@ async function boot() {
     }
   });
   els.saveSettingsBtn.addEventListener('click', saveProjectSettings);
+  els.deleteProjectBtn.addEventListener('click', deleteProject);
   els.settingKind.addEventListener('change', updateSettingsVisibility);
   els.newFormBtn.addEventListener('click', createForm);
   els.newUnitBtn.addEventListener('click', createUnit);
@@ -3160,6 +3562,17 @@ async function boot() {
     event.preventDefault();
     setView(state.view === 'source' ? 'design' : 'source');
   });
+  document.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && event.target !== els.sourceEditor) {
+      event.preventDefault();
+      saveAll();
+    }
+  });
+  window.addEventListener('beforeunload', (event) => {
+    if (!hasUnsavedChanges()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
   els.sourceEditor.addEventListener('input', onSourceInput);
   els.sourceEditor.addEventListener('scroll', syncSourceGutter);
   els.sourceEditor.addEventListener('keydown', (event) => {
@@ -3170,18 +3583,32 @@ async function boot() {
   });
   els.project.addEventListener('change', () => {
     if (!els.project.value) return;
-    if ((state.dirty || state.sourceDirty) && !window.confirm('Discard the unsaved changes?')) {
+    if (hasUnsavedChanges() && !window.confirm('Discard all unsaved changes in the current project?')) {
       els.project.value = state.project ? state.project.id : els.project.value;
       return;
     }
+    discardAllChanges();
     loadProject(els.project.value);
   });
   els.form.addEventListener('change', () => loadForm(els.form.value));
-  els.importBtn.addEventListener('click', () => els.importFile.click());
-  els.importFile.addEventListener('change', () => {
-    const file = els.importFile.files[0];
-    if (file) importFile(file);
-    els.importFile.value = '';
+  els.importBtn.addEventListener('click', openImportDialog);
+  els.importCloseBtn.addEventListener('click', () => closeDialog(els.importDialog));
+  els.importCreateBtn.addEventListener('click', importProjectArchive);
+  els.importArchive.addEventListener('change', onImportArchiveChange);
+  els.importName.addEventListener('input', () => {
+    if (!importIdTouched) {
+      els.importId.value = deriveProjectId(els.importName.value);
+    }
+  });
+  els.importId.addEventListener('input', () => {
+    importIdTouched = true;
+  });
+  els.importKind.addEventListener('change', updateImportHint);
+  els.importDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
+      event.preventDefault();
+      importProjectArchive();
+    }
   });
   try {
     await loadProjects();
