@@ -347,6 +347,10 @@ body.dragging {
   border-style: dotted;
 }
 
+.designer-component.aligned {
+  cursor: default;
+}
+
 .component-text {
   position: absolute;
   inset: 2px 4px auto 4px;

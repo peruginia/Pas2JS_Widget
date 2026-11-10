@@ -223,6 +223,96 @@ function showPageTabs(pageControl) {
   return getPropertyValue(pageControl, 'ShowTabs', true) !== false;
 }
 
+function alignOf(node) {
+  const prop = getProperty(node, 'Align');
+  if (!prop) return 'alNone';
+  const value = String(prop.value || prop.raw || 'alNone').trim();
+  return value.startsWith('al') ? value : 'alNone';
+}
+
+// Lay out the children of a container the way LCL does: alTop, alBottom,
+// alLeft, alRight consume the remaining client area in that order and
+// alClient fills what is left. The result is a render-only frame; the LFM
+// Left/Top/Width/Height values are not modified.
+function layoutFrames(container, width, height) {
+  const frames = new Map();
+  const children = container.children.filter((child) => isVisual(child));
+  const rect = { left: 0, top: 0, right: Math.max(0, width), bottom: Math.max(0, height) };
+  const withAlign = (align) => children.filter((child) => alignOf(child) === align);
+
+  const tops = withAlign('alTop').sort((a, b) => propNumber(a, 'Top', 0) - propNumber(b, 'Top', 0));
+  for (const child of tops) {
+    const childHeight = Math.max(0, propNumber(child, 'Height', 0));
+    frames.set(child, {
+      left: rect.left,
+      top: rect.top,
+      width: rect.right - rect.left,
+      height: childHeight,
+      aligned: true,
+    });
+    rect.top += childHeight;
+  }
+
+  const bottoms = withAlign('alBottom').sort((a, b) => {
+    const bottomA = propNumber(a, 'Top', 0) + propNumber(a, 'Height', 0);
+    const bottomB = propNumber(b, 'Top', 0) + propNumber(b, 'Height', 0);
+    return bottomB - bottomA;
+  });
+  for (const child of bottoms) {
+    const childHeight = Math.max(0, propNumber(child, 'Height', 0));
+    frames.set(child, {
+      left: rect.left,
+      top: rect.bottom - childHeight,
+      width: rect.right - rect.left,
+      height: childHeight,
+      aligned: true,
+    });
+    rect.bottom -= childHeight;
+  }
+
+  const lefts = withAlign('alLeft').sort((a, b) => propNumber(a, 'Left', 0) - propNumber(b, 'Left', 0));
+  for (const child of lefts) {
+    const childWidth = Math.max(0, propNumber(child, 'Width', 0));
+    frames.set(child, {
+      left: rect.left,
+      top: rect.top,
+      width: childWidth,
+      height: rect.bottom - rect.top,
+      aligned: true,
+    });
+    rect.left += childWidth;
+  }
+
+  const rights = withAlign('alRight').sort((a, b) => {
+    const rightA = propNumber(a, 'Left', 0) + propNumber(a, 'Width', 0);
+    const rightB = propNumber(b, 'Left', 0) + propNumber(b, 'Width', 0);
+    return rightB - rightA;
+  });
+  for (const child of rights) {
+    const childWidth = Math.max(0, propNumber(child, 'Width', 0));
+    frames.set(child, {
+      left: rect.right - childWidth,
+      top: rect.top,
+      width: childWidth,
+      height: rect.bottom - rect.top,
+      aligned: true,
+    });
+    rect.right -= childWidth;
+  }
+
+  for (const child of withAlign('alClient')) {
+    frames.set(child, {
+      left: rect.left,
+      top: rect.top,
+      width: Math.max(0, rect.right - rect.left),
+      height: Math.max(0, rect.bottom - rect.top),
+      aligned: true,
+    });
+  }
+
+  return frames;
+}
+
 function renderTree() {
   els.tree.innerHTML = '';
   if (state.roots.length === 0) {
@@ -562,6 +652,12 @@ function setNumberProp(node, name, value) {
 
 function startDrag(event, node, handle) {
   if (event.button !== 0) return;
+  if (alignOf(node) !== 'alNone') {
+    event.preventDefault();
+    event.stopPropagation();
+    setStatus(`${node.name} is aligned (${alignOf(node)}); set Align = alNone to move it.`);
+    return;
+  }
   event.preventDefault();
   event.stopPropagation();
   selectNode(node);
@@ -664,16 +760,19 @@ function renderCanvas() {
   }
   const form = document.createElement('div');
   form.className = 'designer-form';
-  form.style.width = `${Math.max(1, propNumber(root, 'Width', 800))}px`;
-  form.style.height = `${Math.max(1, propNumber(root, 'Height', 600))}px`;
+  const formWidth = Math.max(1, propNumber(root, 'Width', 800));
+  const formHeight = Math.max(1, propNumber(root, 'Height', 600));
+  form.style.width = `${formWidth}px`;
+  form.style.height = `${formHeight}px`;
   form.dataset.id = root.__id;
   form.addEventListener('click', (event) => {
     event.stopPropagation();
     selectNode(root);
   });
 
+  const frames = layoutFrames(root, formWidth, formHeight);
   for (const child of root.children) {
-    renderCanvasNode(child, form);
+    renderCanvasNode(child, form, frames.get(child) || null);
   }
   els.canvas.appendChild(form);
   els.formTitle.textContent = `${root.name || root.className} · ${root.className}`;
@@ -738,6 +837,7 @@ const DELPHI_COLORS = {
 };
 
 const COMMON_PROPERTIES = [
+  { name: 'Align', kind: 'identifier', value: 'alNone' },
   { name: 'Enabled', kind: 'boolean', value: 'True' },
   { name: 'Visible', kind: 'boolean', value: 'True' },
   { name: 'Hint', kind: 'string', value: '' },
@@ -945,7 +1045,8 @@ function inferKind(value) {
 }
 
 function classPropertySpecs(node) {
-  return [...COMMON_PROPERTIES, ...(CLASS_PROPERTIES[canonicalClassName(node.className)] || [])];
+  const common = isVisual(node, node === state.roots[0]) ? COMMON_PROPERTIES : [];
+  return [...common, ...(CLASS_PROPERTIES[canonicalClassName(node.className)] || [])];
 }
 
 function missingProperties(node) {
@@ -1182,7 +1283,7 @@ function renderComponentSkin(node) {
   }
 }
 
-function renderPageControl(node, el) {
+function renderPageControl(node, el, geometry) {
   const sheets = pageControlSheets(node);
   if (sheets.length === 0) {
     for (const child of node.children) renderCanvasNode(child, el);
@@ -1213,8 +1314,8 @@ function renderPageControl(node, el) {
   }
 
   if (!active) return;
-  const width = Math.max(1, propNumber(node, 'Width', 300));
-  const height = Math.max(1, propNumber(node, 'Height', 200));
+  const width = Math.max(1, geometry ? geometry.width : propNumber(node, 'Width', 300));
+  const height = Math.max(1, geometry ? geometry.height : propNumber(node, 'Height', 200));
   renderCanvasNode(active, el, {
     left: 0,
     top: stripHeight,
@@ -1247,7 +1348,9 @@ function renderCanvasNode(node, parent, frame = null) {
   if (state.selected === node) el.classList.add('selected');
 
   const chrome = !frame || frame.chrome !== false;
+  const aligned = !!(frame && frame.aligned);
   if (!chrome) el.classList.add('page-sheet');
+  if (aligned) el.classList.add('aligned');
 
   const kind = componentKind(node);
   if (kind) el.classList.add(`kind-${kind}`);
@@ -1275,7 +1378,7 @@ function renderCanvasNode(node, parent, frame = null) {
     const preview = renderItemPreview(node);
     if (preview) el.appendChild(preview);
 
-    if (state.selected === node) {
+    if (!aligned && state.selected === node) {
       for (const handle of RESIZE_HANDLES) {
         const grip = document.createElement('span');
         grip.className = `resize-handle handle-${handle}`;
@@ -1289,17 +1392,27 @@ function renderCanvasNode(node, parent, frame = null) {
       event.stopPropagation();
       selectNode(node);
     });
-    el.addEventListener('pointerdown', (event) => {
-      if (event.target instanceof Element && event.target.classList.contains('resize-handle')) return;
-      startDrag(event, node, 'move');
-    });
+
+    if (aligned) {
+      el.addEventListener('pointerdown', (event) => {
+        event.stopPropagation();
+        selectNode(node);
+        setStatus(`${node.name} is aligned (${alignOf(node)}); set Align = alNone to move it.`);
+      });
+    } else {
+      el.addEventListener('pointerdown', (event) => {
+        if (event.target instanceof Element && event.target.classList.contains('resize-handle')) return;
+        startDrag(event, node, 'move');
+      });
+    }
   }
 
-  if (canonicalClassName(node.className) === 'TWPageControl') {
-    renderPageControl(node, el);
+  if (isPageControl) {
+    renderPageControl(node, el, geometry);
   } else {
+    const frames = layoutFrames(node, geometry.width, geometry.height);
     for (const child of node.children) {
-      renderCanvasNode(child, el);
+      renderCanvasNode(child, el, frames.get(child) || null);
     }
   }
   parent.appendChild(el);

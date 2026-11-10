@@ -71,8 +71,11 @@ Components on the canvas can be moved and resized with the mouse:
   move freely;
 - the inspector and the status bar show the new coordinates.
 
-The canvas remains a preview: `Align` and `Anchors` are not simulated, so a
-component with `Align` set may be laid out differently in the browser.
+Components with `Align` set (`alTop`, `alBottom`, `alLeft`, `alRight`,
+`alClient`) are laid out the way LCL does: the aligned sides consume the
+parent area in that order and `alClient` fills the rest. Aligned components
+cannot be moved or resized on the canvas; set `Align = alNone` to move them
+freely. `Anchors` are not simulated yet.
 
 ## Component previews
 
@@ -210,8 +213,8 @@ fields are not duplicated and a second run is a no-op.
 
 ## Notes / next steps
 
-- The canvas is a preview, not a full layout engine: `Align`/`Anchors` are
-  not simulated yet.
+- The canvas is a preview, not a full layout engine: `Align` is simulated,
+  `Anchors` and `ChildSizing` are not.
 - `.pas` synchronisation only adds fields and units; it does not remove stale
   declarations, generate event methods or reorder the class.
 - The tree/list item editor changes text and structure only; image indexes
