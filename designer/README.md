@@ -104,7 +104,10 @@ declared in `project.json` next to the form:
   the original line endings are preserved;
 - switching between Design and Source keeps the editor content and scroll
   position; **Reload** re-reads the file (asking before discarding unsaved
-  changes), and a save or project reload refreshes it automatically.
+  changes), and a save or project reload refreshes it automatically;
+- **F12** toggles between the form and the unit. Browsers that reserve F12 for
+  the developer tools also accept **Ctrl+`**. The Design/Source buttons show
+  the same switch.
 
 ## Properties
 

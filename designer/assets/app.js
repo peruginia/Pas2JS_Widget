@@ -2354,6 +2354,13 @@ async function boot() {
     loadSource(true);
   });
   els.sourceSave.addEventListener('click', saveSource);
+  document.addEventListener('keydown', (event) => {
+    const f12 = event.key === 'F12' && !event.ctrlKey && !event.altKey && !event.metaKey;
+    const ctrlBackquote = (event.ctrlKey || event.metaKey) && event.code === 'Backquote';
+    if (!f12 && !ctrlBackquote) return;
+    event.preventDefault();
+    setView(state.view === 'source' ? 'design' : 'source');
+  });
   els.sourceEditor.addEventListener('input', onSourceInput);
   els.sourceEditor.addEventListener('scroll', syncSourceGutter);
   els.sourceEditor.addEventListener('keydown', (event) => {
