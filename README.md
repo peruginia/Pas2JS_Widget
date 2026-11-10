@@ -13,7 +13,7 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 ### Install
 1. Open `widgets/wcl.lpk` in Lazarus (let the IDE know the runtime package)
 2. Install `design/package/wcldsgn.lpk` (design-time package for the component palette)
-3. Create a new _Web GUI Application_ and use components from the **WCL** tab
+3. Create a new _Web GUI Application_ (or _Web Module_ for a loadable module) and use components from the **WCL** tab
 
 ---
 
@@ -577,6 +577,43 @@ The `api.php` endpoint supports:
 - `GET api.php?cmd=Login&UserName=demo&Password=demo` → `{ "result": true, "SessionId": "...", "scade": "...", "Name": "Demo User" }`
 
 > **GitHub Pages note:** the compiled `project1.js` is committed, so the demo can be served statically (see below). `api.php` needs a PHP server, so it is not executed by GitHub Pages — keep it on your own host and point **Load from URL** at it (`api.php` sends `Access-Control-Allow-Origin: *`, so cross-origin calls work). The **Grid Modes** tab needs no backend at all.
+
+### Module projects (Pas2JS)
+
+Besides **Web GUI Application**, the design-time package registers a second
+project type: **Web Module (Pas2JS)**. It is meant for applications split
+into a base shell plus modules that are compiled and deployed independently.
+
+A module project contains:
+
+* `project1.lpr` — the module entry point;
+* `module1.pas` — a unit with `TModule1.Register`, called from its
+  `initialization` when the module is loaded;
+* `project1.html` — a loader page that loads the modules and calls
+  `rtl.run('program')`;
+* `lib/` — the JavaScript output directory.
+
+The project is compiled with `-Jc-` instead of `-Jc`, so pas2js writes one
+JavaScript file per unit (`rtl.module(...)`) instead of a single bundle. The
+main file contains the RTL (via `-Jirtl.js`) and the program module; every
+unit is a separate file in `lib/`.
+
+After building, generate the module manifest:
+
+```bash
+php design/tools/module-manifest.php lib
+```
+
+The tool reads the `rtl.module` headers from the JavaScript files and writes
+`lib/modules.json` with the unit files in dependency order. The loader page
+uses it to load the main file, then the unit modules, and finally calls
+`rtl.run('program')`.
+
+A host application can load the same files: execute the main module first,
+then the unit modules that are not registered yet (`rtl.module` rejects a
+duplicate module name), and call `rtl.run` for the module entry point. Keep
+the host and the modules on the same pas2js/RTL/WCL version, so the shared
+classes and the RTL match.
 
 ### Mobile demo (`MobileDemo/`)
 
