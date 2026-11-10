@@ -5,6 +5,8 @@
 // again does not drop unknown properties, collections or binary blobs.
 // The web UI only rewrites `raw` for the values it explicitly edits.
 
+import { parseHexBytes, formatHexBytes } from './lfm-binary.js';
+
 const OBJECT_KINDS = new Set(['object', 'inherited', 'inline']);
 
 function isWordChar(ch) {
@@ -271,7 +273,15 @@ export function decodeValue(raw) {
   if (text.startsWith('[')) return { kind: 'set', value: text };
   if (text.startsWith('(')) return { kind: 'strings', value: text };
   if (text.startsWith('<')) return { kind: 'collection', value: text };
-  if (text.startsWith('{')) return { kind: 'binary', value: text };
+  if (text.startsWith('{')) {
+    let bytes = null;
+    try {
+      bytes = parseHexBytes(text);
+    } catch {
+      bytes = null;
+    }
+    return { kind: 'binary', value: text, bytes };
+  }
   if (text === '') return { kind: 'empty', value: '' };
   return { kind: 'identifier', value: text };
 }
@@ -294,6 +304,7 @@ export function setPropertyValue(prop, value, kind = prop.kind) {
       prop.raw = String(value);
       break;
   }
+  delete prop.__items;
   Object.assign(prop, decodeValue(prop.raw));
   return prop;
 }
@@ -325,7 +336,9 @@ function writeNode(node, level) {
   const header = node.name ? `${node.kind} ${node.name}: ${node.className}` : `${node.kind} ${node.className}`;
   const lines = [`${pad}${header}`];
   for (const prop of node.properties) {
-    const raw = prop.raw ?? '';
+    const raw = prop.kind === 'binary' && prop.bytes instanceof Uint8Array
+      ? formatHexBytes(prop.bytes, `${pad}  `)
+      : (prop.raw ?? '');
     lines.push(`${pad}  ${prop.name} = ${raw}`);
   }
   for (const child of node.children) {

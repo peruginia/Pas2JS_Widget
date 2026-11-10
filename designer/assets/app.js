@@ -7,6 +7,18 @@ import {
   decodeValue,
   encodeLfmString,
 } from './lfm.js';
+import {
+  decodeTreeItems,
+  encodeTreeItems,
+  decodeListItems,
+  encodeListLazData,
+  encodeListData,
+  newTreeNode,
+  newListItem,
+  countTreeNodes,
+  removeTreeNode,
+  formatHexBytes,
+} from './lfm-binary.js';
 
 const state = {
   manifest: { nonVisual: [], aliases: {}, classes: [], defaults: {} },
@@ -301,6 +313,61 @@ function collectComponents(nodes, include = true) {
   return result;
 }
 
+function decodeItemsProp(prop, decoder) {
+  if (!prop || prop.kind !== 'binary' || !(prop.bytes instanceof Uint8Array)) return null;
+  if (!prop.__items) {
+    try {
+      prop.__items = { value: decoder(prop.bytes) };
+    } catch (error) {
+      prop.__items = { error: error.message };
+    }
+  }
+  return prop.__items;
+}
+
+// Decoded tree/list items for the selected component, or null when the class
+// has no binary items property (or the blob cannot be decoded).
+function componentItems(node) {
+  if (node.className === 'TWTreeView') {
+    const prop = getProperty(node, 'Items.Data');
+    const decoded = decodeItemsProp(prop, (bytes) => decodeTreeItems(bytes).nodes);
+    if (!decoded || decoded.error) return null;
+    return { prop, kind: 'tree', format: 'lcl', nodes: decoded.value };
+  }
+
+  if (node.className === 'TWListView') {
+    const laz = getProperty(node, 'Items.LazData');
+    const data = getProperty(node, 'Items.Data');
+    const prop = laz && laz.kind === 'binary' && laz.bytes instanceof Uint8Array
+      ? laz
+      : (data && data.kind === 'binary' && data.bytes instanceof Uint8Array ? data : null);
+    if (!prop) return null;
+    const format = prop === laz ? 'laz' : 'delphi';
+    const decoded = decodeItemsProp(prop, (bytes) => decodeListItems(bytes, format));
+    if (!decoded || decoded.error) return null;
+    return { prop, kind: 'list', format, items: decoded.value };
+  }
+
+  return null;
+}
+
+function storeBinaryProp(prop, bytes) {
+  prop.bytes = bytes;
+  prop.raw = formatHexBytes(bytes, '');
+  prop.kind = 'binary';
+  prop.value = prop.raw;
+}
+
+function storeTreeItems(prop, nodes) {
+  storeBinaryProp(prop, encodeTreeItems(nodes));
+  markDirty();
+}
+
+function storeListItems(prop, items, format) {
+  storeBinaryProp(prop, format === 'delphi' ? encodeListData(items) : encodeListLazData(items));
+  markDirty();
+}
+
 function snap(value) {
   return Math.max(0, Math.round(value / 8) * 8);
 }
@@ -395,6 +462,128 @@ function handleDrop(event) {
   addComponent(className, parent, event.clientX - rect.left, event.clientY - rect.top);
 }
 
+const RESIZE_HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+const GRID = 8;
+
+const drag = {
+  active: false,
+  mode: null,
+  handle: null,
+  node: null,
+  el: null,
+  startX: 0,
+  startY: 0,
+  left: 0,
+  top: 0,
+  width: 0,
+  height: 0,
+  current: null,
+};
+
+function setNumberProp(node, name, value) {
+  const prop = getProperty(node, name);
+  const rounded = Math.round(value);
+  if (!prop) {
+    node.properties.push(makeProp(name, String(rounded)));
+  } else {
+    setPropertyValue(prop, rounded, 'integer');
+  }
+}
+
+function startDrag(event, node, handle) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  selectNode(node);
+  const el = els.canvas.querySelector(`[data-id="${node.__id}"]`);
+  if (!el) return;
+
+  drag.active = true;
+  drag.mode = handle === 'move' ? 'move' : 'resize';
+  drag.handle = handle;
+  drag.node = node;
+  drag.el = el;
+  drag.startX = event.clientX;
+  drag.startY = event.clientY;
+  drag.left = propNumber(node, 'Left', 0);
+  drag.top = propNumber(node, 'Top', 0);
+  drag.width = Math.max(1, propNumber(node, 'Width', 100));
+  drag.height = Math.max(1, propNumber(node, 'Height', 25));
+  drag.current = { left: drag.left, top: drag.top, width: drag.width, height: drag.height };
+
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
+  document.body.classList.add('dragging');
+}
+
+function onDragMove(event) {
+  if (!drag.active) return;
+  event.preventDefault();
+  const snapValue = event.altKey
+    ? (value) => Math.round(value)
+    : (value) => Math.round(value / GRID) * GRID;
+  const dx = event.clientX - drag.startX;
+  const dy = event.clientY - drag.startY;
+
+  let left = drag.left;
+  let top = drag.top;
+  let width = drag.width;
+  let height = drag.height;
+
+  if (drag.mode === 'move') {
+    left = Math.max(0, snapValue(drag.left + dx));
+    top = Math.max(0, snapValue(drag.top + dy));
+  } else {
+    const handle = drag.handle;
+    if (handle.includes('e')) width = Math.max(GRID, snapValue(drag.width + dx));
+    if (handle.includes('s')) height = Math.max(GRID, snapValue(drag.height + dy));
+    if (handle.includes('w')) {
+      left = Math.max(0, Math.min(snapValue(drag.left + dx), drag.left + drag.width - GRID));
+      width = drag.left + drag.width - left;
+    }
+    if (handle.includes('n')) {
+      top = Math.max(0, Math.min(snapValue(drag.top + dy), drag.top + drag.height - GRID));
+      height = drag.top + drag.height - top;
+    }
+  }
+
+  drag.current = { left, top, width, height };
+  drag.el.style.left = `${left}px`;
+  drag.el.style.top = `${top}px`;
+  drag.el.style.width = `${width}px`;
+  drag.el.style.height = `${height}px`;
+  setStatus(`${drag.node.name}: ${left}, ${top} · ${width} × ${height}`);
+}
+
+function endDrag() {
+  if (!drag.active) return;
+  const { node, current } = drag;
+  drag.active = false;
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', endDrag);
+  window.removeEventListener('pointercancel', endDrag);
+  document.body.classList.remove('dragging');
+
+  if (node && current) {
+    const changed = current.left !== drag.left || current.top !== drag.top
+      || current.width !== drag.width || current.height !== drag.height;
+    if (changed) {
+      setNumberProp(node, 'Left', current.left);
+      setNumberProp(node, 'Top', current.top);
+      setNumberProp(node, 'Width', current.width);
+      setNumberProp(node, 'Height', current.height);
+      markDirty();
+      renderInspector();
+      setStatus(`${node.name}: ${current.left}, ${current.top} · ${current.width} × ${current.height}`);
+    }
+  }
+
+  drag.node = null;
+  drag.el = null;
+  drag.current = null;
+}
+
 function renderCanvas() {
   els.canvas.innerHTML = '';
   const root = state.roots[0];
@@ -445,9 +634,26 @@ function renderCanvasNode(node, parent) {
   badge.textContent = node.className;
   el.appendChild(badge);
 
+  const preview = renderItemPreview(node);
+  if (preview) el.appendChild(preview);
+
+  if (state.selected === node) {
+    for (const handle of RESIZE_HANDLES) {
+      const grip = document.createElement('span');
+      grip.className = `resize-handle handle-${handle}`;
+      grip.dataset.handle = handle;
+      grip.addEventListener('pointerdown', (event) => startDrag(event, node, handle));
+      el.appendChild(grip);
+    }
+  }
+
   el.addEventListener('click', (event) => {
     event.stopPropagation();
     selectNode(node);
+  });
+  el.addEventListener('pointerdown', (event) => {
+    if (event.target instanceof Element && event.target.classList.contains('resize-handle')) return;
+    startDrag(event, node, 'move');
   });
 
   const children = node.className === 'TWPageControl' ? selectedTabSheet(node) : node.children;
@@ -455,6 +661,35 @@ function renderCanvasNode(node, parent) {
     renderCanvasNode(child, el);
   }
   parent.appendChild(el);
+}
+
+function renderItemPreview(node) {
+  const items = componentItems(node);
+  if (!items) return null;
+
+  const box = document.createElement('div');
+  box.className = 'component-items';
+  if (items.kind === 'tree') {
+    const walk = (nodes, depth) => {
+      for (const item of nodes) {
+        const row = document.createElement('div');
+        row.className = 'component-item';
+        row.style.paddingLeft = `${depth * 10}px`;
+        row.textContent = item.text || '(empty)';
+        box.appendChild(row);
+        walk(item.children, depth + 1);
+      }
+    };
+    walk(items.nodes, 0);
+  } else {
+    for (const item of items.items) {
+      const row = document.createElement('div');
+      row.className = 'component-item';
+      row.textContent = [item.caption, ...item.subItems].join('   ');
+      box.appendChild(row);
+    }
+  }
+  return box.children.length > 0 ? box : null;
 }
 
 function renderInspector() {
@@ -475,7 +710,9 @@ function renderInspector() {
 
   const table = document.createElement('div');
   table.className = 'property-list';
+  const items = componentItems(node);
   for (const prop of node.properties) {
+    if (items && prop === items.prop) continue;
     const row = document.createElement('div');
     row.className = 'property-row';
     const label = document.createElement('label');
@@ -531,6 +768,164 @@ function renderInspector() {
     table.appendChild(row);
   }
   els.inspector.appendChild(table);
+  const editor = renderItemsEditor(node);
+  if (editor) els.inspector.appendChild(editor);
+}
+
+function renderItemsEditor(node) {
+  const items = componentItems(node);
+  if (!items) return null;
+  return items.kind === 'tree' ? treeItemsEditor(items) : listItemsEditor(items);
+}
+
+function editorShell(titleText, countText) {
+  const wrap = document.createElement('div');
+  wrap.className = 'items-editor';
+  const title = document.createElement('div');
+  title.className = 'items-title';
+  const label = document.createElement('span');
+  label.textContent = titleText;
+  const count = document.createElement('span');
+  count.className = 'items-count';
+  count.textContent = countText;
+  title.append(label, count);
+  const rows = document.createElement('div');
+  rows.className = 'items-rows';
+  const actions = document.createElement('div');
+  actions.className = 'items-actions';
+  wrap.append(title, rows, actions);
+  return { wrap, rows, actions };
+}
+
+function smallButton(text, title) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'item-btn';
+  button.textContent = text;
+  button.title = title;
+  return button;
+}
+
+function treeItemsEditor({ prop, nodes }) {
+  const { wrap, rows, actions } = editorShell('Items', `${countTreeNodes(nodes)} nodes`);
+
+  const addRows = (list, depth) => {
+    for (const item of list) {
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      row.style.paddingLeft = `${depth * 10}px`;
+
+      const input = document.createElement('input');
+      input.className = 'item-text';
+      input.value = item.text;
+      input.placeholder = 'Node text';
+      input.addEventListener('input', () => {
+        item.text = input.value;
+        storeTreeItems(prop, nodes);
+        renderCanvas();
+      });
+
+      const addChild = smallButton('+', 'Add child node');
+      addChild.addEventListener('click', () => {
+        item.children.push(newTreeNode('Node'));
+        storeTreeItems(prop, nodes);
+        renderInspector();
+        renderCanvas();
+      });
+
+      const remove = smallButton('×', 'Delete node');
+      remove.addEventListener('click', () => {
+        if (!removeTreeNode(nodes, item)) return;
+        storeTreeItems(prop, nodes);
+        renderInspector();
+        renderCanvas();
+      });
+
+      row.append(input, addChild, remove);
+      rows.appendChild(row);
+      addRows(item.children, depth + 1);
+    }
+  };
+  addRows(nodes, 0);
+
+  const addRoot = document.createElement('button');
+  addRoot.type = 'button';
+  addRoot.className = 'item-add';
+  addRoot.textContent = 'Add node';
+  addRoot.addEventListener('click', () => {
+    nodes.push(newTreeNode('Node'));
+    storeTreeItems(prop, nodes);
+    renderInspector();
+    renderCanvas();
+  });
+  actions.appendChild(addRoot);
+  return wrap;
+}
+
+function listItemsEditor({ prop, items, format }) {
+  const { wrap, rows, actions } = editorShell('Items', `${items.length} items`);
+  const rebuild = () => {
+    storeListItems(prop, items, format);
+    renderInspector();
+    renderCanvas();
+  };
+
+  for (const item of items) {
+    const row = document.createElement('div');
+    row.className = 'item-row';
+
+    const caption = document.createElement('input');
+    caption.className = 'item-text';
+    caption.value = item.caption;
+    caption.placeholder = 'Caption';
+    caption.addEventListener('input', () => {
+      item.caption = caption.value;
+      storeListItems(prop, items, format);
+      renderCanvas();
+    });
+    row.appendChild(caption);
+
+    for (let index = 0; index < item.subItems.length; index++) {
+      const sub = document.createElement('input');
+      sub.className = 'item-sub';
+      sub.value = item.subItems[index];
+      sub.placeholder = `Sub ${index + 1}`;
+      sub.addEventListener('input', () => {
+        item.subItems[index] = sub.value;
+        storeListItems(prop, items, format);
+        renderCanvas();
+      });
+      row.appendChild(sub);
+    }
+
+    const addSub = smallButton('+', 'Add subitem');
+    addSub.addEventListener('click', () => {
+      item.subItems.push('');
+      item.subItemImages.push(-1);
+      rebuild();
+    });
+
+    const remove = smallButton('×', 'Delete item');
+    remove.addEventListener('click', () => {
+      const index = items.indexOf(item);
+      if (index >= 0) items.splice(index, 1);
+      rebuild();
+    });
+
+    row.append(addSub, remove);
+    rows.appendChild(row);
+  }
+
+  const addItem = document.createElement('button');
+  addItem.type = 'button';
+  addItem.className = 'item-add';
+  addItem.textContent = 'Add item';
+  addItem.addEventListener('click', () => {
+    items.push(newListItem('Item'));
+    rebuild();
+  });
+  actions.appendChild(addItem);
+  return wrap;
 }
 
 function selectNode(node) {
