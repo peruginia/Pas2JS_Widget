@@ -27758,8 +27758,10 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
   this.$rtti.$Enum("TCloseAction",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TCloseAction});
   this.$rtti.$MethodVar("TCloseEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["CloseAction",this.$rtti["TCloseAction"],1]]), methodkind: 0});
   this.$rtti.$MethodVar("TCloseQueryEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["CanClose",rtl.boolean,1]]), methodkind: 0});
+  this.$rtti.$Class("TCustomForm");
   this.$rtti.$Int("TModalResult",{minvalue: -2147483648, maxvalue: 2147483647, ordtype: 4});
   this.$rtti.$RefToProcVar("TModalResultProc",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["ModalResult",this.$rtti["TModalResult"]]])});
+  this.$rtti.$ProcVar("TApplicationMessageBoxProc",{procsig: rtl.newTIProcSig([["AOwner",this.$rtti["TCustomForm"]],["AMessage",rtl.string,2],["ACaption",rtl.string,2],["AFlags",rtl.longint],["AModalResultProc",this.$rtti["TModalResultProc"]]])});
   rtl.createClass(this,"TCustomDataModule",pas.Controls.TControl,function () {
     this.$init = function () {
       pas.Controls.TControl.$init.call(this);
@@ -28260,6 +28262,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       this.FBackgroundColor = 0;
       this.FDesignWidth = 0;
       this.FMainForm = null;
+      this.FMessageBoxHandler = null;
       this.FStopOnException = false;
       this.FTerminated = false;
       this.FTitle = "";
@@ -28272,6 +28275,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       this.FModules = undefined;
       this.FActiveForm = undefined;
       this.FMainForm = undefined;
+      this.FMessageBoxHandler = undefined;
       this.FOnResize = undefined;
       this.FOnUnload = undefined;
       pas.Classes.TComponent.$final.call(this);
@@ -28408,6 +28412,7 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       this.FBackgroundColor = 536870912;
       this.FDesignWidth = 0;
       this.FMainForm = null;
+      this.FMessageBoxHandler = null;
       this.FStopOnException = true;
       this.FTerminated = false;
       this.FTitle = "";
@@ -28452,6 +28457,17 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
             VModule = null;
           };
         };
+      };
+    };
+    this.MessageBox = function (AMessage, ACaption, AFlags, AModalResultProc) {
+      this.MessageBox$1(this.FActiveForm,AMessage,ACaption,AFlags,AModalResultProc);
+    };
+    this.MessageBox$1 = function (AOwner, AMessage, ACaption, AFlags, AModalResultProc) {
+      if (this.FMessageBoxHandler != null) {
+        this.FMessageBoxHandler(AOwner,AMessage,ACaption,AFlags,AModalResultProc)}
+       else {
+        window.alert(AMessage);
+        if (AModalResultProc != null) AModalResultProc(AOwner,1);
       };
     };
     this.UpdateMainForm = function (AForm) {
@@ -56311,6 +56327,32 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
   this.mbYesNo = rtl.createSet(this.TMsgDlgBtn.mbYes,this.TMsgDlgBtn.mbNo);
   this.mbOKCancel = rtl.createSet(this.TMsgDlgBtn.mbOK,this.TMsgDlgBtn.mbCancel);
   this.mbAbortRetryIgnore = rtl.createSet(this.TMsgDlgBtn.mbAbort,this.TMsgDlgBtn.mbRetry,this.TMsgDlgBtn.mbIgnore);
+  this.MB_OK = 0x0;
+  this.MB_OKCANCEL = 0x1;
+  this.MB_ABORTRETRYIGNORE = 0x2;
+  this.MB_YESNOCANCEL = 0x3;
+  this.MB_YESNO = 0x4;
+  this.MB_RETRYCANCEL = 0x5;
+  this.MB_ICONHAND = 0x10;
+  this.MB_ICONQUESTION = 0x20;
+  this.MB_ICONEXCLAMATION = 0x30;
+  this.MB_ICONASTERISK = 0x40;
+  this.MB_ICONINFORMATION = 64;
+  this.MB_ICONWARNING = 48;
+  this.MB_ICONERROR = 16;
+  this.MB_DEFBUTTON1 = 0x0;
+  this.MB_DEFBUTTON2 = 0x100;
+  this.MB_DEFBUTTON3 = 0x200;
+  this.MB_DEFBUTTON4 = 0x300;
+  this.IDOK = 1;
+  this.IDCANCEL = 2;
+  this.IDABORT = 3;
+  this.IDRETRY = 4;
+  this.IDIGNORE = 5;
+  this.IDYES = 6;
+  this.IDNO = 7;
+  this.IDCLOSE = 8;
+  this.IDHELP = 9;
   this.MessageDlg = function (AOwner, ACaption, AMessage, ADlgType, AButtons, ADefaultButton, AModalResultProc) {
     var VMessageDialog = null;
     if (!(AOwner != null)) AOwner = pas.Forms.Application().FActiveForm;
@@ -56346,6 +56388,20 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
   };
   this.QuestionDlg$1 = function (AMessage, AModalResultProc) {
     $mod.QuestionDlg("",AMessage,AModalResultProc);
+  };
+  this.MessageBox = function (AOwner, AMessage, ACaption, AFlags, AModalResultProc) {
+    var VButtons = {};
+    var VType = 0;
+    var VDefault = 0;
+    VButtons = rtl.refSet($impl.MessageBoxButtons(AFlags));
+    VType = $impl.MessageBoxType(AFlags);
+    VDefault = $impl.MessageBoxDefaultButton(rtl.refSet(VButtons),AFlags);
+    $mod.MessageDlg(AOwner,ACaption,AMessage,VType,rtl.refSet(VButtons),VDefault,function (ASender, AResult) {
+      if (AModalResultProc != null) AModalResultProc(ASender,$impl.MessageBoxID(AResult));
+    });
+  };
+  this.MessageBox$1 = function (AMessage, ACaption, AFlags, AModalResultProc) {
+    $mod.MessageBox(pas.Forms.Application().FActiveForm,AMessage,ACaption,AFlags,AModalResultProc);
   };
   this.InputBox = function (ACaption, APrompt, ADefault, AOnClose) {
     var Dlg = null;
@@ -56677,6 +56733,89 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
       };
       return Result;
     };
+    $impl.MessageBoxButtons = function (AFlags) {
+      var Result = {};
+      if ((AFlags & 3) === 3) {
+        Result = rtl.createSet($mod.TMsgDlgBtn.mbYes,$mod.TMsgDlgBtn.mbNo,$mod.TMsgDlgBtn.mbCancel)}
+       else if ((AFlags & 4) === 4) {
+        Result = rtl.createSet($mod.TMsgDlgBtn.mbYes,$mod.TMsgDlgBtn.mbNo)}
+       else if ((AFlags & 2) === 2) {
+        Result = rtl.createSet($mod.TMsgDlgBtn.mbAbort,$mod.TMsgDlgBtn.mbRetry,$mod.TMsgDlgBtn.mbIgnore)}
+       else if ((AFlags & 5) === 5) {
+        Result = rtl.createSet($mod.TMsgDlgBtn.mbRetry,$mod.TMsgDlgBtn.mbCancel)}
+       else if ((AFlags & 1) === 1) {
+        Result = rtl.createSet($mod.TMsgDlgBtn.mbOK,$mod.TMsgDlgBtn.mbCancel)}
+       else Result = rtl.createSet($mod.TMsgDlgBtn.mbOK);
+      return Result;
+    };
+    $impl.MessageBoxType = function (AFlags) {
+      var Result = 0;
+      if ((AFlags & 0xF0) === 16) {
+        Result = $mod.TMsgDlgType.mtError}
+       else if ((AFlags & 0xF0) === 48) {
+        Result = $mod.TMsgDlgType.mtWarning}
+       else if ((AFlags & 0xF0) === 32) {
+        Result = $mod.TMsgDlgType.mtConfirmation}
+       else if ((AFlags & 0xF0) === 64) {
+        Result = $mod.TMsgDlgType.mtInformation}
+       else Result = $mod.TMsgDlgType.mtCustom;
+      return Result;
+    };
+    $impl.MessageBoxDefaultButton = function (AButtons, AFlags) {
+      var Result = 0;
+      if ((AFlags & 256) !== 0) {
+        if ($mod.TMsgDlgBtn.mbNo in AButtons) {
+          Result = $mod.TMsgDlgBtn.mbNo}
+         else if ($mod.TMsgDlgBtn.mbCancel in AButtons) {
+          Result = $mod.TMsgDlgBtn.mbCancel}
+         else if ($mod.TMsgDlgBtn.mbRetry in AButtons) {
+          Result = $mod.TMsgDlgBtn.mbRetry}
+         else if ($mod.TMsgDlgBtn.mbIgnore in AButtons) {
+          Result = $mod.TMsgDlgBtn.mbIgnore}
+         else Result = $impl.ModalDefaultButton(AButtons);
+      } else if ((AFlags & 512) !== 0) {
+        if ($mod.TMsgDlgBtn.mbCancel in AButtons) {
+          Result = $mod.TMsgDlgBtn.mbCancel}
+         else if ($mod.TMsgDlgBtn.mbIgnore in AButtons) {
+          Result = $mod.TMsgDlgBtn.mbIgnore}
+         else Result = $impl.ModalDefaultButton(AButtons);
+      } else if ((AFlags & 768) !== 0) {
+        if ($mod.TMsgDlgBtn.mbIgnore in AButtons) {
+          Result = $mod.TMsgDlgBtn.mbIgnore}
+         else Result = $impl.ModalDefaultButton(AButtons);
+      } else Result = $impl.ModalDefaultButton(AButtons);
+      return Result;
+    };
+    $impl.MessageBoxID = function (AResult) {
+      var Result = 0;
+      var $tmp = AResult;
+      if ($tmp === 1) {
+        Result = 1}
+       else if ($tmp === 2) {
+        Result = 2}
+       else if ($tmp === 3) {
+        Result = 3}
+       else if ($tmp === 4) {
+        Result = 4}
+       else if ($tmp === 5) {
+        Result = 5}
+       else if ($tmp === 6) {
+        Result = 6}
+       else if ($tmp === 7) {
+        Result = 7}
+       else if ($tmp === 11) {
+        Result = 8}
+       else {
+        Result = 1;
+      };
+      return Result;
+    };
+    $impl.ApplicationMessageBox = function (AOwner, AMessage, ACaption, AFlags, AModalResultProc) {
+      $mod.MessageBox(AOwner,AMessage,ACaption,AFlags,AModalResultProc);
+    };
+  };
+  $mod.$init = function () {
+    pas.Forms.Application().FMessageBoxHandler = $impl.ApplicationMessageBox;
   };
 },["Web"]);
 rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Graphics","StdCtrls"],function () {
@@ -59416,8 +59555,18 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       VLabel.FFocusControl = this.FAccelEdit;
       this.FWidgetInfo = pas.WebCtrls.TWLabel.$create("Create$1",[this]);
       this.FWidgetInfo.SetParent(VSheet);
-      this.FWidgetInfo.SetBounds(16,300,680,80);
+      this.FWidgetInfo.SetBounds(16,300,680,60);
       this.FWidgetInfo.SetText("Use the controls above.");
+      VButton = pas.WebCtrls.TWButton.$create("Create$1",[this]);
+      VButton.SetParent(VSheet);
+      VButton.SetBounds(16,370,200,31);
+      VButton.SetText("Application.MessageBox");
+      VButton.FOnClick = rtl.createCallback(this,"WidgetMessageBoxApp");
+      VButton = pas.WebCtrls.TWButton.$create("Create$1",[this]);
+      VButton.SetParent(VSheet);
+      VButton.SetBounds(228,370,160,31);
+      VButton.SetText("MessageBox");
+      VButton.FOnClick = rtl.createCallback(this,"WidgetMessageBoxGlobal");
       this.WidgetUpdateInfo();
     };
     this.WidgetScrollChanged = function (Sender) {
@@ -59447,6 +59596,18 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
         if (pas.WebCtrls.TWButton.isPrototypeOf(Sender)) Sender.SetText("Combo: list");
       };
       this.WidgetUpdateInfo();
+    };
+    this.WidgetMessageBoxApp = function (Sender) {
+      var $Self = this;
+      pas.Forms.Application().MessageBox("Application.MessageBox works.","MessageBox",64 | 1,function (ASender, AResult) {
+        pas.Dialogs.ShowMessage$1("Result: " + pas.SysUtils.IntToStr(AResult));
+      });
+    };
+    this.WidgetMessageBoxGlobal = function (Sender) {
+      var $Self = this;
+      pas.Dialogs.MessageBox$1("Global MessageBox works.","MessageBox",48 | 4,function (ASender, AResult) {
+        pas.Dialogs.ShowMessage$1("Result: " + pas.SysUtils.IntToStr(AResult));
+      });
     };
     this.WidgetUpdateInfo = function () {
       if (!(this.FWidgetInfo != null)) return;

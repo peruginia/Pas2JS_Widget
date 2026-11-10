@@ -145,6 +145,8 @@ type
       NewValue: Integer; Direction: TUpDownDirection);
     procedure WidgetComboChanged(Sender: TObject);
     procedure WidgetComboStyle(Sender: TObject);
+    procedure WidgetMessageBoxApp(Sender: TObject);
+    procedure WidgetMessageBoxGlobal(Sender: TObject);
     procedure WidgetUpdateInfo;
     procedure BuildGridModesTab;
     procedure BuildGridPopup;
@@ -1373,8 +1375,20 @@ begin
 
   FWidgetInfo := TWLabel.Create(Self);
   FWidgetInfo.Parent := VSheet;
-  FWidgetInfo.SetBounds(16, 300, 680, 80);
+  FWidgetInfo.SetBounds(16, 300, 680, 60);
   FWidgetInfo.Caption := 'Use the controls above.';
+
+  VButton := TWButton.Create(Self);
+  VButton.Parent := VSheet;
+  VButton.SetBounds(16, 370, 200, 31);
+  VButton.Caption := 'Application.MessageBox';
+  VButton.OnClick := @WidgetMessageBoxApp;
+
+  VButton := TWButton.Create(Self);
+  VButton.Parent := VSheet;
+  VButton.SetBounds(228, 370, 160, 31);
+  VButton.Caption := 'MessageBox';
+  VButton.OnClick := @WidgetMessageBoxGlobal;
 
   WidgetUpdateInfo;
 end;
@@ -1438,6 +1452,26 @@ begin
       TWButton(Sender).Caption := 'Combo: list';
   end;
   WidgetUpdateInfo;
+end;
+
+procedure TWForm1.WidgetMessageBoxApp(Sender: TObject);
+begin
+  Application.MessageBox('Application.MessageBox works.', 'MessageBox',
+    MB_ICONINFORMATION or MB_OKCANCEL,
+    TModalResultProc(procedure(ASender: TObject; AResult: TModalResult)
+    begin
+      ShowMessage('Result: ' + IntToStr(AResult));
+    end));
+end;
+
+procedure TWForm1.WidgetMessageBoxGlobal(Sender: TObject);
+begin
+  MessageBox('Global MessageBox works.', 'MessageBox',
+    MB_ICONWARNING or MB_YESNO,
+    TModalResultProc(procedure(ASender: TObject; AResult: TModalResult)
+    begin
+      ShowMessage('Result: ' + IntToStr(AResult));
+    end));
 end;
 
 { --- TStringGrid demo: inline editing, events and keyboard navigation --- }

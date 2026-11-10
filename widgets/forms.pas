@@ -42,8 +42,13 @@ type
   TCloseEvent = procedure(Sender: TObject; var CloseAction: TCloseAction) of object;
   TCloseQueryEvent = procedure(Sender: TObject; var CanClose: boolean) of object;
 
+  TCustomForm = class;
+
   TModalResult = low(integer)..high(integer);
   TModalResultProc = reference to procedure (Sender: TObject; ModalResult: TModalResult);
+  TApplicationMessageBoxProc = procedure(AOwner: TCustomForm;
+    const AMessage, ACaption: string; AFlags: Longint;
+    AModalResultProc: TModalResultProc);
 
   { TCustomDataModule }
 
@@ -186,6 +191,7 @@ type
     FBackgroundColor: TColor;
     FDesignWidth: Integer;
     FMainForm: TCustomForm;
+    FMessageBoxHandler: TApplicationMessageBoxProc;
     FStopOnException: boolean;
     FTerminated: boolean;
     FTitle: string;
@@ -219,7 +225,13 @@ type
     procedure CreateForm(AInstanceClass: TControlClass; out AReference); virtual;
     procedure Initialize; virtual;
     procedure Run; virtual;
-    procedure Terminate; virtual;   
+    procedure Terminate; virtual;
+    /// Asynchronous LCL-style message box. The callback receives the IDOK/
+    /// IDCANCEL/IDYES/IDNO/... value. Dialogs supplies the implementation.
+    procedure MessageBox(const AMessage, ACaption: string; AFlags: Longint;
+      AModalResultProc: TModalResultProc = nil); overload;
+    procedure MessageBox(AOwner: TCustomForm; const AMessage, ACaption: string;
+      AFlags: Longint; AModalResultProc: TModalResultProc = nil); overload;
     procedure UpdateMainForm(AForm: TCustomForm);  
     /// Writes/updates the <meta name="viewport"> tag from ViewportMode.
     procedure ApplyViewport; virtual;
@@ -238,6 +250,7 @@ type
     property ViewportFit: Boolean read FViewportFit write FViewportFit default False;
     property StopOnException: boolean read FStopOnException write FStopOnException;
     property Terminated: boolean read FTerminated;
+    property MessageBoxHandler: TApplicationMessageBoxProc read FMessageBoxHandler write FMessageBoxHandler;
     property Title: string read GetTitle write SetTitle;
     property OnResize: TNotifyEvent read FOnResize write FOnResize;
     property OnUnload: TNotifyEvent read FOnUnload write FOnUnload;
@@ -1344,6 +1357,7 @@ begin
   FBackgroundColor := clDefault;
   FDesignWidth := 0;
   FMainForm := nil;
+  FMessageBoxHandler := nil;
   FStopOnException := True;
   FTerminated := False;
   FTitle := '';
@@ -1401,6 +1415,28 @@ begin
         VModule := nil;
       end;
     end;
+  end;
+end;
+
+procedure TApplication.MessageBox(const AMessage, ACaption: string;
+  AFlags: Longint; AModalResultProc: TModalResultProc);
+begin
+  MessageBox(FActiveForm, AMessage, ACaption, AFlags, AModalResultProc);
+end;
+
+procedure TApplication.MessageBox(AOwner: TCustomForm;
+  const AMessage, ACaption: string; AFlags: Longint;
+  AModalResultProc: TModalResultProc);
+begin
+  if Assigned(FMessageBoxHandler) then
+    FMessageBoxHandler(AOwner, AMessage, ACaption, AFlags, AModalResultProc)
+  else
+  begin
+    /// Forms does not depend on Dialogs: when Dialogs is not linked, fall
+    /// back to the browser alert.
+    Window.alert(AMessage);
+    if Assigned(AModalResultProc) then
+      AModalResultProc(AOwner, 1); // IDOK
   end;
 end;
 

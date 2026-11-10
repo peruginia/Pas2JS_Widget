@@ -450,6 +450,22 @@ end;
 
 The drag manager uses pointer events with pointer capture, shows a small ghost element under the pointer and outlines the accepted target with `.wcl-drag-over`. Press `Esc` to cancel a drag. A control only becomes a target when it has an `OnDragOver` handler, as in LCL.
 
+### Message boxes
+
+`Application.MessageBox` and the global `MessageBox` provide the familiar LCL flags (`MB_OK`, `MB_OKCANCEL`, `MB_YESNO`, `MB_ICONINFORMATION`, ...). Because the browser dialog is asynchronous, the result is delivered through a callback using the LCL `IDOK`/`IDCANCEL`/`IDYES`/`IDNO` values:
+
+```pascal
+Application.MessageBox('Save changes?', 'Confirm',
+  MB_ICONQUESTION or MB_YESNO,
+  TModalResultProc(procedure(Sender: TObject; ModalResult: TModalResult)
+  begin
+    if ModalResult = IDYES then
+      SaveChanges;
+  end));
+```
+
+The callback may be omitted for a simple notification. The global `MessageBox` uses `Application.ActiveForm` as owner. When the `Dialogs` unit is not linked, `Application.MessageBox` falls back to the browser alert.
+
 ---
 
 ### Infrastructure
@@ -465,7 +481,7 @@ The drag manager uses pointer events with pointer capture, shows a small ghost e
 | **Responsive** | Touch devices (`pointer: coarse`): 16px inputs (no iOS zoom), 36px targets, hover gated to `(hover: hover)`, `touch-action`, reduced motion |
 | **Keyboard nav** | Tab / Shift+Tab between controls via `TabOrder` |
 | **Drag and drop** | `DragMode`/`DragKind`, `BeginDrag`/`EndDrag`, `Dragging`, `OnStartDrag`/`OnDragOver`/`OnDragDrop`/`OnEndDrag`, pointer capture, ghost and drop highlight |
-| **Dialogs** | `MessageDlg`, `ShowMessage`, `InputBox`, `QuestionDlg`, `ShowMessageFmt` |
+| **Dialogs** | `MessageDlg`, `ShowMessage`, `InputBox`, `QuestionDlg`, `ShowMessageFmt`, `MessageBox`, `Application.MessageBox` |
 
 ---
 

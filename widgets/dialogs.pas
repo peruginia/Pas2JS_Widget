@@ -50,6 +50,35 @@ const
   mbOKCancel = [mbOK, mbCancel];
   mbAbortRetryIgnore = [mbAbort, mbRetry, mbIgnore];
 
+  /// Windows/LCL MessageBox flags.
+  MB_OK = $00000000;
+  MB_OKCANCEL = $00000001;
+  MB_ABORTRETRYIGNORE = $00000002;
+  MB_YESNOCANCEL = $00000003;
+  MB_YESNO = $00000004;
+  MB_RETRYCANCEL = $00000005;
+  MB_ICONHAND = $00000010;
+  MB_ICONQUESTION = $00000020;
+  MB_ICONEXCLAMATION = $00000030;
+  MB_ICONASTERISK = $00000040;
+  MB_ICONINFORMATION = MB_ICONASTERISK;
+  MB_ICONWARNING = MB_ICONEXCLAMATION;
+  MB_ICONERROR = MB_ICONHAND;
+  MB_DEFBUTTON1 = $00000000;
+  MB_DEFBUTTON2 = $00000100;
+  MB_DEFBUTTON3 = $00000200;
+  MB_DEFBUTTON4 = $00000300;
+
+  IDOK = 1;
+  IDCANCEL = 2;
+  IDABORT = 3;
+  IDRETRY = 4;
+  IDIGNORE = 5;
+  IDYES = 6;
+  IDNO = 7;
+  IDCLOSE = 8;
+  IDHELP = 9;
+
 procedure MessageDlg(AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc); overload;
 procedure MessageDlg(AOwner: TCustomForm; const AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc); overload;
 procedure MessageDlg(AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; AModalResultProc: TModalResultProc); overload;
@@ -61,6 +90,12 @@ procedure ShowMessageFmt(const AMessage: string; const AArguments: array of cons
 
 procedure QuestionDlg(const ACaption, AMessage: string; AModalResultProc: TModalResultProc); overload;   
 procedure QuestionDlg(const AMessage: string; AModalResultProc: TModalResultProc); overload;
+
+/// LCL-style MessageBox; the callback receives IDOK/IDCANCEL/IDYES/... .
+procedure MessageBox(AOwner: TCustomForm; const AMessage, ACaption: string;
+  AFlags: Longint; AModalResultProc: TModalResultProc = nil); overload;
+procedure MessageBox(const AMessage, ACaption: string; AFlags: Longint;
+  AModalResultProc: TModalResultProc = nil); overload;
 
 //procedure ShowInputBox(AOwner: TCustomForm; const ACaption, APrompt, ADefault: String; AProc: TInputBoxProc);
 //function InputBox(const ACaption, APrompt, ADefault : string) : string;
@@ -465,6 +500,120 @@ begin
   end;
 end;
 
+function MessageBoxButtons(AFlags: Longint): TMsgDlgButtons;
+begin
+  if ((AFlags and MB_YESNOCANCEL) = MB_YESNOCANCEL) then
+    Result := [mbYes, mbNo, mbCancel]
+  else if ((AFlags and MB_YESNO) = MB_YESNO) then
+    Result := [mbYes, mbNo]
+  else if ((AFlags and MB_ABORTRETRYIGNORE) = MB_ABORTRETRYIGNORE) then
+    Result := [mbAbort, mbRetry, mbIgnore]
+  else if ((AFlags and MB_RETRYCANCEL) = MB_RETRYCANCEL) then
+    Result := [mbRetry, mbCancel]
+  else if ((AFlags and MB_OKCANCEL) = MB_OKCANCEL) then
+    Result := [mbOK, mbCancel]
+  else
+    Result := [mbOK];
+end;
+
+function MessageBoxType(AFlags: Longint): TMsgDlgType;
+begin
+  if ((AFlags and $000000F0) = MB_ICONERROR) then
+    Result := mtError
+  else if ((AFlags and $000000F0) = MB_ICONWARNING) then
+    Result := mtWarning
+  else if ((AFlags and $000000F0) = MB_ICONQUESTION) then
+    Result := mtConfirmation
+  else if ((AFlags and $000000F0) = MB_ICONINFORMATION) then
+    Result := mtInformation
+  else
+    Result := mtCustom;
+end;
+
+function MessageBoxDefaultButton(AButtons: TMsgDlgButtons;
+  AFlags: Longint): TMsgDlgBtn;
+begin
+  if ((AFlags and MB_DEFBUTTON2) <> 0) then
+  begin
+    if (mbNo in AButtons) then
+      Result := mbNo
+    else if (mbCancel in AButtons) then
+      Result := mbCancel
+    else if (mbRetry in AButtons) then
+      Result := mbRetry
+    else if (mbIgnore in AButtons) then
+      Result := mbIgnore
+    else
+      Result := ModalDefaultButton(AButtons);
+  end
+  else if ((AFlags and MB_DEFBUTTON3) <> 0) then
+  begin
+    if (mbCancel in AButtons) then
+      Result := mbCancel
+    else if (mbIgnore in AButtons) then
+      Result := mbIgnore
+    else
+      Result := ModalDefaultButton(AButtons);
+  end
+  else if ((AFlags and MB_DEFBUTTON4) <> 0) then
+  begin
+    if (mbIgnore in AButtons) then
+      Result := mbIgnore
+    else
+      Result := ModalDefaultButton(AButtons);
+  end
+  else
+    Result := ModalDefaultButton(AButtons);
+end;
+
+function MessageBoxID(AResult: TModalResult): Integer;
+begin
+  case AResult of
+    mrOk: Result := IDOK;
+    mrCancel: Result := IDCANCEL;
+    mrAbort: Result := IDABORT;
+    mrRetry: Result := IDRETRY;
+    mrIgnore: Result := IDIGNORE;
+    mrYes: Result := IDYES;
+    mrNo: Result := IDNO;
+    mrClose: Result := IDCLOSE;
+  else
+    Result := IDOK;
+  end;
+end;
+
+procedure MessageBox(AOwner: TCustomForm; const AMessage, ACaption: string;
+  AFlags: Longint; AModalResultProc: TModalResultProc);
+var
+  VButtons: TMsgDlgButtons;
+  VType: TMsgDlgType;
+  VDefault: TMsgDlgBtn;
+begin
+  VButtons := MessageBoxButtons(AFlags);
+  VType := MessageBoxType(AFlags);
+  VDefault := MessageBoxDefaultButton(VButtons, AFlags);
+  MessageDlg(AOwner, ACaption, AMessage, VType, VButtons, VDefault,
+    TModalResultProc(procedure(ASender: TObject; AResult: TModalResult)
+    begin
+      if Assigned(AModalResultProc) then
+        AModalResultProc(ASender, MessageBoxID(AResult));
+    end));
+end;
+
+procedure MessageBox(const AMessage, ACaption: string; AFlags: Longint;
+  AModalResultProc: TModalResultProc);
+begin
+  MessageBox(Application.ActiveForm, AMessage, ACaption, AFlags,
+    AModalResultProc);
+end;
+
+procedure ApplicationMessageBox(AOwner: TCustomForm;
+  const AMessage, ACaption: string; AFlags: Longint;
+  AModalResultProc: TModalResultProc);
+begin
+  MessageBox(AOwner, AMessage, ACaption, AFlags, AModalResultProc);
+end;
+
 procedure MessageDlg(AOwner: TCustomForm; const ACaption, AMessage: string; ADlgType: TMsgDlgType; AButtons: TMsgDlgButtons; ADefaultButton: TMsgDlgBtn; AModalResultProc: TModalResultProc);
 var
   VMessageDialog: TMessageDialog;
@@ -742,4 +891,7 @@ begin
        end;
    end, 50);
 end;
+
+initialization
+  Application.MessageBoxHandler := @ApplicationMessageBox;
 end.
