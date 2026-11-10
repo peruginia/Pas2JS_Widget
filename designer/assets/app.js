@@ -32,6 +32,8 @@ const state = {
   sourceEol: '\n',
   sourceTarget: null,
   sourceDirty: false,
+  sourceCaret: { start: 0, end: 0 },
+  sourceScrollTop: 0,
   dirty: false,
 };
 
@@ -166,7 +168,30 @@ function updateSourceStatus() {
     : `${count} lines`;
 }
 
+function rememberSourcePosition() {
+  const editor = els.sourceEditor;
+  if (!editor) return;
+  state.sourceCaret = { start: editor.selectionStart, end: editor.selectionEnd };
+  state.sourceScrollTop = editor.scrollTop;
+}
+
+function focusSourceEditor({ restore = false } = {}) {
+  const editor = els.sourceEditor;
+  if (!editor || state.source === null) return;
+  editor.focus({ preventScroll: true });
+  if (restore) {
+    editor.setSelectionRange(state.sourceCaret.start, state.sourceCaret.end);
+    editor.scrollTop = state.sourceScrollTop;
+  }
+  syncSourceGutter();
+}
+
 function setView(view) {
+  if (view === state.view) {
+    if (view === 'source') focusSourceEditor();
+    return;
+  }
+  if (state.view === 'source') rememberSourcePosition();
   state.view = view;
   const source = view === 'source';
   els.designTab.classList.toggle('active', !source);
@@ -178,6 +203,8 @@ function setView(view) {
       loadSource();
     } else if (state.sourceTarget) {
       applySourceNavigation({ focus: true });
+    } else {
+      focusSourceEditor({ restore: true });
     }
   }
 }
@@ -205,7 +232,9 @@ async function loadSource(force = false) {
     els.sourceEditor.value = state.source;
     updateSourceGutter();
     updateSourceStatus();
-    applySourceNavigation({ focus: !!state.sourceTarget });
+    const hadTarget = !!state.sourceTarget;
+    applySourceNavigation({ focus: hadTarget });
+    if (!hadTarget) focusSourceEditor();
   } catch (error) {
     state.source = null;
     state.sourceDirty = false;
@@ -2263,6 +2292,8 @@ async function loadProject(id) {
     state.source = null;
     state.sourceTarget = null;
     state.sourceDirty = false;
+    state.sourceCaret = { start: 0, end: 0 };
+    state.sourceScrollTop = 0;
     els.sourceEditor.value = '';
     els.sourceGutter.textContent = '';
     els.project.value = id;

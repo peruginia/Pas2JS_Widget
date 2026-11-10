@@ -102,9 +102,10 @@ declared in `project.json` next to the form:
 - the pane is always editable: **Save** (or Ctrl+S) writes the unit with the
   `saveUnit` API action; the status shows "Modified" until it is saved, and
   the original line endings are preserved;
-- switching between Design and Source keeps the editor content and scroll
-  position; **Reload** re-reads the file (asking before discarding unsaved
-  changes), and a save or project reload refreshes it automatically;
+- switching between Design and Source keeps the editor content, caret,
+  selection and scroll position (and returns the focus to the editor);
+  **Reload** re-reads the file (asking before discarding unsaved changes), and
+  a save or project reload refreshes it automatically;
 - **F12** toggles between the form and the unit. Browsers that reserve F12 for
   the developer tools also accept **Ctrl+`**. The Design/Source buttons show
   the same switch.
