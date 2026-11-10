@@ -29,6 +29,9 @@ const state = {
   activeTabs: new Map(),
   view: 'design',
   source: null,
+  sourceEol: '\n',
+  sourceTarget: null,
+  editingSource: false,
   dirty: false,
 };
 
@@ -50,6 +53,9 @@ const els = {
   sourceName: document.getElementById('sourceName'),
   sourceStatus: document.getElementById('sourceStatus'),
   sourceReload: document.getElementById('sourceReloadBtn'),
+  sourceEdit: document.getElementById('sourceEditBtn'),
+  sourceSave: document.getElementById('sourceSaveBtn'),
+  sourceCancel: document.getElementById('sourceCancelBtn'),
   sourceCode: document.getElementById('sourceCode'),
 };
 
@@ -134,7 +140,26 @@ function escapeRegExp(text) {
   return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function setSourceEditButtons(editing) {
+  els.sourceEdit.classList.toggle('hidden-view', editing);
+  els.sourceSave.classList.toggle('hidden-view', !editing);
+  els.sourceCancel.classList.toggle('hidden-view', !editing);
+  els.sourceReload.disabled = editing;
+}
+
+function updateSourceStatus() {
+  if (state.editingSource) {
+    els.sourceStatus.textContent = 'Editing · Ctrl+S to save';
+  } else if (state.source !== null) {
+    els.sourceStatus.textContent = `${state.source.split('\n').length} lines`;
+  }
+}
+
 function setView(view) {
+  if (view === 'design' && state.editingSource) {
+    if (!window.confirm('Discard the unsaved changes to the unit?')) return;
+    cancelSourceEdit();
+  }
   state.view = view;
   const source = view === 'source';
   els.designTab.classList.toggle('active', !source);
@@ -159,25 +184,108 @@ async function loadSource(force = false) {
   els.sourceStatus.textContent = 'Loading...';
   try {
     const data = await api('unit', { project: state.project.id });
-    state.source = data.source;
+    state.sourceEol = data.source.includes('\r\n') ? '\r\n' : '\n';
+    state.source = data.source.replace(/\r\n/g, '\n');
     els.sourceName.textContent = data.unit;
-    els.sourceStatus.textContent = `${data.source.replace(/\r\n/g, '\n').split('\n').length} lines`;
+    state.editingSource = false;
+    setSourceEditButtons(false);
+    updateSourceStatus();
     renderSource();
   } catch (error) {
     state.source = null;
+    state.editingSource = false;
+    setSourceEditButtons(false);
     els.sourceStatus.textContent = error.message;
     els.sourceCode.innerHTML = '';
   }
 }
 
+function startSourceEdit() {
+  if (state.source === null || state.editingSource) return;
+  state.editingSource = true;
+  els.sourceCode.classList.add('editing');
+  els.sourceCode.innerHTML = '';
+  const editor = document.createElement('textarea');
+  editor.className = 'source-editor';
+  editor.spellcheck = false;
+  editor.value = state.source;
+  editor.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      saveSource();
+    }
+  });
+  els.sourceCode.appendChild(editor);
+  setSourceEditButtons(true);
+  updateSourceStatus();
+  editor.focus();
+}
+
+function cancelSourceEdit() {
+  if (!state.editingSource) return;
+  state.editingSource = false;
+  els.sourceCode.classList.remove('editing');
+  setSourceEditButtons(false);
+  updateSourceStatus();
+  renderSource();
+}
+
+async function saveSource() {
+  if (!state.editingSource || !state.project) return;
+  const editor = els.sourceCode.querySelector('.source-editor');
+  if (!editor) return;
+  const text = editor.value.split('\n').join(state.sourceEol || '\n');
+  els.sourceStatus.textContent = 'Saving...';
+  try {
+    const result = await api('saveUnit', {}, { project: state.project.id, source: text });
+    state.editingSource = false;
+    els.sourceCode.classList.remove('editing');
+    setSourceEditButtons(false);
+    state.source = null;
+    await loadSource(true);
+    setStatus(`Unit saved (${result.bytes} bytes)`);
+  } catch (error) {
+    els.sourceStatus.textContent = error.message;
+    setStatus(error.message, true);
+  }
+}
+
+function findFieldLine(lines, name) {
+  const pattern = new RegExp(`\\b${escapeRegExp(name)}\\s*:`);
+  return lines.findIndex((line) => pattern.test(line));
+}
+
+function findMethodLine(lines, name) {
+  const pattern = new RegExp(
+    `^\\s*(?:procedure|function|constructor|destructor)\\s+(?:[A-Za-z_][A-Za-z0-9_]*\\.)?${escapeRegExp(name)}\\b`,
+    'i',
+  );
+  const implIndex = lines.findIndex((line) => /^\s*implementation\b/i.test(line));
+  const start = implIndex >= 0 ? implIndex : 0;
+  for (let index = start; index < lines.length; index++) {
+    if (pattern.test(lines[index])) return index;
+  }
+  for (let index = 0; index < lines.length; index++) {
+    if (pattern.test(lines[index])) return index;
+  }
+  return -1;
+}
+
 function renderSource() {
+  els.sourceCode.classList.remove('editing');
   els.sourceCode.innerHTML = '';
   if (state.source === null) return;
-  const lines = state.source.replace(/\r\n/g, '\n').split('\n');
-  const name = state.selected && state.selected.name;
-  const pattern = name ? new RegExp(`\\b${escapeRegExp(name)}\\s*:`) : null;
+  const lines = state.source.split('\n');
   let highlight = -1;
-  if (pattern) highlight = lines.findIndex((line) => pattern.test(line));
+
+  if (state.sourceTarget && state.sourceTarget.kind === 'method') {
+    highlight = findMethodLine(lines, state.sourceTarget.name);
+    if (highlight < 0) {
+      setStatus(`Handler ${state.sourceTarget.name} not found in the unit.`, true);
+    }
+  } else if (state.selected && state.selected.name) {
+    highlight = findFieldLine(lines, state.selected.name);
+  }
 
   lines.forEach((line, index) => {
     const row = document.createElement('div');
@@ -1545,7 +1653,15 @@ function renderInspector() {
   for (const prop of node.properties) {
     if (items && prop === items.prop) continue;
     const row = propertyRow(prop.name, prop.kind);
-    row.appendChild(propertyEditor(node, prop));
+    const editor = propertyEditor(node, prop);
+    if (isEventProperty(prop)) {
+      const wrap = document.createElement('div');
+      wrap.className = 'property-editor-with-action';
+      wrap.append(editor, eventButton(prop));
+      row.appendChild(wrap);
+    } else {
+      row.appendChild(editor);
+    }
     table.appendChild(row);
   }
   for (const spec of missingProperties(node)) {
@@ -1640,6 +1756,30 @@ function propertyEditor(node, prop) {
     commit();
   });
   return finishInput(input);
+}
+
+function isEventProperty(prop) {
+  return /^On[A-Z]/.test(prop.name);
+}
+
+function eventButton(prop) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'event-btn';
+  button.textContent = '{ }';
+  button.title = 'Show the handler in the source';
+  button.addEventListener('click', () => gotoHandler(prop));
+  return button;
+}
+
+function gotoHandler(prop) {
+  const name = String(prop.value ?? prop.raw ?? '').trim();
+  if (!name) {
+    setStatus('No handler assigned to this event.', true);
+    return;
+  }
+  state.sourceTarget = { kind: 'method', name };
+  setView('source');
 }
 
 function stringListEditor(node, prop) {
@@ -2073,6 +2213,7 @@ function renderPagesEditor(node) {
 }
 
 function selectNode(node) {
+  state.sourceTarget = null;
   for (let current = node; current; current = current.__parent) {
     if (current.className === 'TTabSheet') activateTabSheet(current);
   }
@@ -2121,6 +2262,10 @@ async function loadProject(id) {
     state.selected = null;
     state.activeTabs.clear();
     state.source = null;
+    state.sourceTarget = null;
+    state.editingSource = false;
+    els.sourceCode.classList.remove('editing');
+    setSourceEditButtons(false);
     els.project.value = id;
     renderAll();
     setStatus(`${data.project.name} loaded`);
@@ -2134,6 +2279,10 @@ async function saveProject() {
   if (!state.project) {
     setStatus('No project selected.', true);
     return;
+  }
+  if (state.editingSource) {
+    await saveSource();
+    if (state.editingSource) return;
   }
   try {
     const lfm = writeLfm(state.roots);
@@ -2194,14 +2343,24 @@ async function boot() {
   });
   document.addEventListener('dragend', clearDropTargets);
   els.reload.addEventListener('click', () => {
-    if (state.project) loadProject(state.project.id);
+    if (!state.project) return;
+    if (state.editingSource && !window.confirm('Discard the unsaved changes to the unit?')) return;
+    loadProject(state.project.id);
   });
   els.save.addEventListener('click', saveProject);
   els.designTab.addEventListener('click', () => setView('design'));
   els.sourceTab.addEventListener('click', () => setView('source'));
   els.sourceReload.addEventListener('click', () => loadSource(true));
+  els.sourceEdit.addEventListener('click', startSourceEdit);
+  els.sourceSave.addEventListener('click', saveSource);
+  els.sourceCancel.addEventListener('click', cancelSourceEdit);
   els.project.addEventListener('change', () => {
-    if (els.project.value) loadProject(els.project.value);
+    if (!els.project.value) return;
+    if (state.editingSource && !window.confirm('Discard the unsaved changes to the unit?')) {
+      els.project.value = state.project ? state.project.id : els.project.value;
+      return;
+    }
+    loadProject(els.project.value);
   });
   els.importBtn.addEventListener('click', () => els.importFile.click());
   els.importFile.addEventListener('change', () => {

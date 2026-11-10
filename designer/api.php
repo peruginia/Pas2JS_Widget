@@ -164,6 +164,36 @@ try {
             break;
         }
 
+        case 'saveUnit': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $source = $data['source'] ?? null;
+            if (!is_string($source)) {
+                fail('Missing unit source.');
+            }
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $config = readProject($dir, $id);
+            $file = $dir . DIRECTORY_SEPARATOR . $config['unit'];
+            if (!is_file($file)) {
+                fail('Unit file not found.', 404);
+            }
+            if (file_put_contents($file, $source) === false) {
+                fail('Cannot write the unit file.', 500);
+            }
+            echo json_encode([
+                'ok' => true,
+                'unit' => $config['unit'],
+                'bytes' => strlen($source),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
         case 'save': {
             if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
                 fail('POST required.', 405);
