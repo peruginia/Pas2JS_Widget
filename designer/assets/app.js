@@ -276,20 +276,37 @@ function findFieldLine(lines, name) {
   return lines.findIndex((line) => pattern.test(line));
 }
 
-function findMethodLine(lines, name) {
-  const pattern = new RegExp(
+function methodPattern(name) {
+  return new RegExp(
     `^\\s*(?:procedure|function|constructor|destructor)\\s+(?:[A-Za-z_][A-Za-z0-9_]*\\.)?${escapeRegExp(name)}\\b`,
     'i',
   );
+}
+
+function findImplementationLine(lines, name) {
+  const pattern = methodPattern(name);
   const implIndex = lines.findIndex((line) => /^\s*implementation\b/i.test(line));
   const start = implIndex >= 0 ? implIndex : 0;
   for (let index = start; index < lines.length; index++) {
     if (pattern.test(lines[index])) return index;
   }
-  for (let index = 0; index < lines.length; index++) {
+  return -1;
+}
+
+function findDeclarationLine(lines, name) {
+  const pattern = methodPattern(name);
+  const implIndex = lines.findIndex((line) => /^\s*implementation\b/i.test(line));
+  const end = implIndex >= 0 ? implIndex : lines.length;
+  for (let index = 0; index < end; index++) {
     if (pattern.test(lines[index])) return index;
   }
   return -1;
+}
+
+function findMethodLine(lines, name) {
+  const implLine = findImplementationLine(lines, name);
+  if (implLine >= 0) return implLine;
+  return findDeclarationLine(lines, name);
 }
 
 function applySourceNavigation({ focus = false } = {}) {
@@ -1682,6 +1699,9 @@ function renderInspector() {
       const wrap = document.createElement('div');
       wrap.className = 'property-editor-with-action';
       wrap.append(editor, eventButton(prop));
+      if (NOTIFY_EVENTS.has(prop.name)) {
+        wrap.append(eventCreateButton(node, prop));
+      }
       row.appendChild(wrap);
     } else {
       row.appendChild(editor);
@@ -1808,6 +1828,168 @@ function gotoHandler(prop) {
   } else {
     setView('source');
   }
+}
+
+// Events whose handler is a TNotifyEvent (procedure(Sender: TObject)).
+const NOTIFY_EVENTS = new Set([
+  'OnActivate', 'OnChange', 'OnClick', 'OnCreate', 'OnDblClick', 'OnDeactivate',
+  'OnDestroy', 'OnEditingDone', 'OnEndDraw', 'OnEnter', 'OnError', 'OnExecute',
+  'OnExit', 'OnHide', 'OnLoad', 'OnMouseEnter', 'OnMouseLeave', 'OnMoved',
+  'OnOpen', 'OnPaint', 'OnPictureChanged', 'OnResize', 'OnSave', 'OnScroll',
+  'OnShow', 'OnShowPage', 'OnStartTimer', 'OnStopTimer', 'OnTimer',
+  'OnTopLeftChanged', 'OnUnload', 'OnUpdate',
+]);
+
+async function ensureSourceLoaded() {
+  if (state.source !== null) return true;
+  if (!state.project) {
+    setStatus('No project selected.', true);
+    return false;
+  }
+  try {
+    const data = await api('unit', { project: state.project.id });
+    state.sourceEol = data.source.includes('\r\n') ? '\r\n' : '\n';
+    state.source = data.source.replace(/\r\n/g, '\n');
+    state.sourceDirty = false;
+    els.sourceName.textContent = data.unit;
+    els.sourceEditor.value = state.source;
+    updateSourceGutter();
+    updateSourceStatus();
+    return true;
+  } catch (error) {
+    setStatus(error.message, true);
+    return false;
+  }
+}
+
+function handlerNameExists(lines, name) {
+  return findDeclarationLine(lines, name) >= 0 || findImplementationLine(lines, name) >= 0;
+}
+
+function defaultHandlerName(node, eventName) {
+  const base = `${node.name || 'Form'}${eventName.replace(/^On/, '')}`;
+  const lines = sourceText().split('\n');
+  let name = base;
+  let index = 2;
+  while (handlerNameExists(lines, name)) name = `${base}${index++}`;
+  return name;
+}
+
+function insertHandlerDeclaration(text, formClass, name) {
+  const lines = text.split('\n');
+  const pattern = new RegExp(`^([ \\t]*)${escapeRegExp(formClass)}\\s*=\\s*class\\b`, 'i');
+  let headerIndex = -1;
+  let indent = '';
+
+  for (let index = 0; index < lines.length; index++) {
+    const match = pattern.exec(lines[index]);
+    if (match) {
+      headerIndex = index;
+      indent = match[1] || '';
+      break;
+    }
+  }
+  if (headerIndex < 0) return null;
+
+  const memberIndent = `${indent}  `;
+  lines.splice(headerIndex + 1, 0, `${memberIndent}procedure ${name}(Sender: TObject);`);
+  return lines.join('\n');
+}
+
+function insertHandlerImplementation(text, formClass, name) {
+  const lines = text.split('\n');
+  let endIndex = -1;
+  for (let index = lines.length - 1; index >= 0; index--) {
+    if (/^\s*end\.\s*$/.test(lines[index])) {
+      endIndex = index;
+      break;
+    }
+  }
+  if (endIndex < 0) return null;
+
+  const block = [
+    `procedure ${formClass}.${name}(Sender: TObject);`,
+    'begin',
+    'end;',
+    '',
+  ];
+  if (endIndex === 0 || lines[endIndex - 1].trim() !== '') {
+    block.unshift('');
+  }
+  lines.splice(endIndex, 0, ...block);
+  return lines.join('\n');
+}
+
+async function createHandler(node, prop) {
+  if (!NOTIFY_EVENTS.has(prop.name)) {
+    setStatus(`${prop.name} needs a hand-written signature.`, true);
+    return;
+  }
+  if (!(await ensureSourceLoaded())) return;
+
+  const assigned = String(prop.value ?? prop.raw ?? '').trim();
+  const name = assigned !== '' ? assigned : defaultHandlerName(node, prop.name);
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    setStatus(`Invalid handler name: ${name}`, true);
+    return;
+  }
+
+  const lines = sourceText().split('\n');
+  if (findImplementationLine(lines, name) >= 0) {
+    if (assigned === '') {
+      setPropertyValue(prop, name, 'identifier');
+      markDirty();
+      renderInspector();
+    }
+    state.sourceTarget = { kind: 'method', name };
+    if (state.view === 'source') applySourceNavigation({ focus: true });
+    else setView('source');
+    setStatus(`Handler ${name} already exists.`);
+    return;
+  }
+
+  const formClass = state.roots[0] ? state.roots[0].className : '';
+  if (!formClass) {
+    setStatus('Cannot find the form class.', true);
+    return;
+  }
+
+  let updated = sourceText();
+  if (findDeclarationLine(lines, name) < 0) {
+    updated = insertHandlerDeclaration(updated, formClass, name);
+    if (updated === null) {
+      setStatus(`Cannot find class ${formClass} in the unit.`, true);
+      return;
+    }
+  }
+  updated = insertHandlerImplementation(updated, formClass, name);
+  if (updated === null) {
+    setStatus('Cannot find the end of the unit.', true);
+    return;
+  }
+
+  if (assigned === '') {
+    setPropertyValue(prop, name, 'identifier');
+    markDirty();
+    renderInspector();
+  }
+
+  els.sourceEditor.value = updated;
+  onSourceInput();
+  state.sourceTarget = { kind: 'method', name };
+  if (state.view === 'source') applySourceNavigation({ focus: true });
+  else setView('source');
+  setStatus(`Handler ${name} created`);
+}
+
+function eventCreateButton(node, prop) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'event-btn';
+  button.textContent = '+';
+  button.title = 'Create the handler in the unit (or show it if it already exists)';
+  button.addEventListener('click', () => createHandler(node, prop));
+  return button;
 }
 
 function stringListEditor(node, prop) {

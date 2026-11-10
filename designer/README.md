@@ -99,6 +99,12 @@ declared in `project.json` next to the form:
   declaration;
 - event properties (`OnClick`, `OnChange`, ...) have a **{ }** button that
   opens the source at the handler implementation;
+- the same rows have a **+** button that creates the handler skeleton: the
+  declaration in the form class and the implementation at the end of the
+  unit. When the property is empty it also assigns a unique name such as
+  `Button1Click`. This covers `TNotifyEvent` handlers (`Sender: TObject`);
+  events with other signatures must be written by hand. The unit is left
+  modified, so save it (the form Save saves the unit first);
 - the pane is always editable: **Save** (or Ctrl+S) writes the unit with the
   `saveUnit` API action; the status shows "Modified" until it is saved, and
   the original line endings are preserved;
@@ -242,7 +248,8 @@ fields are not duplicated and a second run is a no-op.
 - The canvas is a preview, not a full layout engine: `Align` is simulated,
   `Anchors` and `ChildSizing` are not.
 - `.pas` synchronisation only adds fields and units; it does not remove stale
-  declarations, generate event methods or reorder the class.
+  declarations or reorder the class. Event handlers are created explicitly
+  with the **+** button in the inspector.
 - The tree/list item editor changes text and structure only; image indexes
   and subitem images keep their decoded values and cannot be edited yet.
 - Build/preview via pas2js will be added after the LFM editor is stable.
