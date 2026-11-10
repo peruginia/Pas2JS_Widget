@@ -76,6 +76,7 @@ type
     property BorderSpacing;
     property BorderStyle;
     property Color;
+    property Columns;
     property DropDownCount;
     property Enabled;
     property Font;
@@ -88,9 +89,11 @@ type
     property ParentFont;
     property ParentShowHint;
     property ShowHint;
+    property Style;
     property TabOrder;
     property TabStop;
     property Text;
+    property TopIndex;
     property Visible;
     property OnChange;
     property OnClick;
@@ -108,6 +111,21 @@ type
     property OnMouseWheel;
   end;
 
+  { TWScrollBar }
+
+  TWScrollBar = class(TScrollBar)
+  end;
+
+  { TWSpinEdit }
+
+  TWSpinEdit = class(TSpinEdit)
+  end;
+
+  { TWUpDown }
+
+  TWUpDown = class(TUpDown)
+  end;
+
   { TWListBox }
 
   TWListBox = class(TCustomListBox)
@@ -118,6 +136,7 @@ type
     property BorderSpacing;
     property BorderStyle;
     property Color;
+    property Columns;
     property Enabled;
     property Font;
     property HandleClass;
@@ -132,6 +151,7 @@ type
     property ShowHint;
     property TabOrder;
     property TabStop;
+    property TopIndex;
     property Visible;
     property OnClick;
     property OnDblClick;
@@ -377,6 +397,7 @@ type
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
+    property ShowAccelChar;
     property ShowHint;
     property Transparent;
     property Visible;

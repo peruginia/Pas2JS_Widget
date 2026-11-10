@@ -5,7 +5,7 @@ unit Unit1;
 interface
 
 uses
-  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls, Menus, ExtCtrls, Web, ActnList;
+  JS, Classes, SysUtils, Graphics, Controls, Forms, Dialogs, WebCtrls, ComCtrls, WebDB, Grids, StdCtrls, Menus, ExtCtrls, Web, ActnList, NumCtrls;
 
 type
 
@@ -103,6 +103,14 @@ type
     FDragPanel: TWPanel;
     FDragList: TWListBox;
     FDropCount: NativeInt;
+    FScrollH: TWScrollBar;
+    FScrollV: TWScrollBar;
+    FSpin: TWSpinEdit;
+    FSpinAssoc: TWEdit;
+    FUpDown: TWUpDown;
+    FWidgetCombo: TWComboBox;
+    FWidgetInfo: TWLabel;
+    FAccelEdit: TWEdit;
     procedure BuildTreeTab;
     procedure TreeSelectionChanged(Sender: TObject);
     procedure TreeExpandAll(Sender: TObject);
@@ -127,6 +135,17 @@ type
     procedure DragDropList(Sender, Source: TObject; X, Y: Integer);
     procedure DragManualMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: NativeInt);
+    procedure BuildWidgetsTab;
+    procedure WidgetScrollChanged(Sender: TObject);
+    procedure WidgetScrollScrolled(Sender: TObject; ScrollCode: TScrollCode;
+      var ScrollPos: Integer);
+    procedure WidgetSpinChanged(Sender: TObject);
+    procedure WidgetUpDownClick(Sender: TObject; Button: TUDBtnType);
+    procedure WidgetUpDownChangingEx(Sender: TObject; var AllowChange: Boolean;
+      NewValue: Integer; Direction: TUpDownDirection);
+    procedure WidgetComboChanged(Sender: TObject);
+    procedure WidgetComboStyle(Sender: TObject);
+    procedure WidgetUpdateInfo;
     procedure BuildGridModesTab;
     procedure BuildGridPopup;
     procedure BuildSplitterTab;
@@ -201,15 +220,19 @@ begin
   WComboBox1.Items.Add('France');
   WComboBox1.Items.Add('Germany');
   WComboBox1.Items.Add('Spain');
+  WComboBox1.Style := csDropDownList;
   WComboBox1.ItemIndex := 0;
   WComboBox2.Items.Add('Red');
   WComboBox2.Items.Add('Green');
   WComboBox2.Items.Add('Blue');
+  WComboBox2.Style := csDropDown;
   WComboBox2.ItemIndex := 0;
   WListBox1.Items.Add('Option 1');
   WListBox1.Items.Add('Option 2');
   WListBox1.Items.Add('Option 3');
   WListBox1.Items.Add('Option 4');
+  WListBox1.Columns := 10;
+  WListBox1.TopIndex := 2;
   WListBox1.ItemIndex := 0;
   WProgressBar1.Value := 50;
   WLabel3.Caption := 'Value: 50';
@@ -231,6 +254,7 @@ begin
   BuildTreeTab;
   BuildListTab;
   BuildDragTab;
+  BuildWidgetsTab;
   SetupStringGrid;
   SetupMenu;
   SetupActions;
@@ -1244,6 +1268,176 @@ procedure TWForm1.DragManualMouseDown(Sender: TObject; Button: TMouseButton;
 begin
   if (Button = mbLeft) and (Sender is TControl) then
     TControl(Sender).BeginDrag(True);
+end;
+
+{ --- extra widgets: scroll bars, spin edit, up-down, combo styles, accelerators --- }
+
+procedure TWForm1.BuildWidgetsTab;
+var
+  VSheet: TCustomTabSheet;
+  VButton: TWButton;
+  VLabel: TWLabel;
+begin
+  VSheet := WPageControl1.AddTabSheet;
+  VSheet.Caption := 'Widgets';
+  VSheet.SetBounds(0, 0, WPageControl1.Width, WPageControl1.Height);
+
+  FScrollH := TWScrollBar.Create(Self);
+  FScrollH.Parent := VSheet;
+  FScrollH.SetBounds(16, 24, 300, 28);
+  FScrollH.Min := 0;
+  FScrollH.Max := 100;
+  FScrollH.Position := 30;
+  FScrollH.OnChange := @WidgetScrollChanged;
+  FScrollH.OnScroll := @WidgetScrollScrolled;
+
+  FScrollV := TWScrollBar.Create(Self);
+  FScrollV.Parent := VSheet;
+  FScrollV.SetBounds(16, 70, 28, 170);
+  FScrollV.Kind := sbVertical;
+  FScrollV.Min := 0;
+  FScrollV.Max := 100;
+  FScrollV.Position := 40;
+  FScrollV.OnChange := @WidgetScrollChanged;
+
+  VLabel := TWLabel.Create(Self);
+  VLabel.Parent := VSheet;
+  VLabel.SetBounds(16, 248, 300, 20);
+  VLabel.Caption := 'Horizontal / vertical scroll bars';
+
+  FSpin := TWSpinEdit.Create(Self);
+  FSpin.Parent := VSheet;
+  FSpin.SetBounds(360, 24, 140, 28);
+  FSpin.MinValue := 0;
+  FSpin.MaxValue := 100;
+  FSpin.Increment := 1;
+  FSpin.Value := 10;
+  FSpin.OnChange := @WidgetSpinChanged;
+
+  VLabel := TWLabel.Create(Self);
+  VLabel.Parent := VSheet;
+  VLabel.SetBounds(360, 54, 140, 18);
+  VLabel.Caption := 'Spin edit';
+
+  FSpinAssoc := TWEdit.Create(Self);
+  FSpinAssoc.Parent := VSheet;
+  FSpinAssoc.SetBounds(360, 90, 110, 28);
+  FSpinAssoc.Text := '0';
+
+  FUpDown := TWUpDown.Create(Self);
+  FUpDown.Parent := VSheet;
+  FUpDown.SetBounds(472, 90, 26, 28);
+  FUpDown.Associate := FSpinAssoc;
+  FUpDown.Min := 0;
+  FUpDown.Max := 100;
+  FUpDown.Increment := 1;
+  FUpDown.Position := 0;
+  FUpDown.OnClick := @WidgetUpDownClick;
+  FUpDown.OnChangingEx := @WidgetUpDownChangingEx;
+
+  VLabel := TWLabel.Create(Self);
+  VLabel.Parent := VSheet;
+  VLabel.SetBounds(360, 120, 200, 18);
+  VLabel.Caption := 'Up-down associated with an edit';
+
+  FWidgetCombo := TWComboBox.Create(Self);
+  FWidgetCombo.Parent := VSheet;
+  FWidgetCombo.SetBounds(360, 156, 180, 28);
+  FWidgetCombo.Items.Add('Alpha');
+  FWidgetCombo.Items.Add('Beta');
+  FWidgetCombo.Items.Add('Gamma');
+  FWidgetCombo.Items.Add('Delta');
+  FWidgetCombo.ItemIndex := 0;
+  FWidgetCombo.TopIndex := 1;
+  FWidgetCombo.Columns := 20;
+  FWidgetCombo.Style := csDropDown;
+  FWidgetCombo.OnChange := @WidgetComboChanged;
+
+  VButton := TWButton.Create(Self);
+  VButton.Parent := VSheet;
+  VButton.SetBounds(552, 156, 120, 31);
+  VButton.Caption := 'Combo: edit';
+  VButton.OnClick := @WidgetComboStyle;
+
+  VLabel := TWLabel.Create(Self);
+  VLabel.Parent := VSheet;
+  VLabel.SetBounds(360, 200, 80, 20);
+  VLabel.Caption := '&Name';
+  VLabel.ShowAccelChar := True;
+
+  FAccelEdit := TWEdit.Create(Self);
+  FAccelEdit.Parent := VSheet;
+  FAccelEdit.SetBounds(440, 198, 120, 28);
+  FAccelEdit.TextHint := 'Alt+N focuses me';
+  VLabel.FocusControl := FAccelEdit;
+
+  FWidgetInfo := TWLabel.Create(Self);
+  FWidgetInfo.Parent := VSheet;
+  FWidgetInfo.SetBounds(16, 300, 680, 80);
+  FWidgetInfo.Caption := 'Use the controls above.';
+
+  WidgetUpdateInfo;
+end;
+
+procedure TWForm1.WidgetUpdateInfo;
+begin
+  if (not Assigned(FWidgetInfo)) then
+    Exit;
+  FWidgetInfo.Caption :=
+    'Scroll H: ' + IntToStr(FScrollH.Position) +
+    '   V: ' + IntToStr(FScrollV.Position) + #10 +
+    'Spin: ' + IntToStr(FSpin.Value) +
+    '   UpDown: ' + IntToStr(FUpDown.Position) + #10 +
+    'Combo: ' + FWidgetCombo.Text;
+end;
+
+procedure TWForm1.WidgetScrollChanged(Sender: TObject);
+begin
+  WidgetUpdateInfo;
+end;
+
+procedure TWForm1.WidgetScrollScrolled(Sender: TObject;
+  ScrollCode: TScrollCode; var ScrollPos: Integer);
+begin
+  WidgetUpdateInfo;
+end;
+
+procedure TWForm1.WidgetSpinChanged(Sender: TObject);
+begin
+  WidgetUpdateInfo;
+end;
+
+procedure TWForm1.WidgetUpDownClick(Sender: TObject; Button: TUDBtnType);
+begin
+  WidgetUpdateInfo;
+end;
+
+procedure TWForm1.WidgetUpDownChangingEx(Sender: TObject;
+  var AllowChange: Boolean; NewValue: Integer; Direction: TUpDownDirection);
+begin
+  AllowChange := True;
+end;
+
+procedure TWForm1.WidgetComboChanged(Sender: TObject);
+begin
+  WidgetUpdateInfo;
+end;
+
+procedure TWForm1.WidgetComboStyle(Sender: TObject);
+begin
+  if (FWidgetCombo.Style = csDropDownList) then
+  begin
+    FWidgetCombo.Style := csDropDown;
+    if (Sender is TWButton) then
+      TWButton(Sender).Caption := 'Combo: edit';
+  end
+  else
+  begin
+    FWidgetCombo.Style := csDropDownList;
+    if (Sender is TWButton) then
+      TWButton(Sender).Caption := 'Combo: list';
+  end;
+  WidgetUpdateInfo;
 end;
 
 { --- TStringGrid demo: inline editing, events and keyboard navigation --- }

@@ -46,21 +46,129 @@ type
   TScrollStyle = (ssNone, ssHorizontal, ssVertical, ssBoth,
     ssAutoHorizontal, ssAutoVertical, ssAutoBoth);
 
-  { TCustomComboBox }
+  TScrollBarKind = (sbHorizontal, sbVertical);
+  TScrollBarInc = 1..32768;
+  TScrollCode = (scLineUp, scLineDown, scPageUp, scPageDown, scPosition,
+    scTrack, scTop, scBottom, scEndScroll);
+  TScrollEvent = procedure(Sender: TObject; ScrollCode: TScrollCode;
+    var ScrollPos: Integer) of object;
+
+  { TCustomScrollBar }
+
+  TCustomScrollBar = class(TWinControl)
+  private
+    FInput: TJSHTMLInputElement;
+    FKind: TScrollBarKind;
+    FLargeChange: TScrollBarInc;
+    FMax: Integer;
+    FMin: Integer;
+    FOnChange: TNotifyEvent;
+    FOnScroll: TScrollEvent;
+    FPageSize: Integer;
+    FPosition: Integer;
+    FSmallChange: TScrollBarInc;
+    procedure SetKind(AValue: TScrollBarKind);
+    procedure SetLargeChange(AValue: TScrollBarInc);
+    procedure SetMax(AValue: Integer);
+    procedure SetMin(AValue: Integer);
+    procedure SetPageSize(AValue: Integer);
+    procedure SetPosition(AValue: Integer);
+    procedure SetSmallChange(AValue: TScrollBarInc);
+  protected
+    procedure Changed; override;
+    function CreateHandleElement: TJSHTMLElement; override;
+    procedure RegisterHandleEvents; override;
+    procedure UnRegisterHandleEvents; override;
+    function HandleInput(AEvent: TJSEvent): boolean; virtual;
+    procedure Change; virtual;
+    procedure Scroll(AScrollCode: TScrollCode; var AScrollPos: Integer); virtual;
+  protected
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    procedure SetParams(APosition, AMin, AMax, APageSize: Integer); overload;
+    procedure SetParams(APosition, AMin, AMax: Integer); overload;
+    property Kind: TScrollBarKind read FKind write SetKind default sbHorizontal;
+    property LargeChange: TScrollBarInc read FLargeChange write SetLargeChange default 1;
+    property Max: Integer read FMax write SetMax default 100;
+    property Min: Integer read FMin write SetMin default 0;
+    property PageSize: Integer read FPageSize write SetPageSize;
+    property Position: Integer read FPosition write SetPosition default 0;
+    property SmallChange: TScrollBarInc read FSmallChange write SetSmallChange default 1;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+    property OnScroll: TScrollEvent read FOnScroll write FOnScroll;
+  end;
+
+  { TScrollBar }
+
+  TScrollBar = class(TCustomScrollBar)
+  published
+    property Align;
+    property Anchors;
+    property BorderSpacing;
+    property Color;
+    property Constraints;
+    property Enabled;
+    property Font;
+    property HandleClass;
+    property HandleId;
+    property Height;
+    property Kind;
+    property LargeChange;
+    property Left;
+    property Max;
+    property Min;
+    property PageSize;
+    property ParentColor;
+    property ParentFont;
+    property ParentShowHint;
+    property PopupMenu;
+    property Position;
+    property ShowHint;
+    property SmallChange;
+    property TabOrder;
+    property TabStop;
+    property Top;
+    property Visible;
+    property Width;
+    property OnChange;
+    property OnEnter;
+    property OnExit;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMouseWheel;
+    property OnScroll;
+  end;
+
+  TComboBoxStyle = (csDropDown, csDropDownList, csOwnerDrawFixed,
+    csOwnerDrawVariable, csSimple);
+
+    { TCustomComboBox }
 
   TCustomComboBox = class(TWinControl)
   private
+    FColumns: NativeInt;
     FDropDownCount: integer;
     FItemHeight: NativeInt;
     FItemIndex: NativeInt;
     FItems: TStrings;
+    FListElement: TJSHTMLElement;
+    FListId: string;
     FOnChange: TNotifyEvent;
     FSorted: boolean;
+    FStyle: TComboBoxStyle;
+    FTopIndex: NativeInt;
+    procedure SetColumns(AValue: NativeInt);
     procedure SetDropDownCount(AValue: integer);
     procedure SetItemHeight(AValue: NativeInt);
     procedure SetItemIndex(AValue: NativeInt);
     procedure SetItems(AValue: TStrings);
     procedure SetSorted(AValue: boolean);
+    procedure SetStyle(AValue: TComboBoxStyle);
+    procedure SetTopIndex(AValue: NativeInt);
   private
     procedure ItemsChange(ASender: TObject);
   protected
@@ -68,7 +176,7 @@ type
   protected
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
   protected
-    function HandleChange(AEvent: TJSEvent): boolean; virtual;
+    function HandleInput(AEvent: TJSEvent): boolean; virtual;
   protected
     procedure Changed; override;
     function CreateHandleElement: TJSHTMLElement; override;
@@ -83,22 +191,26 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure AddItem(const AItem: string; AObject: TObject); virtual;   
+    procedure AddItem(const AItem: string; AObject: TObject); virtual;
     procedure Append(const AItem: string);
     procedure Clear; virtual;
+    property Columns: NativeInt read FColumns write SetColumns default 0;
     property DropDownCount: integer read FDropDownCount write SetDropDownCount;
     property ItemHeight: NativeInt read FItemHeight write SetItemHeight;
     property ItemIndex: NativeInt read FItemIndex write SetItemIndex;
     property Items: TStrings read FItems write SetItems;
     property Sorted: boolean read FSorted write SetSorted;
+    property Style: TComboBoxStyle read FStyle write SetStyle default csDropDown;
+    property TopIndex: NativeInt read FTopIndex write SetTopIndex default 0;
   end;
 
-  { TCustomListBox }
+{ TCustomListBox }
 
   TSelectionChangeEvent = procedure(Sender: TObject; User: boolean) of object;
 
   TCustomListBox = class(TWinControl)
   private
+    FColumns: NativeInt;
     FItemHeight: NativeInt;
     FItemIndex: NativeInt;
     FItems: TStrings;
@@ -106,15 +218,18 @@ type
     FSelectionChanged: Boolean;
     FSelected: array of Boolean;
     FSorted: Boolean;
+    FTopIndex: NativeInt;
     FOnSelectionChange: TSelectionChangeEvent;
     function GetSelCount: integer;
     function GetSelected(Index: Integer): Boolean;
+    procedure SetColumns(AValue: NativeInt);
     procedure SetItemHeight(AValue: NativeInt);
     procedure SetItemIndex(AValue: NativeInt);
     procedure SetItems(AValue: TStrings);
     procedure SetMultiSelect(AValue: Boolean);
     procedure SetSelected(Index: Integer; AValue: Boolean);
     procedure SetSorted(AValue: Boolean);
+    procedure SetTopIndex(AValue: NativeInt);
   private
     procedure ItemsChanged(ASender: TObject);
   protected
@@ -139,6 +254,7 @@ type
     procedure ClearSelection;
     procedure SelectAll; virtual;
     procedure SelectRange(ALow, AHigh: Integer; ASelected: boolean); virtual;
+    property Columns: NativeInt read FColumns write SetColumns default 0;
     property ItemHeight: NativeInt read FItemHeight write SetItemHeight;
     property ItemIndex: NativeInt read FItemIndex write SetItemIndex default -1;
     property Items: TStrings read FItems write SetItems;
@@ -146,6 +262,7 @@ type
     property SelCount: integer read GetSelCount;
     property Selected[Index: Integer]: Boolean read GetSelected write SetSelected;
     property Sorted: Boolean read FSorted write SetSorted default False;
+    property TopIndex: NativeInt read FTopIndex write SetTopIndex default 0;
     property OnSelectionChange: TSelectionChangeEvent read FOnSelectionChange write FOnSelectionChange;
   end;
 
@@ -396,19 +513,23 @@ type
     FContentElement: TJSHTMLTableElement;
     FFocusControl: TWinControl;
     FLayout: TTextLayout;
+    FShowAccelChar: boolean;
     FTransparent: boolean;
     FWordWrap: boolean;
     procedure SetAlignment(AValue: TAlignment);
     procedure SetLayout(AValue: TTextLayout);
+    procedure SetShowAccelChar(AValue: boolean);
     procedure SetTransparent(AValue: boolean);
     procedure SetWordWrap(AValue: boolean);
   protected
     procedure DoEnter; override;
+    function HandleAccelKey(AEvent: TJSKeyBoardEvent): boolean; virtual;
   protected
     property ContentElement: TJSHTMLTableElement read FContentElement;
     property Alignment: TAlignment read FAlignment write SetAlignment;
     property FocusControl: TWinControl read FFocusControl write FFocusControl;
     property Layout: TTextLayout read FLayout write SetLayout;
+    property ShowAccelChar: boolean read FShowAccelChar write SetShowAccelChar default True;
     property Transparent: boolean read FTransparent write SetTransparent;
     property WordWrap: boolean read FWordWrap write SetWordWrap;
   protected
@@ -420,6 +541,7 @@ type
     class function GetControlClassDefaultSize: TSize; override;
   public
     constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
     procedure AdjustSize; override;
     property AutoSize default True;
   end;
@@ -578,6 +700,23 @@ begin
     'background-color:#fff;}' +
     '.wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}' +
     '.wcl-input:disabled{opacity:0.5;}' +
+    '.wcl-scrollbar{' +
+    'box-sizing:border-box;' +
+    'display:flex;' +
+    'align-items:center;' +
+    'justify-content:center;' +
+    'min-width:24px;' +
+    'min-height:24px;}' +
+    '.wcl-scrollbar input[type=range]{' +
+    'width:100%;' +
+    'height:100%;' +
+    'margin:0;' +
+    'padding:0;' +
+    'cursor:pointer;' +
+    'accent-color:#4A90D9;}' +
+    '.wcl-scrollbar-vertical input[type=range]{' +
+    'writing-mode:vertical-lr;' +
+    'direction:rtl;}' +
     /// Touch devices: readable text (16px avoids the iOS focus zoom) and
     /// finger-sized targets. Independent of the viewport width, so it also
     /// applies in fit-design mode.
@@ -595,6 +734,20 @@ begin
 end;
 
 { TCustomComboBox }
+
+var
+  _ComboSeq: NativeInt = 0;
+
+procedure TCustomComboBox.SetColumns(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FColumns <> AValue) then
+  begin
+    FColumns := AValue;
+    Changed;
+  end;
+end;
 
 procedure TCustomComboBox.SetDropDownCount(AValue: integer);
 begin
@@ -620,9 +773,13 @@ end;
 
 procedure TCustomComboBox.SetItemIndex(AValue: NativeInt);
 begin
-  if (AValue > -1) and (AValue < FItems.Count) then
+  if (AValue < -1) or (AValue >= FItems.Count) then
+    Exit;
+  if (FItemIndex <> AValue) then
   begin
     FItemIndex := AValue;
+    if (AValue < 0) and Assigned(HandleElement) then
+      TJSHTMLInputElement(HandleElement).Value := '';
     Changed;
   end;
 end;
@@ -630,6 +787,8 @@ end;
 procedure TCustomComboBox.SetItems(AValue: TStrings);
 begin
   FItems.Assign(AValue);
+  if (FItemIndex >= FItems.Count) then
+    FItemIndex := -1;
   Changed;
 end;
 
@@ -642,8 +801,30 @@ begin
   end;
 end;
 
+procedure TCustomComboBox.SetStyle(AValue: TComboBoxStyle);
+begin
+  if (FStyle <> AValue) then
+  begin
+    FStyle := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomComboBox.SetTopIndex(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FTopIndex <> AValue) then
+  begin
+    FTopIndex := AValue;
+    Changed;
+  end;
+end;
+
 procedure TCustomComboBox.ItemsChange(ASender: TObject);
 begin
+  if (FItemIndex >= FItems.Count) then
+    FItemIndex := -1;
   Changed;
 end;
 
@@ -655,10 +836,10 @@ begin
   end;
 end;
 
-function TCustomComboBox.HandleChange(AEvent: TJSEvent): boolean;
+function TCustomComboBox.HandleInput(AEvent: TJSEvent): boolean;
 begin
   AEvent.StopPropagation;
-  FItemIndex := TJSHTMLSelectElement(HandleElement).SelectedIndex;
+  FItemIndex := FItems.IndexOf(TJSHTMLInputElement(HandleElement).Value);
   Change();
   Result := True;
 end;
@@ -666,54 +847,61 @@ end;
 procedure TCustomComboBox.Changed;
 var
   VIndex: NativeInt;
-  VOptionElement: TJSHTMLOptionElement;
-  VValue: string;
+  VInput: TJSHTMLInputElement;
+  VOption: TJSHTMLOptionElement;
 begin
   inherited Changed;
   if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
-    if (HandleClass = '') then begin
+    if (HandleClass = '') then
+    begin
       _RegisterWCLStdRules;
       asm this.FHandleElement.classList.add('wcl-input'); end;
     end;
-    HandleElement.setAttribute('name', Name );
-    /// DropDownCount is kept for LCL compatibility. Native <select> dropdown
-    /// height is browser-controlled, so expose it as data attribute for CSS/JS.
-    HandleElement.setAttribute('data-dropdown-count', IntToStr(FDropDownCount));
-    /// Remove old items
-    for VIndex := (TJSHTMLSelectElement(HandleElement).Length - 1) downto 0 do
+    VInput := TJSHTMLInputElement(HandleElement);
+    VInput.setAttribute('name', Name);
+    /// DropDownCount, TopIndex and Columns are kept for LCL compatibility.
+    /// The native datalist does not expose them, so store them as data
+    /// attributes for CSS/custom code.
+    VInput.setAttribute('data-dropdown-count', IntToStr(FDropDownCount));
+    VInput.setAttribute('data-top-index', IntToStr(FTopIndex));
+    VInput.setAttribute('data-columns', IntToStr(FColumns));
+    if Assigned(FListElement) then
     begin
-      TJSHTMLSelectElement(HandleElement).Remove(VIndex);
+      FListElement.InnerHTML := '';
+      for VIndex := 0 to (FItems.Count - 1) do
+      begin
+        VOption := TJSHTMLOptionElement(Document.CreateElement('option'));
+        VOption.Value := FItems[VIndex];
+        VOption.Text := FItems[VIndex];
+        FListElement.AppendChild(VOption);
+      end;
+      VInput.setAttribute('list', FListId);
     end;
-    /// Add new items
-    for VIndex := 0 to (FItems.Count - 1) do
+    if (FStyle = csDropDownList) then
     begin
-      /// Names[] would be empty without a '=' separator (pas2js TStrings).
-      VValue := FItems[VIndex];
-      VOptionElement := TJSHTMLOptionElement(Document.CreateElement('option'));
-      VOptionElement.Value := VValue;
-      VOptionElement.Text := VValue;
-      VOptionElement.Selected := (VIndex = FItemIndex);
-      if (FItemHeight > 0) then
-        VOptionElement.Style.SetProperty('min-height', IntToStr(FItemHeight) + 'px');
-      TJSHTMLSelectElement(HandleElement).Add(VOptionElement);
+      VInput.ReadOnly := True;
+      HandleElement.classList.add('wcl-combo-list');
+    end
+    else
+    begin
+      VInput.ReadOnly := False;
+      HandleElement.classList.remove('wcl-combo-list');
     end;
-    { add dummy item at the end to avoid problems with the ItemIndex }
-    if FItemIndex < 0 then begin
-      VOptionElement := TJSHTMLOptionElement(Document.CreateElement('option'));
-      VOptionElement.Value := '';
-      VOptionElement.Text := '';
-      VOptionElement.Selected := True;
-      VOptionElement.Disabled := True;
-      VOptionElement.style.setProperty('display', 'none');
-      TJSHTMLSelectElement(HandleElement).Add(VOptionElement);
-    end;
+    if (FItemIndex >= 0) and (FItemIndex < FItems.Count) then
+      VInput.Value := FItems[FItemIndex];
   end;
 end;
 
 function TCustomComboBox.CreateHandleElement: TJSHTMLElement;
 begin
-  Result := TJSHTMLElement(Document.CreateElement('select'));
+  Result := TJSHTMLElement(Document.CreateElement('input'));
+  TJSHTMLInputElement(Result)._type := 'text';
+  Inc(_ComboSeq);
+  FListId := 'wcl-combo-list-' + IntToStr(_ComboSeq);
+  FListElement := TJSHTMLElement(Document.CreateElement('datalist'));
+  FListElement.setAttribute('id', FListId);
+  Document.Body.AppendChild(FListElement);
 end;
 
 procedure TCustomComboBox.RegisterHandleEvents;
@@ -721,7 +909,7 @@ begin
   inherited RegisterHandleEvents;
   with HandleElement do
   begin
-    AddEventListener('change', TJSEventHandler(@HandleChange));
+    AddEventListener('input', TJSEventHandler(@HandleInput));
   end;
 end;
 
@@ -730,7 +918,7 @@ begin
   inherited UnRegisterHandleEvents;
   with HandleElement do
   begin
-    RemoveEventListener('change', TJSEventHandler(@HandleChange));
+    RemoveEventListener('input', TJSEventHandler(@HandleInput));
   end;
 end;
 
@@ -746,28 +934,36 @@ end;
 
 function TCustomComboBox.RealGetText: string;
 begin
-  Result := FItems.Names[FItemIndex];
+  if (FItemIndex >= 0) and (FItemIndex < FItems.Count) then
+    Result := FItems[FItemIndex]
+  else if Assigned(HandleElement) then
+    Result := TJSHTMLInputElement(HandleElement).Value
+  else
+    Result := '';
 end;
 
 procedure TCustomComboBox.RealSetText(const AValue: string);
 var
   VIndex: NativeInt;
 begin
-  VIndex := FItems.IndexOfName(AValue);
-  if (VIndex > -1) and (VIndex < FItems.Count) then
+  VIndex := FItems.IndexOf(AValue);
+  if (VIndex >= 0) then
   begin
     FItemIndex := VIndex;
     Changed;
+  end
+  else if (FStyle <> csDropDownList) then
+  begin
+    FItemIndex := -1;
+    if Assigned(HandleElement) then
+      TJSHTMLInputElement(HandleElement).Value := AValue;
   end;
 end;
 
 procedure TCustomComboBox.UpdateSorted;
-var
-  VText: string;
 begin
-  VText := RealGetText;
   TStringList(FItems).Sorted := FSorted;
-  Text := VText;
+  Changed;
 end;
 
 class function TCustomComboBox.GetControlClassDefaultSize: TSize;
@@ -779,12 +975,15 @@ end;
 constructor TCustomComboBox.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FColumns := 0;
   FDropDownCount := 8;
   FItemHeight := 0;
   FItemIndex := -1;
   FItems := TStringList.Create;
   TStringList(FItems).OnChange := ItemsChange;
   FSorted := False;
+  FStyle := csDropDown;
+  FTopIndex := 0;
   BeginUpdate;
   try
     with GetControlClassDefaultSize do
@@ -798,6 +997,11 @@ end;
 
 destructor TCustomComboBox.Destroy;
 begin
+  if Assigned(FListElement) then
+  begin
+    FListElement.remove;
+    FListElement := nil;
+  end;
   FItems.Destroy;
   FItems := nil;
   inherited Destroy;
@@ -806,23 +1010,49 @@ end;
 procedure TCustomComboBox.AddItem(const AItem: string; AObject: TObject);
 begin
   FItems.AddObject(AItem, AObject);
-  Changed;
 end;
 
 procedure TCustomComboBox.Append(const AItem: string);
 begin
   FItems.Append(AItem);
-  Changed;
 end;
 
 procedure TCustomComboBox.Clear;
 begin
   FItems.Clear;
   FItemIndex := -1;
+  if Assigned(HandleElement) then
+    TJSHTMLInputElement(HandleElement).Value := '';
   Changed;
 end;
 
 { TCustomListBox }
+
+procedure TCustomListBox.SetColumns(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FColumns <> AValue) then
+  begin
+    FColumns := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomListBox.SetTopIndex(AValue: NativeInt);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (AValue > (FItems.Count - 1)) then
+    AValue := FItems.Count - 1;
+  if (AValue < 0) then
+    AValue := 0;
+  if (FTopIndex <> AValue) then
+  begin
+    FTopIndex := AValue;
+    Changed;
+  end;
+end;
 
 procedure TCustomListBox.SetItemHeight(AValue: NativeInt);
 begin
@@ -984,6 +1214,15 @@ begin
           opt.Selected := idx = FItemIndex;
         Add(opt);
       end;
+      HandleElement.setAttribute('data-columns', IntToStr(FColumns));
+      HandleElement.setAttribute('data-top-index', IntToStr(FTopIndex));
+      if (FTopIndex > 0) and (FItems.Count > 0) then
+      begin
+        if (FItemHeight > 0) then
+          scrollTop := FTopIndex * FItemHeight
+        else if (FTopIndex < FItems.Count) then
+          scrollTop := Trunc(item(FTopIndex).offsetTop);
+      end;
     end;
     HandleElement.setAttribute('name', Name );
   end;
@@ -1031,12 +1270,14 @@ end;
 constructor TCustomListBox.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FColumns := 0;
   FItemHeight := 0;
   FItemIndex := -1;
   FItems := TStringList.Create;
   TStringList(FItems).OnChange := @ItemsChanged;
   FMultiSelect := False;
   FSorted := False;
+  FTopIndex := 0;
   BeginUpdate;
   try
     with GetControlClassDefaultSize do begin
@@ -2186,6 +2427,55 @@ begin
   end;
 end;
 
+function EscapeHTMLChar(AChar: char): string;
+begin
+  case AChar of
+    '&': Result := '&amp;';
+    '<': Result := '&lt;';
+    '>': Result := '&gt;';
+    '"': Result := '&quot;';
+    '''': Result := '&#39;';
+  else
+    Result := AChar;
+  end;
+end;
+
+function CaptionToAccelHTML(const AText: string; AShowAccel: Boolean): string;
+var
+  VIndex: NativeInt;
+  VChar: char;
+begin
+  Result := '';
+  VIndex := 1;
+  while (VIndex <= Length(AText)) do
+  begin
+    VChar := AText[VIndex];
+    if (VChar = '&') then
+    begin
+      if (VIndex < Length(AText)) and (AText[VIndex + 1] = '&') then
+      begin
+        Result := Result + '&amp;';
+        Inc(VIndex, 2);
+      end
+      else if (VIndex < Length(AText)) and AShowAccel then
+      begin
+        Result := Result + '<u>' + EscapeHTMLChar(AText[VIndex + 1]) + '</u>';
+        Inc(VIndex, 2);
+      end
+      else
+      begin
+        Result := Result + '&amp;';
+        Inc(VIndex);
+      end;
+    end
+    else
+    begin
+      Result := Result + EscapeHTMLChar(VChar);
+      Inc(VIndex);
+    end;
+  end;
+end;
+
 { TCustomLabel }
 
 procedure TCustomLabel.SetAlignment(AValue: TAlignment);
@@ -2202,6 +2492,15 @@ begin
   if (FLayout <> AValue) then
   begin
     FLayout := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomLabel.SetShowAccelChar(AValue: boolean);
+begin
+  if (FShowAccelChar <> AValue) then
+  begin
+    FShowAccelChar := AValue;
     Changed;
   end;
 end;
@@ -2243,6 +2542,45 @@ begin
   if (Assigned(FFocusControl)) and (FFocusControl.CanSetFocus) then
   begin
     FFocusControl.SetFocus;
+  end;
+end;
+
+function TCustomLabel.HandleAccelKey(AEvent: TJSKeyBoardEvent): boolean;
+var
+  VIndex: NativeInt;
+  VKey: string;
+begin
+  Result := False;
+  if (not FShowAccelChar) or (not Assigned(FFocusControl)) or
+    (not Assigned(AEvent)) or (not AEvent.altKey) then
+    Exit;
+  VKey := AEvent.Key;
+  if (Length(VKey) <> 1) then
+    Exit;
+  VIndex := 1;
+  while (VIndex <= Length(Caption)) do
+  begin
+    if (Caption[VIndex] = '&') then
+    begin
+      if (VIndex < Length(Caption)) and (Caption[VIndex + 1] = '&') then
+        Inc(VIndex, 2)
+      else if (VIndex < Length(Caption)) then
+      begin
+        if SameText(string(Caption[VIndex + 1]), VKey) then
+        begin
+          if FFocusControl.CanSetFocus then
+            FFocusControl.SetFocus;
+          AEvent.PreventDefault;
+          AEvent.StopPropagation;
+          Exit(True);
+        end;
+        Inc(VIndex, 2);
+      end
+      else
+        Inc(VIndex);
+    end
+    else
+      Inc(VIndex);
   end;
 end;
 
@@ -2307,8 +2645,8 @@ begin
       Style.SetProperty('overflow', 'hidden');
       /// Specifies how overflowed content
       Style.SetProperty('text-overflow', 'ellipsis');
-      /// Caption
-      InnerHTML := Self.Caption;
+      /// Caption (&X is an underlined accelerator when ShowAccelChar is set)
+      InnerHTML := CaptionToAccelHTML(Self.Caption, FShowAccelChar);
     end;
   end;
 end;
@@ -2346,8 +2684,10 @@ begin
   FAlignment := taLeftJustify;
   FFocusControl := nil;
   FLayout := tlTop;
+  FShowAccelChar := True;
   FTransparent := True;
   FWordWrap := False;
+  Document.AddEventListener('keydown', TJSEventHandler(@HandleAccelKey));
   BeginUpdate;
   try
     TabStop := False;
@@ -2361,10 +2701,232 @@ begin
   end;
 end;
 
+destructor TCustomLabel.Destroy;
+begin
+  Document.RemoveEventListener('keydown', TJSEventHandler(@HandleAccelKey));
+  inherited Destroy;
+end;
+
 procedure TCustomLabel.AdjustSize;
 begin
   inherited AdjustSize;
   Changed;
+end;
+
+{ TCustomScrollBar }
+
+constructor TCustomScrollBar.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FKind := sbHorizontal;
+  FLargeChange := 1;
+  FMax := 100;
+  FMin := 0;
+  FPageSize := 0;
+  FPosition := 0;
+  FSmallChange := 1;
+  BeginUpdate;
+  try
+    TabStop := True;
+    with GetControlClassDefaultSize do
+    begin
+      SetBounds(0, 0, Cx, Cy);
+    end;
+  finally
+    EndUpdate;
+  end;
+end;
+
+class function TCustomScrollBar.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 120;
+  Result.Cy := 24;
+end;
+
+function TCustomScrollBar.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('div'));
+  FInput := TJSHTMLInputElement(Document.CreateElement('input'));
+  FInput._type := 'range';
+  Result.AppendChild(FInput);
+end;
+
+procedure TCustomScrollBar.RegisterHandleEvents;
+begin
+  inherited RegisterHandleEvents;
+  FInput.addEventListener('input', TJSEventHandler(@HandleInput));
+end;
+
+procedure TCustomScrollBar.UnRegisterHandleEvents;
+begin
+  inherited UnRegisterHandleEvents;
+  FInput.removeEventListener('input', TJSEventHandler(@HandleInput));
+end;
+
+procedure TCustomScrollBar.Changed;
+begin
+  inherited Changed;
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+  begin
+    HandleElement.classList.add('wcl-scrollbar');
+    if (FKind = sbVertical) then
+      HandleElement.classList.add('wcl-scrollbar-vertical')
+    else
+      HandleElement.classList.remove('wcl-scrollbar-vertical');
+    FInput.min := IntToStr(FMin);
+    FInput.max := IntToStr(FMax);
+    FInput.step := IntToStr(FSmallChange);
+    FInput.Value := IntToStr(FPosition);
+    FInput.setAttribute('aria-label', Name);
+  end;
+end;
+
+procedure TCustomScrollBar.Change;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure TCustomScrollBar.Scroll(AScrollCode: TScrollCode;
+  var AScrollPos: Integer);
+begin
+  if Assigned(FOnScroll) then
+    FOnScroll(Self, AScrollCode, AScrollPos);
+end;
+
+function TCustomScrollBar.HandleInput(AEvent: TJSEvent): boolean;
+var
+  VPos: Integer;
+begin
+  AEvent.StopPropagation;
+  VPos := StrToIntDef(FInput.Value, FMin);
+  if (VPos < FMin) then
+    VPos := FMin;
+  if (VPos > FMax) then
+    VPos := FMax;
+  FPosition := VPos;
+  Change;
+  VPos := FPosition;
+  Scroll(scTrack, VPos);
+  if (VPos < FMin) then
+    VPos := FMin;
+  if (VPos > FMax) then
+    VPos := FMax;
+  FPosition := VPos;
+  if (FInput.Value <> IntToStr(FPosition)) then
+    FInput.Value := IntToStr(FPosition);
+  Result := True;
+end;
+
+procedure TCustomScrollBar.SetKind(AValue: TScrollBarKind);
+begin
+  if (FKind <> AValue) then
+  begin
+    FKind := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomScrollBar.SetLargeChange(AValue: TScrollBarInc);
+begin
+  if (AValue < 1) then
+    AValue := 1;
+  if (AValue > 32768) then
+    AValue := 32768;
+  if (FLargeChange <> AValue) then
+  begin
+    FLargeChange := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomScrollBar.SetMax(AValue: Integer);
+begin
+  if (AValue < FMin) then
+    AValue := FMin;
+  if (FMax <> AValue) then
+  begin
+    FMax := AValue;
+    if (FPosition > FMax) then
+      FPosition := FMax;
+    Changed;
+  end;
+end;
+
+procedure TCustomScrollBar.SetMin(AValue: Integer);
+begin
+  if (AValue > FMax) then
+    AValue := FMax;
+  if (FMin <> AValue) then
+  begin
+    FMin := AValue;
+    if (FPosition < FMin) then
+      FPosition := FMin;
+    Changed;
+  end;
+end;
+
+procedure TCustomScrollBar.SetPageSize(AValue: Integer);
+begin
+  if (AValue < 0) then
+    AValue := 0;
+  if (FPageSize <> AValue) then
+  begin
+    FPageSize := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomScrollBar.SetPosition(AValue: Integer);
+begin
+  if (AValue < FMin) then
+    AValue := FMin;
+  if (AValue > FMax) then
+    AValue := FMax;
+  if (FPosition <> AValue) then
+  begin
+    FPosition := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomScrollBar.SetSmallChange(AValue: TScrollBarInc);
+begin
+  if (AValue < 1) then
+    AValue := 1;
+  if (AValue > 32768) then
+    AValue := 32768;
+  if (FSmallChange <> AValue) then
+  begin
+    FSmallChange := AValue;
+    Changed;
+  end;
+end;
+
+procedure TCustomScrollBar.SetParams(APosition, AMin, AMax, APageSize: Integer);
+begin
+  BeginUpdate;
+  try
+    if (AMin > AMax) then
+      AMax := AMin;
+    FMin := AMin;
+    FMax := AMax;
+    FPageSize := APageSize;
+    if (FPageSize < 0) then
+      FPageSize := 0;
+    if (APosition < FMin) then
+      APosition := FMin;
+    if (APosition > FMax) then
+      APosition := FMax;
+    FPosition := APosition;
+  finally
+    EndUpdate;
+  end;
+end;
+
+procedure TCustomScrollBar.SetParams(APosition, AMin, AMax: Integer);
+begin
+  SetParams(APosition, AMin, AMax, 0);
 end;
 
 end.

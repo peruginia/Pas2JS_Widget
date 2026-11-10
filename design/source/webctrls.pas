@@ -38,6 +38,7 @@ uses
   StdCtrls,
   ExtCtrls,
   ComCtrls,
+  Spin,
   Menus,
   ActnList,
   NumCtrlsD,
@@ -274,6 +275,7 @@ type
     property BorderStyle;
     property Color;
     property Constraints;
+    property DropDownCount;
     property Enabled;
     property Font;
     property HandleClass: string read FHandleClass write FHandleClass;
@@ -281,11 +283,11 @@ type
     property ItemHeight;
     property ItemIndex;
     property Items;
-    property DropDownCount;
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
     property ShowHint;
+    property Style;
     property TabOrder;
     property TabStop;
     property Text;
@@ -319,6 +321,7 @@ type
     property BorderSpacing;
     property BorderStyle;
     property Color;
+    property Columns;
     property Constraints;
     property Enabled;
     property Font;
@@ -334,6 +337,7 @@ type
     property ShowHint;
     property TabOrder;
     property TabStop;
+    property TopIndex;
     property Visible;
     property OnClick;
     property OnDblClick;
@@ -349,6 +353,42 @@ type
     property OnMouseUp;
     property OnMouseWheel;
     property OnSelectionChange;
+  end;
+
+  { TWScrollBar }
+
+  TWScrollBar = class(TScrollBar)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property Constraints;
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
+  { TWSpinEdit }
+
+  TWSpinEdit = class(TSpinEdit)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property Constraints;
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
+  end;
+
+  { TWUpDown }
+
+  TWUpDown = class(TUpDown)
+  private
+    FHandleClass: string;
+    FHandleId: string;
+  published
+    property Constraints;
+    property HandleClass: string read FHandleClass write FHandleClass;
+    property HandleId: string read FHandleId write FHandleId;
   end;
 
   { TWEdit }
@@ -616,6 +656,7 @@ type
     property ParentColor;
     property ParentFont;
     property ParentShowHint;
+    property ShowAccelChar;
     property ShowHint;
     property Transparent;
     property Visible;
@@ -1330,6 +1371,9 @@ begin
   RegisterComponents('WCL', [
     TWComboBox,
     TWListBox,
+    TWScrollBar,
+    TWSpinEdit,
+    TWUpDown,
     TWEdit,
     TWMemo,
     TWButton,

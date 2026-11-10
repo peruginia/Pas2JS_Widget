@@ -25,17 +25,20 @@ RAD widgetset for Lazarus/pas2js — compile Object Pascal to JavaScript with LC
 | **TWButton** | `<button>` | Push button with hover/active/disabled CSS, `ModalResult` |
 | **TWEdit** | `<input type="text">` | Single-line text input with `TextHint`, `Autocomplete`, `InputType` (`itEmail`/`itTel`/`itUrl`/`itSearch`), `SelStart`/`SelLength` |
 | **TWMemo** | `<textarea>` | Multi-line text input |
-| **TWComboBox** | `<select>` | Dropdown selector with `Items`, `ItemIndex`, `DropDownCount`, `ItemHeight` |
-| **TWListBox** | `<select multiple>` | Multi-select list, `ItemHeight` |
+| **TWComboBox** | `<input list>` | Dropdown/editable selector with `Items`, `ItemIndex`, `Style` (`csDropDown`/`csDropDownList`), `TopIndex`, `Columns`, `DropDownCount`, `ItemHeight` |
+| **TWListBox** | `<select multiple>` | Multi-select list, `ItemHeight`, `TopIndex`, `Columns` |
 | **TWCheckbox** | `<input type="checkbox">` | Boolean toggle with `Checked` |
 | **TWRadioButton** | `<input type="radio">` | Radio selection with `Checked` |
-| **TWLabel** | `<div>` | Text label with `FocusControl`, `AutoSize` |
+| **TWLabel** | `<div>` | Text label with `FocusControl`, `AutoSize`, `ShowAccelChar` (`&X` underlined accelerator, Alt+X focuses `FocusControl`) |
 | **TWImage** | `<img>` | Image display with `Stretch`, `Proportional`, `ZoomEnabled` |
 | **TWPanel** | `<div>` | Container with `BevelOuter`/`BevelInner` |
 | **TWGroupBox** | `<fieldset>` +`<legend>` | Group container, `Caption` as legend |
 | **TWScrollBox** | `<div>` | Scrollable container (`overflow: auto`) |
 | **TWPageControl** | custom tabs | Multi-page tabs, `AddTabSheet`, `OnShowPage` |
 | **TWFloatEdit** | `<input type="text">` | Float numeric with `DecimalPlaces`, `MinValue`/`MaxValue`, `Value: Double` |
+| **TWSpinEdit** | `<input type="number">` | Integer spin edit with `Value`, `MinValue`/`MaxValue`, `Increment` |
+| **TWUpDown** | two buttons | Up/down buttons with `Associate`, `Min`/`Max`, `Position`, `Increment`, `Orientation`, `Wrap`, `OnChanging`/`OnChangingEx`/`OnClick` |
+| **TWScrollBar** | `<input type="range">` | `Kind` (`sbHorizontal`/`sbVertical`), `Min`/`Max`, `Position`, `PageSize`, `SmallChange`/`LargeChange`, `OnChange`/`OnScroll` |
 | **TWIntegerEdit** | `<input type="text">` | Integer numeric with `MinValue`/`MaxValue`, `Value: NativeInt` |
 | **TWDateEditBox** | `<input type="date">` | Native date picker |
 | **TWTimeEditBox** | `<input type="time">` | Native time picker |
@@ -349,6 +352,70 @@ In `vsReport`, clicking a column header sorts the rows when `AutoSort` is True (
 
 Items are built in code; the binary `Items.Data`/`Items.LazData` saved by the LCL list editor is accepted and ignored. Default rows grow to 36 px on touch devices, and the list shares the WCL theme.
 
+### Scroll bars, spin edits and up-down
+
+`TWScrollBar` uses a native `<input type="range">`; `Kind` selects the horizontal or vertical orientation:
+
+```pascal
+ScrollBar1.Kind := sbHorizontal;   // or sbVertical
+ScrollBar1.Min := 0;
+ScrollBar1.Max := 100;
+ScrollBar1.Position := 30;
+ScrollBar1.OnChange := @ScrollChanged;
+ScrollBar1.OnScroll := @ScrollScrolled; // ScrollCode + var ScrollPos
+```
+
+`PageSize`, `SmallChange` and `LargeChange` are accepted; `SmallChange` maps to the native range step.
+
+`TWSpinEdit` is a numeric edit with native `<input type="number">` steppers:
+
+```pascal
+SpinEdit1.MinValue := 0;
+SpinEdit1.MaxValue := 100;
+SpinEdit1.Increment := 1;
+SpinEdit1.Value := 10;
+```
+
+`TWUpDown` shows two arrow buttons and can drive an edit through `Associate`:
+
+```pascal
+UpDown1.Associate := Edit1;
+UpDown1.Min := 0;
+UpDown1.Max := 100;
+UpDown1.Increment := 1;
+UpDown1.Position := 0;
+UpDown1.Orientation := udVertical; // or udHorizontal
+UpDown1.OnClick := @UpDownClick;   // TUDBtnType: btNext/btPrev
+```
+
+`OnChanging` and `OnChangingEx` can veto the change (`AllowChange := False`); `Wrap` wraps at the bounds and `Thousands` is accepted for compatibility.
+
+### ComboBox styles and label accelerators
+
+`TWComboBox.Style` selects the behaviour:
+
+* `csDropDown` — editable text with the items offered by a `<datalist>`.
+* `csDropDownList` — read-only text; the value must come from the list.
+
+```pascal
+ComboBox1.Items.Add('Alpha');
+ComboBox1.Items.Add('Beta');
+ComboBox1.Style := csDropDown;
+ComboBox1.ItemIndex := 0;
+ComboBox1.TopIndex := 1;   // accepted for LCL compatibility
+ComboBox1.Columns := 20;   // accepted for LCL compatibility
+```
+
+`TListBox.TopIndex` scrolls the list to the first visible item and `Columns` is accepted for compatibility.
+
+`TWLabel.ShowAccelChar` is True by default. `&X` in the caption renders `X` underlined and `Alt+X` focuses `FocusControl`; write `&&` for a literal ampersand:
+
+```pascal
+NameLabel.Caption := '&Name';
+NameLabel.FocusControl := NameEdit;
+NameLabel.ShowAccelChar := True;
+```
+
 ### Drag and drop
 
 Every control exposes the LCL drag properties and events:
@@ -440,7 +507,7 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
-The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Tree** tab has a `TWTreeView` with folders built in code plus Expand/Collapse/Add child/Sort buttons, the **List** tab has a `TWListView` in report mode with columns, checkboxes, multi-select, column sorting and a view-style cycler, the **Drag** tab has automatic and manual drag sources with a panel and a list box as drop targets, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
+The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Tree** tab has a `TWTreeView` with folders built in code plus Expand/Collapse/Add child/Sort buttons, the **List** tab has a `TWListView` in report mode with columns, checkboxes, multi-select, column sorting and a view-style cycler, the **Drag** tab has automatic and manual drag sources with a panel and a list box as drop targets, the **Widgets** tab shows horizontal/vertical scroll bars, a spin edit, an associated up-down, an editable/list combo and an `&Name` accelerator label, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
 
 The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
 

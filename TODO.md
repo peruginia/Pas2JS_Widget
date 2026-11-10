@@ -61,14 +61,19 @@ accepted target (`.wcl-drag-over`). `OnDragOver` decides whether a control
 accepts the drop; `OnDragDrop` receives the source and target-relative
 coordinates. `TDragObject` is the drag payload and `Esc` cancels a drag.
 
-## 6. TScrollBar, TSpinEdit/TUpDown, TComboBox.Style, TLabel accelerators
+## 6. TScrollBar, TSpinEdit/TUpDown, TComboBox.Style, TLabel accelerators — done
 
-* `TScrollBar` (`Min`/`Max`/`Position`/`PageSize`/`Kind`/`OnScroll`).
-* `TSpinEdit`/`TUpDown` on top of the numeric edits.
-* `TComboBox.Style` (`csDropDown` editable, `csDropDownList`), `TopIndex`,
-  `Columns`; `TListBox.TopIndex`/`Columns`.
-* `TLabel.ShowAccelChar`: render `&X` as an underlined accelerator and focus
-  `FocusControl` on Alt+X.
+`TScrollBar` (StdCtrls) uses a native range input and exposes `Kind`,
+`Min`/`Max`, `Position`, `PageSize`, `SmallChange`/`LargeChange` and
+`OnChange`/`OnScroll`. `TSpinEdit` (NumCtrls) builds on the numeric edit with
+a native number input, `Value`, `MinValue`/`MaxValue` and `Increment`;
+`TUpDown` adds two buttons with `Associate`, `Min`/`Max`, `Position`,
+`Orientation`, `Wrap`, `OnChanging`/`OnChangingEx`/`OnClick`.
+`TComboBox.Style` supports `csDropDown` (editable with a datalist) and
+`csDropDownList` (read-only); `TopIndex`/`Columns` are accepted for LCL
+compatibility. `TListBox` supports `TopIndex`/`Columns`. `TLabel.ShowAccelChar`
+renders `&X` as an underlined accelerator and focuses `FocusControl` on
+Alt+X.
 
 ## 7. File, colour and font dialogs
 

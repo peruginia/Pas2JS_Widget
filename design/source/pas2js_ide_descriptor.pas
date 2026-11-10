@@ -377,7 +377,8 @@ begin
 {$if declared(TPas2JSWidgetsRequirements)}
   /// Every component registered in the WCL palette. When one is dropped on a
   /// form, the IDE adds the WCL package (and the extra units it needs).
-  RegisterComponentRequirements([TWComboBox, TWListBox, TWEdit, TWMemo, TWButton,
+  RegisterComponentRequirements([TWComboBox, TWListBox, TWScrollBar, TWSpinEdit,
+    TWUpDown, TWEdit, TWMemo, TWButton,
     TWCheckbox, TWRadioButton, TWLabel, TWImage, TWPanel, TWTimer, TWPageControl,
     TWTreeView, TWListView,
     TWFloatEdit, TWIntegerEdit, TWDateEditBox, TWTimeEditBox, TWDateTimePicker,

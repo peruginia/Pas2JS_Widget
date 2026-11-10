@@ -66,6 +66,124 @@ type
     property MinValue: Double read FMinValue write SetMinValue;
   end;
 
+  { TCustomSpinEdit }
+
+  TCustomSpinEdit = class(TCustomNumericEdit)
+  private
+    function GetValue: NativeInt;
+    procedure SetValue(AValue: NativeInt);
+  protected
+    function GetInputType: string; override;
+  public
+    property Value: NativeInt read GetValue write SetValue;
+  end;
+
+  { TSpinEdit }
+
+  TSpinEdit = class(TCustomSpinEdit)
+  published
+    property Align;
+    property Alignment;
+    property Anchors;
+    property AutoSize;
+    property BorderSpacing;
+    property BorderStyle;
+    property Color;
+    property Enabled;
+    property Font;
+    property HandleClass;
+    property HandleId;
+    property Increment;
+    property MaxValue;
+    property MinValue;
+    property ParentColor;
+    property ParentFont;
+    property ParentShowHint;
+    property ReadOnly;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Text;
+    property TextHint;
+    property Value;
+    property Visible;
+    property OnChange;
+    property OnClick;
+    property OnDblClick;
+    property OnEnter;
+    property OnExit;
+    property OnKeyDown;
+    property OnKeyPress;
+    property OnKeyUp;
+    property OnMouseDown;
+    property OnMouseEnter;
+    property OnMouseLeave;
+    property OnMouseMove;
+    property OnMouseUp;
+  end;
+
+  TUpDownDirection = (updNone, updUp, updDown);
+  TUDBtnType = (btNext, btPrev);
+  TUDOrientation = (udHorizontal, udVertical);
+  TUDClickEvent = procedure(Sender: TObject; Button: TUDBtnType) of object;
+  TUDChangingEvent = procedure(Sender: TObject; var AllowChange: Boolean) of object;
+  TUDChangingEventEx = procedure(Sender: TObject; var AllowChange: Boolean;
+    NewValue: Integer; Direction: TUpDownDirection) of object;
+
+  { TUpDown }
+
+  TUpDown = class(TWinControl)
+  private
+    FAssociate: TWinControl;
+    FDownButton: TJSHTMLElement;
+    FIncrement: Integer;
+    FMax: Integer;
+    FMin: Integer;
+    FOrientation: TUDOrientation;
+    FPosition: Integer;
+    FThousands: Boolean;
+    FUpButton: TJSHTMLElement;
+    FWrap: Boolean;
+    FOnChanging: TUDChangingEvent;
+    FOnChangingEx: TUDChangingEventEx;
+    FOnClick: TUDClickEvent;
+    function GetPosition: Integer;
+    procedure SetAssociate(AValue: TWinControl);
+    procedure SetIncrement(AValue: Integer);
+    procedure SetMax(AValue: Integer);
+    procedure SetMin(AValue: Integer);
+    procedure SetOrientation(AValue: TUDOrientation);
+    procedure SetPosition(AValue: Integer);
+    procedure SetThousands(AValue: Boolean);
+    procedure SetWrap(AValue: Boolean);
+  protected
+    procedure Changed; override;
+    function CreateHandleElement: TJSHTMLElement; override;
+    procedure RegisterHandleEvents; override;
+    procedure UnRegisterHandleEvents; override;
+    procedure Notification(AComponent: TComponent; Operation: TOperation); override;
+    function HandleUpClick(AEvent: TJSMouseEvent): boolean; virtual;
+    function HandleDownClick(AEvent: TJSMouseEvent): boolean; virtual;
+    procedure Click(AButton: TUDBtnType); virtual;
+  protected
+    class function GetControlClassDefaultSize: TSize; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+  published
+    property Associate: TWinControl read FAssociate write SetAssociate;
+    property Increment: Integer read FIncrement write SetIncrement default 1;
+    property Max: Integer read FMax write SetMax default 100;
+    property Min: Integer read FMin write SetMin default 0;
+    property Orientation: TUDOrientation read FOrientation write SetOrientation default udVertical;
+    property Position: Integer read GetPosition write SetPosition;
+    property Thousands: Boolean read FThousands write SetThousands default True;
+    property Wrap: Boolean read FWrap write SetWrap default False;
+    property OnChanging: TUDChangingEvent read FOnChanging write FOnChanging;
+    property OnChangingEx: TUDChangingEventEx read FOnChangingEx write FOnChangingEx;
+    property OnClick: TUDClickEvent read FOnClick write FOnClick;
+  end;
+
 implementation
 
 { TCustomNumericEdit }
@@ -188,6 +306,309 @@ begin
     if (FMinValue <> 0) and (FMaxValue <> 0) and (FMinValue > FMaxValue) then
       FMaxValue := FMinValue;
   end;
+end;
+
+{ TCustomSpinEdit }
+
+function TCustomSpinEdit.GetInputType: string;
+begin
+  Result := 'number';
+end;
+
+function TCustomSpinEdit.GetValue: NativeInt;
+begin
+  Result := Trunc(StrToFloatDef(RealGetText, 0));
+end;
+
+procedure TCustomSpinEdit.SetValue(AValue: NativeInt);
+begin
+  RealSetText(IntToStr(AValue));
+  Change;
+end;
+
+{ TUpDown styles }
+
+var
+  _WCLNumRulesRegistered: Boolean;
+
+procedure _RegisterWCLNumRules;
+begin
+  if _WCLNumRulesRegistered then
+    Exit;
+  RegisterWCLStyle(
+    '.wcl-updown{' +
+    'display:flex;' +
+    'flex-direction:column;' +
+    'box-sizing:border-box;' +
+    'border:1px solid #888;' +
+    'border-radius:4px;' +
+    'overflow:hidden;' +
+    'background:#f0f0f0;}' +
+    '.wcl-updown-horizontal{' +
+    'flex-direction:row;}' +
+    '.wcl-updown-btn{' +
+    'flex:1;' +
+    'min-width:0;' +
+    'min-height:0;' +
+    'border:0;' +
+    'background:transparent;' +
+    'cursor:pointer;' +
+    'font-size:10px;' +
+    'line-height:1;' +
+    'padding:0;' +
+    'color:#333;' +
+    'touch-action:manipulation;' +
+    '-webkit-tap-highlight-color:transparent;}' +
+    '@media(hover:hover){' +
+    '.wcl-updown-btn:hover{background:#e0e0e0;}' +
+    '}' +
+    '.wcl-updown-btn:active{' +
+    'background:#d0d0d0;}' +
+    '@media(pointer:coarse){' +
+    '.wcl-updown-btn{font-size:12px;}' +
+    '}'
+  );
+  _WCLNumRulesRegistered := True;
+end;
+
+{ TUpDown }
+
+constructor TUpDown.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  _RegisterWCLNumRules;
+  FAssociate := nil;
+  FIncrement := 1;
+  FMax := 100;
+  FMin := 0;
+  FOrientation := udVertical;
+  FPosition := 0;
+  FThousands := True;
+  FWrap := False;
+  BeginUpdate;
+  try
+    TabStop := True;
+    with GetControlClassDefaultSize do
+    begin
+      SetBounds(0, 0, Cx, Cy);
+    end;
+  finally
+    EndUpdate;
+  end;
+end;
+
+destructor TUpDown.Destroy;
+begin
+  if Assigned(FAssociate) then
+    FAssociate.RemoveFreeNotification(Self);
+  FAssociate := nil;
+  inherited Destroy;
+end;
+
+class function TUpDown.GetControlClassDefaultSize: TSize;
+begin
+  Result.Cx := 24;
+  Result.Cy := 40;
+end;
+
+function TUpDown.CreateHandleElement: TJSHTMLElement;
+begin
+  Result := TJSHTMLElement(Document.CreateElement('div'));
+  FUpButton := TJSHTMLElement(Document.CreateElement('button'));
+  FUpButton.classList.add('wcl-updown-btn');
+  FUpButton.setAttribute('type', 'button');
+  Result.AppendChild(FUpButton);
+  FDownButton := TJSHTMLElement(Document.CreateElement('button'));
+  FDownButton.classList.add('wcl-updown-btn');
+  FDownButton.setAttribute('type', 'button');
+  Result.AppendChild(FDownButton);
+end;
+
+procedure TUpDown.RegisterHandleEvents;
+begin
+  inherited RegisterHandleEvents;
+  FUpButton.addEventListener('click', TJSEventHandler(@HandleUpClick));
+  FDownButton.addEventListener('click', TJSEventHandler(@HandleDownClick));
+end;
+
+procedure TUpDown.UnRegisterHandleEvents;
+begin
+  inherited UnRegisterHandleEvents;
+  FUpButton.removeEventListener('click', TJSEventHandler(@HandleUpClick));
+  FDownButton.removeEventListener('click', TJSEventHandler(@HandleDownClick));
+end;
+
+procedure TUpDown.Changed;
+begin
+  inherited Changed;
+  if (not IsUpdating) and not (csLoading in ComponentState) then
+  begin
+    HandleElement.classList.add('wcl-updown');
+    if (FOrientation = udHorizontal) then
+      HandleElement.classList.add('wcl-updown-horizontal')
+    else
+      HandleElement.classList.remove('wcl-updown-horizontal');
+    if (FOrientation = udHorizontal) then
+    begin
+      FDownButton.TextContent := '◀';
+      FUpButton.TextContent := '▶';
+    end
+    else
+    begin
+      FUpButton.TextContent := '▲';
+      FDownButton.TextContent := '▼';
+    end;
+  end;
+end;
+
+function TUpDown.HandleUpClick(AEvent: TJSMouseEvent): boolean;
+begin
+  AEvent.StopPropagation;
+  Click(btNext);
+  Result := True;
+end;
+
+function TUpDown.HandleDownClick(AEvent: TJSMouseEvent): boolean;
+begin
+  AEvent.StopPropagation;
+  Click(btPrev);
+  Result := True;
+end;
+
+function TUpDown.GetPosition: Integer;
+begin
+  if Assigned(FAssociate) then
+    Result := StrToIntDef(FAssociate.Caption, FPosition)
+  else
+    Result := FPosition;
+end;
+
+procedure TUpDown.Click(AButton: TUDBtnType);
+var
+  VAllow: Boolean;
+  VDirection: TUpDownDirection;
+  VNew: Integer;
+begin
+  VNew := GetPosition;
+  if (AButton = btNext) then
+  begin
+    Inc(VNew, FIncrement);
+    VDirection := updUp;
+  end
+  else
+  begin
+    Dec(VNew, FIncrement);
+    VDirection := updDown;
+  end;
+  if FWrap then
+  begin
+    if (VNew > FMax) then
+      VNew := FMin;
+    if (VNew < FMin) then
+      VNew := FMax;
+  end
+  else
+  begin
+    if (VNew < FMin) then
+      VNew := FMin;
+    if (VNew > FMax) then
+      VNew := FMax;
+  end;
+  VAllow := True;
+  if Assigned(FOnChanging) then
+    FOnChanging(Self, VAllow);
+  if VAllow and Assigned(FOnChangingEx) then
+    FOnChangingEx(Self, VAllow, VNew, VDirection);
+  if VAllow then
+  begin
+    SetPosition(VNew);
+    if Assigned(FOnClick) then
+      FOnClick(Self, AButton);
+  end;
+end;
+
+procedure TUpDown.SetAssociate(AValue: TWinControl);
+begin
+  if (FAssociate = AValue) then
+    Exit;
+  if Assigned(FAssociate) then
+    FAssociate.RemoveFreeNotification(Self);
+  FAssociate := AValue;
+  if Assigned(FAssociate) then
+  begin
+    FAssociate.FreeNotification(Self);
+    FPosition := GetPosition;
+  end;
+end;
+
+procedure TUpDown.Notification(AComponent: TComponent;
+  Operation: TOperation);
+begin
+  inherited Notification(AComponent, Operation);
+  if (Operation = opRemove) and (AComponent = FAssociate) then
+    FAssociate := nil;
+end;
+
+procedure TUpDown.SetIncrement(AValue: Integer);
+begin
+  if (AValue < 1) then
+    AValue := 1;
+  if (FIncrement <> AValue) then
+    FIncrement := AValue;
+end;
+
+procedure TUpDown.SetMax(AValue: Integer);
+begin
+  if (AValue < FMin) then
+    AValue := FMin;
+  if (FMax <> AValue) then
+  begin
+    FMax := AValue;
+    if (GetPosition > FMax) then
+      SetPosition(FMax);
+  end;
+end;
+
+procedure TUpDown.SetMin(AValue: Integer);
+begin
+  if (AValue > FMax) then
+    AValue := FMax;
+  if (FMin <> AValue) then
+  begin
+    FMin := AValue;
+    if (GetPosition < FMin) then
+      SetPosition(FMin);
+  end;
+end;
+
+procedure TUpDown.SetOrientation(AValue: TUDOrientation);
+begin
+  if (FOrientation <> AValue) then
+  begin
+    FOrientation := AValue;
+    Changed;
+  end;
+end;
+
+procedure TUpDown.SetPosition(AValue: Integer);
+begin
+  if (AValue < FMin) then
+    AValue := FMin;
+  if (AValue > FMax) then
+    AValue := FMax;
+  FPosition := AValue;
+  if Assigned(FAssociate) then
+    FAssociate.Caption := IntToStr(AValue);
+end;
+
+procedure TUpDown.SetThousands(AValue: Boolean);
+begin
+  FThousands := AValue;
+end;
+
+procedure TUpDown.SetWrap(AValue: Boolean);
+begin
+  FWrap := AValue;
 end;
 
 end.

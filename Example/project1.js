@@ -28752,20 +28752,261 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
   this.$rtti.$Enum("TEditInputType",{minvalue: 0, maxvalue: 4, ordtype: 1, enumtype: this.TEditInputType});
   this.TScrollStyle = {"0": "ssNone", ssNone: 0, "1": "ssHorizontal", ssHorizontal: 1, "2": "ssVertical", ssVertical: 2, "3": "ssBoth", ssBoth: 3, "4": "ssAutoHorizontal", ssAutoHorizontal: 4, "5": "ssAutoVertical", ssAutoVertical: 5, "6": "ssAutoBoth", ssAutoBoth: 6};
   this.$rtti.$Enum("TScrollStyle",{minvalue: 0, maxvalue: 6, ordtype: 1, enumtype: this.TScrollStyle});
+  this.TScrollBarKind = {"0": "sbHorizontal", sbHorizontal: 0, "1": "sbVertical", sbVertical: 1};
+  this.$rtti.$Enum("TScrollBarKind",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TScrollBarKind});
+  this.$rtti.$Int("TScrollBarInc",{minvalue: 1, maxvalue: 32768, ordtype: 3});
+  this.TScrollCode = {"0": "scLineUp", scLineUp: 0, "1": "scLineDown", scLineDown: 1, "2": "scPageUp", scPageUp: 2, "3": "scPageDown", scPageDown: 3, "4": "scPosition", scPosition: 4, "5": "scTrack", scTrack: 5, "6": "scTop", scTop: 6, "7": "scBottom", scBottom: 7, "8": "scEndScroll", scEndScroll: 8};
+  this.$rtti.$Enum("TScrollCode",{minvalue: 0, maxvalue: 8, ordtype: 1, enumtype: this.TScrollCode});
+  this.$rtti.$MethodVar("TScrollEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["ScrollCode",this.$rtti["TScrollCode"]],["ScrollPos",rtl.longint,1]]), methodkind: 0});
+  rtl.createClass(this,"TCustomScrollBar",pas.Controls.TWinControl,function () {
+    this.$init = function () {
+      pas.Controls.TWinControl.$init.call(this);
+      this.FInput = null;
+      this.FKind = 0;
+      this.FLargeChange = 0;
+      this.FMax = 0;
+      this.FMin = 0;
+      this.FOnChange = null;
+      this.FOnScroll$1 = null;
+      this.FPageSize = 0;
+      this.FPosition = 0;
+      this.FSmallChange = 0;
+    };
+    this.$final = function () {
+      this.FInput = undefined;
+      this.FOnChange = undefined;
+      this.FOnScroll$1 = undefined;
+      pas.Controls.TWinControl.$final.call(this);
+    };
+    this.SetKind = function (AValue) {
+      if (this.FKind !== AValue) {
+        this.FKind = AValue;
+        this.Changed();
+      };
+    };
+    this.SetLargeChange = function (AValue) {
+      if (AValue < 1) AValue = 1;
+      if (AValue > 32768) AValue = 32768;
+      if (this.FLargeChange !== AValue) {
+        this.FLargeChange = AValue;
+        this.Changed();
+      };
+    };
+    this.SetMax = function (AValue) {
+      if (AValue < this.FMin) AValue = this.FMin;
+      if (this.FMax !== AValue) {
+        this.FMax = AValue;
+        if (this.FPosition > this.FMax) this.FPosition = this.FMax;
+        this.Changed();
+      };
+    };
+    this.SetMin = function (AValue) {
+      if (AValue > this.FMax) AValue = this.FMax;
+      if (this.FMin !== AValue) {
+        this.FMin = AValue;
+        if (this.FPosition < this.FMin) this.FPosition = this.FMin;
+        this.Changed();
+      };
+    };
+    this.SetPageSize = function (AValue) {
+      if (AValue < 0) AValue = 0;
+      if (this.FPageSize !== AValue) {
+        this.FPageSize = AValue;
+        this.Changed();
+      };
+    };
+    this.SetPosition = function (AValue) {
+      if (AValue < this.FMin) AValue = this.FMin;
+      if (AValue > this.FMax) AValue = this.FMax;
+      if (this.FPosition !== AValue) {
+        this.FPosition = AValue;
+        this.Changed();
+      };
+    };
+    this.SetSmallChange = function (AValue) {
+      if (AValue < 1) AValue = 1;
+      if (AValue > 32768) AValue = 32768;
+      if (this.FSmallChange !== AValue) {
+        this.FSmallChange = AValue;
+        this.Changed();
+      };
+    };
+    this.Changed = function () {
+      pas.Controls.TControl.Changed.call(this);
+      if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
+        this.FHandleElement.classList.add("wcl-scrollbar");
+        if (this.FKind === $mod.TScrollBarKind.sbVertical) {
+          this.FHandleElement.classList.add("wcl-scrollbar-vertical")}
+         else this.FHandleElement.classList.remove("wcl-scrollbar-vertical");
+        this.FInput.min = pas.SysUtils.IntToStr(this.FMin);
+        this.FInput.max = pas.SysUtils.IntToStr(this.FMax);
+        this.FInput.step = pas.SysUtils.IntToStr(this.FSmallChange);
+        this.FInput.value = pas.SysUtils.IntToStr(this.FPosition);
+        this.FInput.setAttribute("aria-label",this.FName);
+      };
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("div");
+      this.FInput = document.createElement("input");
+      this.FInput.type = "range";
+      Result.appendChild(this.FInput);
+      return Result;
+    };
+    this.RegisterHandleEvents = function () {
+      pas.Controls.TWinControl.RegisterHandleEvents.call(this);
+      this.FInput.addEventListener("input",rtl.createCallback(this,"HandleInput"));
+    };
+    this.UnRegisterHandleEvents = function () {
+      pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
+      this.FInput.removeEventListener("input",rtl.createCallback(this,"HandleInput"));
+    };
+    this.HandleInput = function (AEvent) {
+      var Result = false;
+      var VPos = 0;
+      AEvent.stopPropagation();
+      VPos = pas.SysUtils.StrToIntDef(this.FInput.value,this.FMin);
+      if (VPos < this.FMin) VPos = this.FMin;
+      if (VPos > this.FMax) VPos = this.FMax;
+      this.FPosition = VPos;
+      this.Change();
+      VPos = this.FPosition;
+      this.Scroll($mod.TScrollCode.scTrack,{get: function () {
+          return VPos;
+        }, set: function (v) {
+          VPos = v;
+        }});
+      if (VPos < this.FMin) VPos = this.FMin;
+      if (VPos > this.FMax) VPos = this.FMax;
+      this.FPosition = VPos;
+      if (this.FInput.value !== pas.SysUtils.IntToStr(this.FPosition)) this.FInput.value = pas.SysUtils.IntToStr(this.FPosition);
+      Result = true;
+      return Result;
+    };
+    this.Change = function () {
+      if (this.FOnChange != null) this.FOnChange(this);
+    };
+    this.Scroll = function (AScrollCode, AScrollPos) {
+      if (this.FOnScroll$1 != null) this.FOnScroll$1(this,AScrollCode,AScrollPos);
+    };
+    this.GetControlClassDefaultSize = function () {
+      var Result = pas.Types.TSize.$new();
+      Result.cx = 120;
+      Result.cy = 24;
+      return Result;
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.FKind = $mod.TScrollBarKind.sbHorizontal;
+      this.FLargeChange = 1;
+      this.FMax = 100;
+      this.FMin = 0;
+      this.FPageSize = 0;
+      this.FPosition = 0;
+      this.FSmallChange = 1;
+      this.BeginUpdate();
+      try {
+        this.SetTabStop(true);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
+      } finally {
+        this.EndUpdate();
+      };
+      return this;
+    };
+    this.SetParams = function (APosition, AMin, AMax, APageSize) {
+      this.BeginUpdate();
+      try {
+        if (AMin > AMax) AMax = AMin;
+        this.FMin = AMin;
+        this.FMax = AMax;
+        this.FPageSize = APageSize;
+        if (this.FPageSize < 0) this.FPageSize = 0;
+        if (APosition < this.FMin) APosition = this.FMin;
+        if (APosition > this.FMax) APosition = this.FMax;
+        this.FPosition = APosition;
+      } finally {
+        this.EndUpdate();
+      };
+    };
+    this.SetParams$1 = function (APosition, AMin, AMax) {
+      this.SetParams(APosition,AMin,AMax,0);
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+  });
+  rtl.createClass(this,"TScrollBar",this.TCustomScrollBar,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
+    $r.addProperty("Anchors",14,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors",{stored: "IsAnchorsStored", Default: rtl.createSet(pas.Controls.TAnchorKind.akLeft,pas.Controls.TAnchorKind.akTop)});
+    $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
+    $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
+    $r.addProperty("Constraints",2,pas.Controls.$rtti["TSizeConstraints"],"FConstraints","SetConstraints");
+    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
+    $r.addProperty("Font",2,pas.Graphics.$rtti["TFont"],"FFont","SetFont");
+    $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
+    $r.addProperty("HandleId",2,rtl.string,"FHandleId","SetHandleId");
+    $r.addProperty("Height",2,rtl.nativeint,"FHeight","SetHeight");
+    $r.addProperty("Kind",2,$mod.$rtti["TScrollBarKind"],"FKind","SetKind",{Default: $mod.TScrollBarKind.sbHorizontal});
+    $r.addProperty("LargeChange",2,$mod.$rtti["TScrollBarInc"],"FLargeChange","SetLargeChange",{Default: 1});
+    $r.addProperty("Left",2,rtl.nativeint,"FLeft","SetLeft");
+    $r.addProperty("Max",2,rtl.longint,"FMax","SetMax",{Default: 100});
+    $r.addProperty("Min",2,rtl.longint,"FMin","SetMin",{Default: 0});
+    $r.addProperty("PageSize",2,rtl.longint,"FPageSize","SetPageSize");
+    $r.addProperty("ParentColor",2,rtl.boolean,"FParentColor","SetParentColor");
+    $r.addProperty("ParentFont",2,rtl.boolean,"FParentFont","SetParentFont");
+    $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
+    $r.addProperty("PopupMenu",2,pas.Controls.$rtti["TCustomPopupMenu"],"FPopupMenu","SetPopupMenu");
+    $r.addProperty("Position",2,rtl.longint,"FPosition","SetPosition",{Default: 0});
+    $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
+    $r.addProperty("SmallChange",2,$mod.$rtti["TScrollBarInc"],"FSmallChange","SetSmallChange",{Default: 1});
+    $r.addProperty("TabOrder",2,rtl.nativeint,"FTabOrder","SetTabOrder");
+    $r.addProperty("TabStop",2,rtl.boolean,"FTabStop","SetTabStop");
+    $r.addProperty("Top",2,rtl.nativeint,"FTop","SetTop");
+    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
+    $r.addProperty("Width",2,rtl.nativeint,"FWidth","SetWidth");
+    $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
+    $r.addProperty("OnEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnEnter","FOnEnter");
+    $r.addProperty("OnExit",0,pas.Classes.$rtti["TNotifyEvent"],"FOnExit","FOnExit");
+    $r.addProperty("OnMouseDown",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseDown","FOnMouseDown");
+    $r.addProperty("OnMouseEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseEnter","FOnMouseEnter");
+    $r.addProperty("OnMouseLeave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseLeave","FOnMouseLeave");
+    $r.addProperty("OnMouseMove",0,pas.Controls.$rtti["TMouseMoveEvent"],"FOnMouseMove","FOnMouseMove");
+    $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
+    $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
+    $r.addProperty("OnScroll",0,$mod.$rtti["TScrollEvent"],"FOnScroll$1","FOnScroll$1");
+  });
+  this.TComboBoxStyle = {"0": "csDropDown", csDropDown: 0, "1": "csDropDownList", csDropDownList: 1, "2": "csOwnerDrawFixed", csOwnerDrawFixed: 2, "3": "csOwnerDrawVariable", csOwnerDrawVariable: 3, "4": "csSimple", csSimple: 4};
+  this.$rtti.$Enum("TComboBoxStyle",{minvalue: 0, maxvalue: 4, ordtype: 1, enumtype: this.TComboBoxStyle});
   rtl.createClass(this,"TCustomComboBox",pas.Controls.TWinControl,function () {
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
+      this.FColumns = 0;
       this.FDropDownCount = 0;
       this.FItemHeight = 0;
       this.FItemIndex = 0;
       this.FItems = null;
+      this.FListElement = null;
+      this.FListId = "";
       this.FOnChange = null;
       this.FSorted = false;
+      this.FStyle = 0;
+      this.FTopIndex = 0;
     };
     this.$final = function () {
       this.FItems = undefined;
+      this.FListElement = undefined;
       this.FOnChange = undefined;
       pas.Controls.TWinControl.$final.call(this);
+    };
+    this.SetColumns = function (AValue) {
+      if (AValue < 0) AValue = 0;
+      if (this.FColumns !== AValue) {
+        this.FColumns = AValue;
+        this.Changed();
+      };
     };
     this.SetDropDownCount = function (AValue) {
       if (AValue < 1) AValue = 1;
@@ -28782,13 +29023,16 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       };
     };
     this.SetItemIndex = function (AValue) {
-      if ((AValue > -1) && (AValue < this.FItems.GetCount())) {
+      if ((AValue < -1) || (AValue >= this.FItems.GetCount())) return;
+      if (this.FItemIndex !== AValue) {
         this.FItemIndex = AValue;
+        if ((AValue < 0) && (this.FHandleElement != null)) this.FHandleElement.value = "";
         this.Changed();
       };
     };
     this.SetItems = function (AValue) {
       this.FItems.Assign(AValue);
+      if (this.FItemIndex >= this.FItems.GetCount()) this.FItemIndex = -1;
       this.Changed();
     };
     this.SetSorted = function (AValue) {
@@ -28797,7 +29041,21 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
         this.UpdateSorted();
       };
     };
+    this.SetStyle = function (AValue) {
+      if (this.FStyle !== AValue) {
+        this.FStyle = AValue;
+        this.Changed();
+      };
+    };
+    this.SetTopIndex = function (AValue) {
+      if (AValue < 0) AValue = 0;
+      if (this.FTopIndex !== AValue) {
+        this.FTopIndex = AValue;
+        this.Changed();
+      };
+    };
     this.ItemsChange = function (ASender) {
+      if (this.FItemIndex >= this.FItems.GetCount()) this.FItemIndex = -1;
       this.Changed();
     };
     this.Change = function () {
@@ -28805,65 +29063,70 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
         this.FOnChange(this);
       };
     };
-    this.HandleChange = function (AEvent) {
+    this.HandleInput = function (AEvent) {
       var Result = false;
       AEvent.stopPropagation();
-      this.FItemIndex = this.FHandleElement.selectedIndex;
+      this.FItemIndex = this.FItems.IndexOf(this.FHandleElement.value);
       this.Change();
       Result = true;
       return Result;
     };
     this.Changed = function () {
       var VIndex = 0;
-      var VOptionElement = null;
-      var VValue = "";
+      var VInput = null;
+      var VOption = null;
       pas.Controls.TControl.Changed.call(this);
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
         if (this.FHandleClass === "") {
           $impl._RegisterWCLStdRules();
           this.FHandleElement.classList.add('wcl-input');
         };
-        this.FHandleElement.setAttribute("name",this.FName);
-        this.FHandleElement.setAttribute("data-dropdown-count",pas.SysUtils.IntToStr(this.FDropDownCount));
-        for (var $l = this.FHandleElement.length - 1; $l >= 0; $l--) {
-          VIndex = $l;
-          this.FHandleElement.remove(VIndex);
+        VInput = this.FHandleElement;
+        VInput.setAttribute("name",this.FName);
+        VInput.setAttribute("data-dropdown-count",pas.SysUtils.IntToStr(this.FDropDownCount));
+        VInput.setAttribute("data-top-index",pas.SysUtils.IntToStr(this.FTopIndex));
+        VInput.setAttribute("data-columns",pas.SysUtils.IntToStr(this.FColumns));
+        if (this.FListElement != null) {
+          this.FListElement.innerHTML = "";
+          for (var $l = 0, $end = this.FItems.GetCount() - 1; $l <= $end; $l++) {
+            VIndex = $l;
+            VOption = document.createElement("option");
+            VOption.value = this.FItems.Get(VIndex);
+            VOption.text = this.FItems.Get(VIndex);
+            this.FListElement.appendChild(VOption);
+          };
+          VInput.setAttribute("list",this.FListId);
         };
-        for (var $l1 = 0, $end = this.FItems.GetCount() - 1; $l1 <= $end; $l1++) {
-          VIndex = $l1;
-          VValue = this.FItems.Get(VIndex);
-          VOptionElement = document.createElement("option");
-          VOptionElement.value = VValue;
-          VOptionElement.text = VValue;
-          VOptionElement.selected = VIndex === this.FItemIndex;
-          if (this.FItemHeight > 0) VOptionElement.style.setProperty("min-height",pas.SysUtils.IntToStr(this.FItemHeight) + "px");
-          this.FHandleElement.add(VOptionElement);
+        if (this.FStyle === $mod.TComboBoxStyle.csDropDownList) {
+          VInput.readOnly = true;
+          this.FHandleElement.classList.add("wcl-combo-list");
+        } else {
+          VInput.readOnly = false;
+          this.FHandleElement.classList.remove("wcl-combo-list");
         };
-        if (this.FItemIndex < 0) {
-          VOptionElement = document.createElement("option");
-          VOptionElement.value = "";
-          VOptionElement.text = "";
-          VOptionElement.selected = true;
-          VOptionElement.disabled = true;
-          VOptionElement.style.setProperty("display","none");
-          this.FHandleElement.add(VOptionElement);
-        };
+        if ((this.FItemIndex >= 0) && (this.FItemIndex < this.FItems.GetCount())) VInput.value = this.FItems.Get(this.FItemIndex);
       };
     };
     this.CreateHandleElement = function () {
       var Result = null;
-      Result = document.createElement("select");
+      Result = document.createElement("input");
+      Result.type = "text";
+      $impl._ComboSeq += 1;
+      this.FListId = "wcl-combo-list-" + pas.SysUtils.IntToStr($impl._ComboSeq);
+      this.FListElement = document.createElement("datalist");
+      this.FListElement.setAttribute("id",this.FListId);
+      document.body.appendChild(this.FListElement);
       return Result;
     };
     this.RegisterHandleEvents = function () {
       pas.Controls.TWinControl.RegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
-      $with.addEventListener("change",rtl.createCallback(this,"HandleChange"));
+      $with.addEventListener("input",rtl.createCallback(this,"HandleInput"));
     };
     this.UnRegisterHandleEvents = function () {
       pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
-      $with.removeEventListener("change",rtl.createCallback(this,"HandleChange"));
+      $with.removeEventListener("input",rtl.createCallback(this,"HandleInput"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -28872,22 +29135,27 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     };
     this.RealGetText = function () {
       var Result = "";
-      Result = this.FItems.GetName(this.FItemIndex);
+      if ((this.FItemIndex >= 0) && (this.FItemIndex < this.FItems.GetCount())) {
+        Result = this.FItems.Get(this.FItemIndex)}
+       else if (this.FHandleElement != null) {
+        Result = this.FHandleElement.value}
+       else Result = "";
       return Result;
     };
     this.RealSetText = function (AValue) {
       var VIndex = 0;
-      VIndex = this.FItems.IndexOfName(AValue);
-      if ((VIndex > -1) && (VIndex < this.FItems.GetCount())) {
+      VIndex = this.FItems.IndexOf(AValue);
+      if (VIndex >= 0) {
         this.FItemIndex = VIndex;
         this.Changed();
+      } else if (this.FStyle !== $mod.TComboBoxStyle.csDropDownList) {
+        this.FItemIndex = -1;
+        if (this.FHandleElement != null) this.FHandleElement.value = AValue;
       };
     };
     this.UpdateSorted = function () {
-      var VText = "";
-      VText = this.RealGetText();
       this.FItems.SetSorted(this.FSorted);
-      this.SetText(VText);
+      this.Changed();
     };
     this.GetControlClassDefaultSize = function () {
       var Result = pas.Types.TSize.$new();
@@ -28897,12 +29165,15 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     };
     this.Create$1 = function (AOwner) {
       pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.FColumns = 0;
       this.FDropDownCount = 8;
       this.FItemHeight = 0;
       this.FItemIndex = -1;
       this.FItems = pas.Classes.TStringList.$create("Create$1");
       this.FItems.FOnChange = rtl.createCallback(this,"ItemsChange");
       this.FSorted = false;
+      this.FStyle = $mod.TComboBoxStyle.csDropDown;
+      this.FTopIndex = 0;
       this.BeginUpdate();
       try {
         var $with = this.$class.GetControlClassDefaultSize();
@@ -28913,21 +29184,24 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       return this;
     };
     this.Destroy = function () {
+      if (this.FListElement != null) {
+        this.FListElement.remove();
+        this.FListElement = null;
+      };
       this.FItems.$destroy("Destroy");
       this.FItems = null;
       pas.Controls.TControl.Destroy.call(this);
     };
     this.AddItem = function (AItem, AObject) {
       this.FItems.AddObject(AItem,AObject);
-      this.Changed();
     };
     this.Append = function (AItem) {
       this.FItems.Append(AItem);
-      this.Changed();
     };
     this.Clear = function () {
       this.FItems.Clear();
       this.FItemIndex = -1;
+      if (this.FHandleElement != null) this.FHandleElement.value = "";
       this.Changed();
     };
     rtl.addIntf(this,pas.System.IUnknown);
@@ -28938,6 +29212,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
   rtl.createClass(this,"TCustomListBox",pas.Controls.TWinControl,function () {
     this.$init = function () {
       pas.Controls.TWinControl.$init.call(this);
+      this.FColumns = 0;
       this.FItemHeight = 0;
       this.FItemIndex = 0;
       this.FItems = null;
@@ -28945,6 +29220,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FSelectionChanged = false;
       this.FSelected = [];
       this.FSorted = false;
+      this.FTopIndex = 0;
       this.FOnSelectionChange = null;
     };
     this.$final = function () {
@@ -28970,6 +29246,13 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       if ((Index < 0) || (Index >= this.FItems.GetCount())) throw pas.Classes.EListError.$create("CreateFmt",[rtl.getResStr(pas.RTLConsts,"SListIndexError"),pas.System.VarRecs(0,Index)]);
       Result = this.FSelected[Index];
       return Result;
+    };
+    this.SetColumns = function (AValue) {
+      if (AValue < 0) AValue = 0;
+      if (this.FColumns !== AValue) {
+        this.FColumns = AValue;
+        this.Changed();
+      };
     };
     this.SetItemHeight = function (AValue) {
       if (AValue < 0) AValue = 0;
@@ -29035,6 +29318,15 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
         this.UpdateSorted();
       };
     };
+    this.SetTopIndex = function (AValue) {
+      if (AValue < 0) AValue = 0;
+      if (AValue > (this.FItems.GetCount() - 1)) AValue = this.FItems.GetCount() - 1;
+      if (AValue < 0) AValue = 0;
+      if (this.FTopIndex !== AValue) {
+        this.FTopIndex = AValue;
+        this.Changed();
+      };
+    };
     this.ItemsChanged = function (ASender) {
       if (rtl.length(this.FSelected) !== this.FItems.GetCount()) this.FSelected = rtl.arraySetLength(this.FSelected,false,this.FItems.GetCount());
       this.Changed();
@@ -29086,6 +29378,13 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
            else opt.selected = idx === this.FItemIndex;
           $with.add(opt);
         };
+        this.FHandleElement.setAttribute("data-columns",pas.SysUtils.IntToStr(this.FColumns));
+        this.FHandleElement.setAttribute("data-top-index",pas.SysUtils.IntToStr(this.FTopIndex));
+        if ((this.FTopIndex > 0) && (this.FItems.GetCount() > 0)) {
+          if (this.FItemHeight > 0) {
+            $with.scrollTop = this.FTopIndex * this.FItemHeight}
+           else if (this.FTopIndex < this.FItems.GetCount()) $with.scrollTop = pas.System.Trunc($with.item(this.FTopIndex).offsetTop);
+        };
         this.FHandleElement.setAttribute("name",this.FName);
       };
     };
@@ -29120,12 +29419,14 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     };
     this.Create$1 = function (AOwner) {
       pas.Controls.TControl.Create$1.call(this,AOwner);
+      this.FColumns = 0;
       this.FItemHeight = 0;
       this.FItemIndex = -1;
       this.FItems = pas.Classes.TStringList.$create("Create$1");
       this.FItems.FOnChange = rtl.createCallback(this,"ItemsChanged");
       this.FMultiSelect = false;
       this.FSorted = false;
+      this.FTopIndex = 0;
       this.BeginUpdate();
       try {
         var $with = this.$class.GetControlClassDefaultSize();
@@ -30144,6 +30445,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FContentElement = null;
       this.FFocusControl = null;
       this.FLayout = 0;
+      this.FShowAccelChar = false;
       this.FTransparent = false;
       this.FWordWrap = false;
     };
@@ -30161,6 +30463,12 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.SetLayout = function (AValue) {
       if (this.FLayout !== AValue) {
         this.FLayout = AValue;
+        this.Changed();
+      };
+    };
+    this.SetShowAccelChar = function (AValue) {
+      if (this.FShowAccelChar !== AValue) {
+        this.FShowAccelChar = AValue;
         this.Changed();
       };
     };
@@ -30190,6 +30498,32 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       if ((this.FFocusControl != null) && this.FFocusControl.CanSetFocus()) {
         this.FFocusControl.SetFocus();
       };
+    };
+    this.HandleAccelKey = function (AEvent) {
+      var Result = false;
+      var VIndex = 0;
+      var VKey = "";
+      Result = false;
+      if (!this.FShowAccelChar || !(this.FFocusControl != null) || !(AEvent != null) || !AEvent.altKey) return Result;
+      VKey = AEvent.key;
+      if (VKey.length !== 1) return Result;
+      VIndex = 1;
+      while (VIndex <= this.GetText().length) {
+        if (this.GetText().charAt(VIndex - 1) === "&") {
+          if ((VIndex < this.GetText().length) && (this.GetText().charAt((VIndex + 1) - 1) === "&")) {
+            VIndex += 2}
+           else if (VIndex < this.GetText().length) {
+            if (pas.SysUtils.SameText(this.GetText().charAt((VIndex + 1) - 1),VKey)) {
+              if (this.FFocusControl.CanSetFocus()) this.FFocusControl.SetFocus();
+              AEvent.preventDefault();
+              AEvent.stopPropagation();
+              return true;
+            };
+            VIndex += 2;
+          } else VIndex += 1;
+        } else VIndex += 1;
+      };
+      return Result;
     };
     this.Changed = function () {
       pas.Controls.TControl.Changed.call(this);
@@ -30235,7 +30569,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
         };
         $with1.style.setProperty("overflow","hidden");
         $with1.style.setProperty("text-overflow","ellipsis");
-        $with1.innerHTML = this.GetText();
+        $with1.innerHTML = $impl.CaptionToAccelHTML(this.GetText(),this.FShowAccelChar);
       };
     };
     this.CreateHandleElement = function () {
@@ -30265,8 +30599,10 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.FAlignment = pas.Classes.TAlignment.taLeftJustify;
       this.FFocusControl = null;
       this.FLayout = pas.Graphics.TTextLayout.tlTop;
+      this.FShowAccelChar = true;
       this.FTransparent = true;
       this.FWordWrap = false;
+      document.addEventListener("keydown",rtl.createCallback(this,"HandleAccelKey"));
       this.BeginUpdate();
       try {
         this.SetTabStop(false);
@@ -30277,6 +30613,10 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
         this.EndUpdate();
       };
       return this;
+    };
+    this.Destroy = function () {
+      document.removeEventListener("keydown",rtl.createCallback(this,"HandleAccelKey"));
+      pas.Controls.TControl.Destroy.call(this);
     };
     this.AdjustSize = function () {
       pas.Controls.TControl.AdjustSize.call(this);
@@ -30322,9 +30662,10 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     $impl._WCLStdRulesRegistered = false;
     $impl._RegisterWCLStdRules = function () {
       if ($impl._WCLStdRulesRegistered) return;
-      pas.Controls.RegisterWCLStyle(".wcl-btn{" + "padding:6px 16px;" + "border-radius:4px;" + "border:1px solid #888;" + "background-color:#f0f0f0;" + "color:#333;" + "cursor:pointer;" + "font-size:14px!important;" + "display:inline-flex;" + "align-items:center;" + "justify-content:center;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;" + "transition:background-color 0.15s,border-color 0.15s;}" + "@media(hover:hover){" + ".wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}" + "}" + ".wcl-btn:active{background-color:#d0d0d0;border-color:#555;}" + ".wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "padding:6px 8px;" + "border-radius:4px;" + "border:1px solid #888;" + "font-family:inherit;" + "font-size:inherit;" + "background-color:#fff;" + "box-sizing:border-box;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;}" + "select.wcl-input{" + "padding:3px 4px!important;" + "border-radius:4px;" + "border:1px solid #888;" + "font-size:14px!important;" + "background-color:#fff;}" + ".wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}" + ".wcl-input:disabled{opacity:0.5;}" + "@media(pointer:coarse){" + ".wcl-btn{min-height:36px;padding:8px 14px!important;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "min-height:36px;font-size:16px!important;padding:8px 10px!important;}" + "select.wcl-input{min-height:36px;font-size:16px!important;padding:6px 8px!important;}" + "}" + "@media(prefers-reduced-motion:reduce){" + ".wcl-btn{transition:none;}" + "}");
+      pas.Controls.RegisterWCLStyle(".wcl-btn{" + "padding:6px 16px;" + "border-radius:4px;" + "border:1px solid #888;" + "background-color:#f0f0f0;" + "color:#333;" + "cursor:pointer;" + "font-size:14px!important;" + "display:inline-flex;" + "align-items:center;" + "justify-content:center;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;" + "transition:background-color 0.15s,border-color 0.15s;}" + "@media(hover:hover){" + ".wcl-btn:hover{background-color:#e0e0e0;border-color:#666;}" + "}" + ".wcl-btn:active{background-color:#d0d0d0;border-color:#555;}" + ".wcl-btn:disabled{opacity:0.5;cursor:default;pointer-events:none;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "padding:6px 8px;" + "border-radius:4px;" + "border:1px solid #888;" + "font-family:inherit;" + "font-size:inherit;" + "background-color:#fff;" + "box-sizing:border-box;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;}" + "select.wcl-input{" + "padding:3px 4px!important;" + "border-radius:4px;" + "border:1px solid #888;" + "font-size:14px!important;" + "background-color:#fff;}" + ".wcl-input:focus{outline:none;border-color:#4A90D9;box-shadow:0 0 0 2px rgba(74,144,217,0.2);}" + ".wcl-input:disabled{opacity:0.5;}" + ".wcl-scrollbar{" + "box-sizing:border-box;" + "display:flex;" + "align-items:center;" + "justify-content:center;" + "min-width:24px;" + "min-height:24px;}" + ".wcl-scrollbar input[type=range]{" + "width:100%;" + "height:100%;" + "margin:0;" + "padding:0;" + "cursor:pointer;" + "accent-color:#4A90D9;}" + ".wcl-scrollbar-vertical input[type=range]{" + "writing-mode:vertical-lr;" + "direction:rtl;}" + "@media(pointer:coarse){" + ".wcl-btn{min-height:36px;padding:8px 14px!important;}" + ".wcl-input,input.wcl-input,textarea.wcl-input{" + "min-height:36px;font-size:16px!important;padding:8px 10px!important;}" + "select.wcl-input{min-height:36px;font-size:16px!important;padding:6px 8px!important;}" + "}" + "@media(prefers-reduced-motion:reduce){" + ".wcl-btn{transition:none;}" + "}");
       $impl._WCLStdRulesRegistered = true;
     };
+    $impl._ComboSeq = 0;
     rtl.createClass($impl,"TCustomMemoStrings",pas.Classes.TStringList,function () {
       this.DoReadData = function (Reader) {
         Reader.ReadListBegin();
@@ -30359,6 +30700,50 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
         Filer.DefineProperty("Strings",rtl.createCallback(this,"DoReadData"),rtl.createCallback(this,"DoWriteData"),HasData);
       };
     });
+    $impl.EscapeHTMLChar = function (AChar) {
+      var Result = "";
+      var $tmp = AChar;
+      if ($tmp === "&") {
+        Result = "&amp;"}
+       else if ($tmp === "<") {
+        Result = "&lt;"}
+       else if ($tmp === ">") {
+        Result = "&gt;"}
+       else if ($tmp === '"') {
+        Result = "&quot;"}
+       else if ($tmp === "'") {
+        Result = "&#39;"}
+       else {
+        Result = AChar;
+      };
+      return Result;
+    };
+    $impl.CaptionToAccelHTML = function (AText, AShowAccel) {
+      var Result = "";
+      var VIndex = 0;
+      var VChar = "\x00";
+      Result = "";
+      VIndex = 1;
+      while (VIndex <= AText.length) {
+        VChar = AText.charAt(VIndex - 1);
+        if (VChar === "&") {
+          if ((VIndex < AText.length) && (AText.charAt((VIndex + 1) - 1) === "&")) {
+            Result = Result + "&amp;";
+            VIndex += 2;
+          } else if ((VIndex < AText.length) && AShowAccel) {
+            Result = Result + "<u>" + $impl.EscapeHTMLChar(AText.charAt((VIndex + 1) - 1)) + "</u>";
+            VIndex += 2;
+          } else {
+            Result = Result + "&amp;";
+            VIndex += 1;
+          };
+        } else {
+          Result = Result + $impl.EscapeHTMLChar(VChar);
+          VIndex += 1;
+        };
+      };
+      return Result;
+    };
   };
 },["RTLConsts"]);
 rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtra","Graphics","Controls"],function () {
@@ -34576,6 +34961,7 @@ rtl.module("ComCtrls",["System","Classes","SysUtils","Types","JS","Web","Graphic
 rtl.module("NumCtrls",["System","Classes","SysUtils","Types","Graphics","Controls","StdCtrls","Web"],function () {
   "use strict";
   var $mod = this;
+  var $impl = $mod.$impl;
   rtl.createClass(this,"TCustomNumericEdit",pas.StdCtrls.TCustomEdit,function () {
     this.$init = function () {
       pas.StdCtrls.TCustomEdit.$init.call(this);
@@ -34679,7 +35065,300 @@ rtl.module("NumCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     var $r = this.$rtti;
     $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
   });
-});
+  rtl.createClass(this,"TCustomSpinEdit",this.TCustomNumericEdit,function () {
+    this.GetValue = function () {
+      var Result = 0;
+      Result = pas.System.Trunc(pas.SysUtils.StrToFloatDef(this.RealGetText(),0));
+      return Result;
+    };
+    this.SetValue = function (AValue) {
+      this.RealSetText(pas.SysUtils.IntToStr(AValue));
+      this.Change();
+    };
+    this.GetInputType = function () {
+      var Result = "";
+      Result = "number";
+      return Result;
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+  });
+  rtl.createClass(this,"TSpinEdit",this.TCustomSpinEdit,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addProperty("Align",2,pas.Controls.$rtti["TAlign"],"FAlign","SetAlign");
+    $r.addProperty("Alignment",2,pas.Classes.$rtti["TAlignment"],"FAlignment","SetAlignment");
+    $r.addProperty("Anchors",14,pas.Controls.$rtti["TAnchors"],"FAnchors","SetAnchors",{stored: "IsAnchorsStored", Default: rtl.createSet(pas.Controls.TAnchorKind.akLeft,pas.Controls.TAnchorKind.akTop)});
+    $r.addProperty("AutoSize",2,rtl.boolean,"FAutoSize","SetAutoSize",{Default: false});
+    $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
+    $r.addProperty("BorderStyle",2,pas.Controls.$rtti["TBorderStyle"],"FBorderStyle","SetBorderStyle");
+    $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
+    $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
+    $r.addProperty("Font",2,pas.Graphics.$rtti["TFont"],"FFont","SetFont");
+    $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
+    $r.addProperty("HandleId",2,rtl.string,"FHandleId","SetHandleId");
+    $r.addProperty("Increment",2,rtl.double,"FIncrement","SetIncrement");
+    $r.addProperty("MaxValue",2,rtl.double,"FMaxValue","SetMaxValue");
+    $r.addProperty("MinValue",2,rtl.double,"FMinValue","SetMinValue");
+    $r.addProperty("ParentColor",2,rtl.boolean,"FParentColor","SetParentColor");
+    $r.addProperty("ParentFont",2,rtl.boolean,"FParentFont","SetParentFont");
+    $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
+    $r.addProperty("ReadOnly",2,rtl.boolean,"FReadOnly","SetReadOnly");
+    $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
+    $r.addProperty("TabOrder",2,rtl.nativeint,"FTabOrder","SetTabOrder");
+    $r.addProperty("TabStop",2,rtl.boolean,"FTabStop","SetTabStop");
+    $r.addProperty("Text",3,pas.Controls.$rtti["TCaption"],"GetText","SetText");
+    $r.addProperty("TextHint",2,rtl.string,"FTextHint","SetTextHint");
+    $r.addProperty("Value",3,rtl.nativeint,"GetValue","SetValue");
+    $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
+    $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
+    $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
+    $r.addProperty("OnDblClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnDblClick","FOnDblClick");
+    $r.addProperty("OnEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnEnter","FOnEnter");
+    $r.addProperty("OnExit",0,pas.Classes.$rtti["TNotifyEvent"],"FOnExit","FOnExit");
+    $r.addProperty("OnKeyDown",0,pas.Controls.$rtti["TKeyEvent"],"FOnKeyDown","FOnKeyDown");
+    $r.addProperty("OnKeyPress",0,pas.Controls.$rtti["TKeyPressEvent"],"FOnKeyPress","FOnKeyPress");
+    $r.addProperty("OnKeyUp",0,pas.Controls.$rtti["TKeyEvent"],"FOnKeyUp","FOnKeyUp");
+    $r.addProperty("OnMouseDown",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseDown","FOnMouseDown");
+    $r.addProperty("OnMouseEnter",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseEnter","FOnMouseEnter");
+    $r.addProperty("OnMouseLeave",0,pas.Classes.$rtti["TNotifyEvent"],"FOnMouseLeave","FOnMouseLeave");
+    $r.addProperty("OnMouseMove",0,pas.Controls.$rtti["TMouseMoveEvent"],"FOnMouseMove","FOnMouseMove");
+    $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
+  });
+  this.TUpDownDirection = {"0": "updNone", updNone: 0, "1": "updUp", updUp: 1, "2": "updDown", updDown: 2};
+  this.$rtti.$Enum("TUpDownDirection",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TUpDownDirection});
+  this.TUDBtnType = {"0": "btNext", btNext: 0, "1": "btPrev", btPrev: 1};
+  this.$rtti.$Enum("TUDBtnType",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TUDBtnType});
+  this.TUDOrientation = {"0": "udHorizontal", udHorizontal: 0, "1": "udVertical", udVertical: 1};
+  this.$rtti.$Enum("TUDOrientation",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TUDOrientation});
+  this.$rtti.$MethodVar("TUDClickEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Button",this.$rtti["TUDBtnType"]]]), methodkind: 0});
+  this.$rtti.$MethodVar("TUDChangingEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["AllowChange",rtl.boolean,1]]), methodkind: 0});
+  this.$rtti.$MethodVar("TUDChangingEventEx",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["AllowChange",rtl.boolean,1],["NewValue",rtl.longint],["Direction",this.$rtti["TUpDownDirection"]]]), methodkind: 0});
+  rtl.createClass(this,"TUpDown",pas.Controls.TWinControl,function () {
+    this.$init = function () {
+      pas.Controls.TWinControl.$init.call(this);
+      this.FAssociate = null;
+      this.FDownButton = null;
+      this.FIncrement = 0;
+      this.FMax = 0;
+      this.FMin = 0;
+      this.FOrientation = 0;
+      this.FPosition = 0;
+      this.FThousands = false;
+      this.FUpButton = null;
+      this.FWrap = false;
+      this.FOnChanging = null;
+      this.FOnChangingEx = null;
+      this.FOnClick$1 = null;
+    };
+    this.$final = function () {
+      this.FAssociate = undefined;
+      this.FDownButton = undefined;
+      this.FUpButton = undefined;
+      this.FOnChanging = undefined;
+      this.FOnChangingEx = undefined;
+      this.FOnClick$1 = undefined;
+      pas.Controls.TWinControl.$final.call(this);
+    };
+    this.GetPosition = function () {
+      var Result = 0;
+      if (this.FAssociate != null) {
+        Result = pas.SysUtils.StrToIntDef(this.FAssociate.GetText(),this.FPosition)}
+       else Result = this.FPosition;
+      return Result;
+    };
+    this.SetAssociate = function (AValue) {
+      if (this.FAssociate === AValue) return;
+      if (this.FAssociate != null) this.FAssociate.RemoveFreeNotification(this);
+      this.FAssociate = AValue;
+      if (this.FAssociate != null) {
+        this.FAssociate.FreeNotification(this);
+        this.FPosition = this.GetPosition();
+      };
+    };
+    this.SetIncrement = function (AValue) {
+      if (AValue < 1) AValue = 1;
+      if (this.FIncrement !== AValue) this.FIncrement = AValue;
+    };
+    this.SetMax = function (AValue) {
+      if (AValue < this.FMin) AValue = this.FMin;
+      if (this.FMax !== AValue) {
+        this.FMax = AValue;
+        if (this.GetPosition() > this.FMax) this.SetPosition(this.FMax);
+      };
+    };
+    this.SetMin = function (AValue) {
+      if (AValue > this.FMax) AValue = this.FMax;
+      if (this.FMin !== AValue) {
+        this.FMin = AValue;
+        if (this.GetPosition() < this.FMin) this.SetPosition(this.FMin);
+      };
+    };
+    this.SetOrientation = function (AValue) {
+      if (this.FOrientation !== AValue) {
+        this.FOrientation = AValue;
+        this.Changed();
+      };
+    };
+    this.SetPosition = function (AValue) {
+      if (AValue < this.FMin) AValue = this.FMin;
+      if (AValue > this.FMax) AValue = this.FMax;
+      this.FPosition = AValue;
+      if (this.FAssociate != null) this.FAssociate.SetText(pas.SysUtils.IntToStr(AValue));
+    };
+    this.SetThousands = function (AValue) {
+      this.FThousands = AValue;
+    };
+    this.SetWrap = function (AValue) {
+      this.FWrap = AValue;
+    };
+    this.Changed = function () {
+      pas.Controls.TControl.Changed.call(this);
+      if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
+        this.FHandleElement.classList.add("wcl-updown");
+        if (this.FOrientation === $mod.TUDOrientation.udHorizontal) {
+          this.FHandleElement.classList.add("wcl-updown-horizontal")}
+         else this.FHandleElement.classList.remove("wcl-updown-horizontal");
+        if (this.FOrientation === $mod.TUDOrientation.udHorizontal) {
+          this.FDownButton.textContent = "◀";
+          this.FUpButton.textContent = "▶";
+        } else {
+          this.FUpButton.textContent = "▲";
+          this.FDownButton.textContent = "▼";
+        };
+      };
+    };
+    this.CreateHandleElement = function () {
+      var Result = null;
+      Result = document.createElement("div");
+      this.FUpButton = document.createElement("button");
+      this.FUpButton.classList.add("wcl-updown-btn");
+      this.FUpButton.setAttribute("type","button");
+      Result.appendChild(this.FUpButton);
+      this.FDownButton = document.createElement("button");
+      this.FDownButton.classList.add("wcl-updown-btn");
+      this.FDownButton.setAttribute("type","button");
+      Result.appendChild(this.FDownButton);
+      return Result;
+    };
+    this.RegisterHandleEvents = function () {
+      pas.Controls.TWinControl.RegisterHandleEvents.call(this);
+      this.FUpButton.addEventListener("click",rtl.createCallback(this,"HandleUpClick"));
+      this.FDownButton.addEventListener("click",rtl.createCallback(this,"HandleDownClick"));
+    };
+    this.UnRegisterHandleEvents = function () {
+      pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
+      this.FUpButton.removeEventListener("click",rtl.createCallback(this,"HandleUpClick"));
+      this.FDownButton.removeEventListener("click",rtl.createCallback(this,"HandleDownClick"));
+    };
+    this.Notification = function (AComponent, Operation) {
+      pas.Controls.TControl.Notification.call(this,AComponent,Operation);
+      if ((Operation === pas.Classes.TOperation.opRemove) && (AComponent === this.FAssociate)) this.FAssociate = null;
+    };
+    this.HandleUpClick = function (AEvent) {
+      var Result = false;
+      AEvent.stopPropagation();
+      this.Click$1($mod.TUDBtnType.btNext);
+      Result = true;
+      return Result;
+    };
+    this.HandleDownClick = function (AEvent) {
+      var Result = false;
+      AEvent.stopPropagation();
+      this.Click$1($mod.TUDBtnType.btPrev);
+      Result = true;
+      return Result;
+    };
+    this.Click$1 = function (AButton) {
+      var VAllow = false;
+      var VDirection = 0;
+      var VNew = 0;
+      VNew = this.GetPosition();
+      if (AButton === $mod.TUDBtnType.btNext) {
+        VNew += this.FIncrement;
+        VDirection = $mod.TUpDownDirection.updUp;
+      } else {
+        VNew -= this.FIncrement;
+        VDirection = $mod.TUpDownDirection.updDown;
+      };
+      if (this.FWrap) {
+        if (VNew > this.FMax) VNew = this.FMin;
+        if (VNew < this.FMin) VNew = this.FMax;
+      } else {
+        if (VNew < this.FMin) VNew = this.FMin;
+        if (VNew > this.FMax) VNew = this.FMax;
+      };
+      VAllow = true;
+      if (this.FOnChanging != null) this.FOnChanging(this,{get: function () {
+          return VAllow;
+        }, set: function (v) {
+          VAllow = v;
+        }});
+      if (VAllow && (this.FOnChangingEx != null)) this.FOnChangingEx(this,{get: function () {
+          return VAllow;
+        }, set: function (v) {
+          VAllow = v;
+        }},VNew,VDirection);
+      if (VAllow) {
+        this.SetPosition(VNew);
+        if (this.FOnClick$1 != null) this.FOnClick$1(this,AButton);
+      };
+    };
+    this.GetControlClassDefaultSize = function () {
+      var Result = pas.Types.TSize.$new();
+      Result.cx = 24;
+      Result.cy = 40;
+      return Result;
+    };
+    this.Create$1 = function (AOwner) {
+      pas.Controls.TControl.Create$1.call(this,AOwner);
+      $impl._RegisterWCLNumRules();
+      this.FAssociate = null;
+      this.FIncrement = 1;
+      this.FMax = 100;
+      this.FMin = 0;
+      this.FOrientation = $mod.TUDOrientation.udVertical;
+      this.FPosition = 0;
+      this.FThousands = true;
+      this.FWrap = false;
+      this.BeginUpdate();
+      try {
+        this.SetTabStop(true);
+        var $with = this.$class.GetControlClassDefaultSize();
+        this.SetBounds(0,0,$with.cx,$with.cy);
+      } finally {
+        this.EndUpdate();
+      };
+      return this;
+    };
+    this.Destroy = function () {
+      if (this.FAssociate != null) this.FAssociate.RemoveFreeNotification(this);
+      this.FAssociate = null;
+      pas.Controls.TControl.Destroy.call(this);
+    };
+    rtl.addIntf(this,pas.System.IUnknown);
+    var $r = this.$rtti;
+    $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
+    $r.addProperty("Associate",2,pas.Controls.$rtti["TWinControl"],"FAssociate","SetAssociate");
+    $r.addProperty("Increment",2,rtl.longint,"FIncrement","SetIncrement",{Default: 1});
+    $r.addProperty("Max",2,rtl.longint,"FMax","SetMax",{Default: 100});
+    $r.addProperty("Min",2,rtl.longint,"FMin","SetMin",{Default: 0});
+    $r.addProperty("Orientation",2,$mod.$rtti["TUDOrientation"],"FOrientation","SetOrientation",{Default: $mod.TUDOrientation.udVertical});
+    $r.addProperty("Position",3,rtl.longint,"GetPosition","SetPosition");
+    $r.addProperty("Thousands",2,rtl.boolean,"FThousands","SetThousands",{Default: true});
+    $r.addProperty("Wrap",2,rtl.boolean,"FWrap","SetWrap",{Default: false});
+    $r.addProperty("OnChanging",0,$mod.$rtti["TUDChangingEvent"],"FOnChanging","FOnChanging");
+    $r.addProperty("OnChangingEx",0,$mod.$rtti["TUDChangingEventEx"],"FOnChangingEx","FOnChangingEx");
+    $r.addProperty("OnClick",0,$mod.$rtti["TUDClickEvent"],"FOnClick$1","FOnClick$1");
+  });
+  $mod.$implcode = function () {
+    $impl._WCLNumRulesRegistered = false;
+    $impl._RegisterWCLNumRules = function () {
+      if ($impl._WCLNumRulesRegistered) return;
+      pas.Controls.RegisterWCLStyle(".wcl-updown{" + "display:flex;" + "flex-direction:column;" + "box-sizing:border-box;" + "border:1px solid #888;" + "border-radius:4px;" + "overflow:hidden;" + "background:#f0f0f0;}" + ".wcl-updown-horizontal{" + "flex-direction:row;}" + ".wcl-updown-btn{" + "flex:1;" + "min-width:0;" + "min-height:0;" + "border:0;" + "background:transparent;" + "cursor:pointer;" + "font-size:10px;" + "line-height:1;" + "padding:0;" + "color:#333;" + "touch-action:manipulation;" + "-webkit-tap-highlight-color:transparent;}" + "@media(hover:hover){" + ".wcl-updown-btn:hover{background:#e0e0e0;}" + "}" + ".wcl-updown-btn:active{" + "background:#d0d0d0;}" + "@media(pointer:coarse){" + ".wcl-updown-btn{font-size:12px;}" + "}");
+      $impl._WCLNumRulesRegistered = true;
+    };
+  };
+},[]);
 rtl.module("DttCtrls",["System","Classes","SysUtils","Types","Graphics","StdCtrls"],function () {
   "use strict";
   var $mod = this;
@@ -54331,6 +55010,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
     $r.addProperty("BorderStyle",2,pas.Controls.$rtti["TBorderStyle"],"FBorderStyle","SetBorderStyle");
     $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
+    $r.addProperty("Columns",2,rtl.nativeint,"FColumns","SetColumns",{Default: 0});
     $r.addProperty("DropDownCount",2,rtl.longint,"FDropDownCount","SetDropDownCount");
     $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
     $r.addProperty("Font",2,pas.Graphics.$rtti["TFont"],"FFont","SetFont");
@@ -54343,9 +55023,11 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("ParentFont",2,rtl.boolean,"FParentFont","SetParentFont");
     $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
     $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
+    $r.addProperty("Style",2,pas.StdCtrls.$rtti["TComboBoxStyle"],"FStyle","SetStyle",{Default: pas.StdCtrls.TComboBoxStyle.csDropDown});
     $r.addProperty("TabOrder",2,rtl.nativeint,"FTabOrder","SetTabOrder");
     $r.addProperty("TabStop",2,rtl.boolean,"FTabStop","SetTabStop");
     $r.addProperty("Text",3,pas.Controls.$rtti["TCaption"],"GetText","SetText");
+    $r.addProperty("TopIndex",2,rtl.nativeint,"FTopIndex","SetTopIndex",{Default: 0});
     $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
     $r.addProperty("OnChange",0,pas.Classes.$rtti["TNotifyEvent"],"FOnChange","FOnChange");
     $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
@@ -54362,6 +55044,15 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("OnMouseUp",0,pas.Controls.$rtti["TMouseEvent"],"FOnMouseUp","FOnMouseUp");
     $r.addProperty("OnMouseWheel",0,pas.Controls.$rtti["TMouseWheelEvent"],"FOnMouseWheel","FOnMouseWheel");
   });
+  rtl.createClass(this,"TWScrollBar",pas.StdCtrls.TScrollBar,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+  });
+  rtl.createClass(this,"TWSpinEdit",pas.NumCtrls.TSpinEdit,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+  });
+  rtl.createClass(this,"TWUpDown",pas.NumCtrls.TUpDown,function () {
+    rtl.addIntf(this,pas.System.IUnknown);
+  });
   rtl.createClass(this,"TWListBox",pas.StdCtrls.TCustomListBox,function () {
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;
@@ -54371,6 +55062,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("BorderSpacing",2,pas.Controls.$rtti["TControlBorderSpacing"],"FBorderSpacing","SetBorderSpacing");
     $r.addProperty("BorderStyle",2,pas.Controls.$rtti["TBorderStyle"],"FBorderStyle","SetBorderStyle");
     $r.addProperty("Color",2,rtl.longint,"FColor","SetColor");
+    $r.addProperty("Columns",2,rtl.nativeint,"FColumns","SetColumns",{Default: 0});
     $r.addProperty("Enabled",2,rtl.boolean,"FEnabled","SetEnabled");
     $r.addProperty("Font",2,pas.Graphics.$rtti["TFont"],"FFont","SetFont");
     $r.addProperty("HandleClass",2,rtl.string,"FHandleClass","SetHandleClass");
@@ -54385,6 +55077,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
     $r.addProperty("TabOrder",2,rtl.nativeint,"FTabOrder","SetTabOrder");
     $r.addProperty("TabStop",2,rtl.boolean,"FTabStop","SetTabStop");
+    $r.addProperty("TopIndex",2,rtl.nativeint,"FTopIndex","SetTopIndex",{Default: 0});
     $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
     $r.addProperty("OnClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnClick","FOnClick");
     $r.addProperty("OnDblClick",0,pas.Classes.$rtti["TNotifyEvent"],"FOnDblClick","FOnDblClick");
@@ -54617,6 +55310,7 @@ rtl.module("WebCtrls",["System","Classes","SysUtils","Types","Graphics","Control
     $r.addProperty("ParentColor",2,rtl.boolean,"FParentColor","SetParentColor");
     $r.addProperty("ParentFont",2,rtl.boolean,"FParentFont","SetParentFont");
     $r.addProperty("ParentShowHint",2,rtl.boolean,"FParentShowHint","SetParentShowHint");
+    $r.addProperty("ShowAccelChar",2,rtl.boolean,"FShowAccelChar","SetShowAccelChar",{Default: true});
     $r.addProperty("ShowHint",2,rtl.boolean,"FShowHint","SetShowHint");
     $r.addProperty("Transparent",2,rtl.boolean,"FTransparent","SetTransparent");
     $r.addProperty("Visible",2,rtl.boolean,"FVisible","SetVisible");
@@ -57988,7 +58682,7 @@ rtl.module("uLogin",["System","JS","Classes","SysUtils","Graphics","Controls","F
   });
   this.FormLogin = null;
 },["Unit1"]);
-rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Forms","Dialogs","WebCtrls","ComCtrls","WebDB","Grids","StdCtrls","Menus","ExtCtrls","Web","ActnList"],function () {
+rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Forms","Dialogs","WebCtrls","ComCtrls","WebDB","Grids","StdCtrls","Menus","ExtCtrls","Web","ActnList","NumCtrls"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
@@ -58076,6 +58770,14 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDragPanel = null;
       this.FDragList = null;
       this.FDropCount = 0;
+      this.FScrollH = null;
+      this.FScrollV = null;
+      this.FSpin = null;
+      this.FSpinAssoc = null;
+      this.FUpDown = null;
+      this.FWidgetCombo = null;
+      this.FWidgetInfo = null;
+      this.FAccelEdit = null;
     };
     this.$final = function () {
       this.btnAggiornaApp = undefined;
@@ -58153,6 +58855,14 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FDragInfo = undefined;
       this.FDragPanel = undefined;
       this.FDragList = undefined;
+      this.FScrollH = undefined;
+      this.FScrollV = undefined;
+      this.FSpin = undefined;
+      this.FSpinAssoc = undefined;
+      this.FUpDown = undefined;
+      this.FWidgetCombo = undefined;
+      this.FWidgetInfo = undefined;
+      this.FAccelEdit = undefined;
       pas.Forms.TWForm.$final.call(this);
     };
     this.btnAggiornaAppClick = function (Sender) {
@@ -58489,6 +59199,128 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
     };
     this.DragManualMouseDown = function (Sender, Button, Shift, X, Y) {
       if ((Button === pas.Controls.TMouseButton.mbLeft) && pas.Controls.TControl.isPrototypeOf(Sender)) Sender.BeginDrag(true,-1);
+    };
+    this.BuildWidgetsTab = function () {
+      var VSheet = null;
+      var VButton = null;
+      var VLabel = null;
+      VSheet = this.WPageControl1.AddTabSheet();
+      VSheet.SetText("Widgets");
+      VSheet.SetBounds(0,0,this.WPageControl1.FWidth,this.WPageControl1.FHeight);
+      this.FScrollH = pas.WebCtrls.TWScrollBar.$create("Create$1",[this]);
+      this.FScrollH.SetParent(VSheet);
+      this.FScrollH.SetBounds(16,24,300,28);
+      this.FScrollH.SetMin(0);
+      this.FScrollH.SetMax(100);
+      this.FScrollH.SetPosition(30);
+      this.FScrollH.FOnChange = rtl.createCallback(this,"WidgetScrollChanged");
+      this.FScrollH.FOnScroll$1 = rtl.createCallback(this,"WidgetScrollScrolled");
+      this.FScrollV = pas.WebCtrls.TWScrollBar.$create("Create$1",[this]);
+      this.FScrollV.SetParent(VSheet);
+      this.FScrollV.SetBounds(16,70,28,170);
+      this.FScrollV.SetKind(pas.StdCtrls.TScrollBarKind.sbVertical);
+      this.FScrollV.SetMin(0);
+      this.FScrollV.SetMax(100);
+      this.FScrollV.SetPosition(40);
+      this.FScrollV.FOnChange = rtl.createCallback(this,"WidgetScrollChanged");
+      VLabel = pas.WebCtrls.TWLabel.$create("Create$1",[this]);
+      VLabel.SetParent(VSheet);
+      VLabel.SetBounds(16,248,300,20);
+      VLabel.SetText("Horizontal / vertical scroll bars");
+      this.FSpin = pas.WebCtrls.TWSpinEdit.$create("Create$1",[this]);
+      this.FSpin.SetParent(VSheet);
+      this.FSpin.SetBounds(360,24,140,28);
+      this.FSpin.SetMinValue(0);
+      this.FSpin.SetMaxValue(100);
+      this.FSpin.SetIncrement(1);
+      this.FSpin.SetValue(10);
+      this.FSpin.FOnChange = rtl.createCallback(this,"WidgetSpinChanged");
+      VLabel = pas.WebCtrls.TWLabel.$create("Create$1",[this]);
+      VLabel.SetParent(VSheet);
+      VLabel.SetBounds(360,54,140,18);
+      VLabel.SetText("Spin edit");
+      this.FSpinAssoc = pas.WebCtrls.TWEdit.$create("Create$1",[this]);
+      this.FSpinAssoc.SetParent(VSheet);
+      this.FSpinAssoc.SetBounds(360,90,110,28);
+      this.FSpinAssoc.SetText("0");
+      this.FUpDown = pas.WebCtrls.TWUpDown.$create("Create$1",[this]);
+      this.FUpDown.SetParent(VSheet);
+      this.FUpDown.SetBounds(472,90,26,28);
+      this.FUpDown.SetAssociate(this.FSpinAssoc);
+      this.FUpDown.SetMin(0);
+      this.FUpDown.SetMax(100);
+      this.FUpDown.SetIncrement(1);
+      this.FUpDown.SetPosition(0);
+      this.FUpDown.FOnClick$1 = rtl.createCallback(this,"WidgetUpDownClick");
+      this.FUpDown.FOnChangingEx = rtl.createCallback(this,"WidgetUpDownChangingEx");
+      VLabel = pas.WebCtrls.TWLabel.$create("Create$1",[this]);
+      VLabel.SetParent(VSheet);
+      VLabel.SetBounds(360,120,200,18);
+      VLabel.SetText("Up-down associated with an edit");
+      this.FWidgetCombo = pas.WebCtrls.TWComboBox.$create("Create$1",[this]);
+      this.FWidgetCombo.SetParent(VSheet);
+      this.FWidgetCombo.SetBounds(360,156,180,28);
+      this.FWidgetCombo.FItems.Add("Alpha");
+      this.FWidgetCombo.FItems.Add("Beta");
+      this.FWidgetCombo.FItems.Add("Gamma");
+      this.FWidgetCombo.FItems.Add("Delta");
+      this.FWidgetCombo.SetItemIndex(0);
+      this.FWidgetCombo.SetTopIndex(1);
+      this.FWidgetCombo.SetColumns(20);
+      this.FWidgetCombo.SetStyle(pas.StdCtrls.TComboBoxStyle.csDropDown);
+      this.FWidgetCombo.FOnChange = rtl.createCallback(this,"WidgetComboChanged");
+      VButton = pas.WebCtrls.TWButton.$create("Create$1",[this]);
+      VButton.SetParent(VSheet);
+      VButton.SetBounds(552,156,120,31);
+      VButton.SetText("Combo: edit");
+      VButton.FOnClick = rtl.createCallback(this,"WidgetComboStyle");
+      VLabel = pas.WebCtrls.TWLabel.$create("Create$1",[this]);
+      VLabel.SetParent(VSheet);
+      VLabel.SetBounds(360,200,80,20);
+      VLabel.SetText("&Name");
+      VLabel.SetShowAccelChar(true);
+      this.FAccelEdit = pas.WebCtrls.TWEdit.$create("Create$1",[this]);
+      this.FAccelEdit.SetParent(VSheet);
+      this.FAccelEdit.SetBounds(440,198,120,28);
+      this.FAccelEdit.SetTextHint("Alt+N focuses me");
+      VLabel.FFocusControl = this.FAccelEdit;
+      this.FWidgetInfo = pas.WebCtrls.TWLabel.$create("Create$1",[this]);
+      this.FWidgetInfo.SetParent(VSheet);
+      this.FWidgetInfo.SetBounds(16,300,680,80);
+      this.FWidgetInfo.SetText("Use the controls above.");
+      this.WidgetUpdateInfo();
+    };
+    this.WidgetScrollChanged = function (Sender) {
+      this.WidgetUpdateInfo();
+    };
+    this.WidgetScrollScrolled = function (Sender, ScrollCode, ScrollPos) {
+      this.WidgetUpdateInfo();
+    };
+    this.WidgetSpinChanged = function (Sender) {
+      this.WidgetUpdateInfo();
+    };
+    this.WidgetUpDownClick = function (Sender, Button) {
+      this.WidgetUpdateInfo();
+    };
+    this.WidgetUpDownChangingEx = function (Sender, AllowChange, NewValue, Direction) {
+      AllowChange.set(true);
+    };
+    this.WidgetComboChanged = function (Sender) {
+      this.WidgetUpdateInfo();
+    };
+    this.WidgetComboStyle = function (Sender) {
+      if (this.FWidgetCombo.FStyle === pas.StdCtrls.TComboBoxStyle.csDropDownList) {
+        this.FWidgetCombo.SetStyle(pas.StdCtrls.TComboBoxStyle.csDropDown);
+        if (pas.WebCtrls.TWButton.isPrototypeOf(Sender)) Sender.SetText("Combo: edit");
+      } else {
+        this.FWidgetCombo.SetStyle(pas.StdCtrls.TComboBoxStyle.csDropDownList);
+        if (pas.WebCtrls.TWButton.isPrototypeOf(Sender)) Sender.SetText("Combo: list");
+      };
+      this.WidgetUpdateInfo();
+    };
+    this.WidgetUpdateInfo = function () {
+      if (!(this.FWidgetInfo != null)) return;
+      this.FWidgetInfo.SetText("Scroll H: " + pas.SysUtils.IntToStr(this.FScrollH.FPosition) + "   V: " + pas.SysUtils.IntToStr(this.FScrollV.FPosition) + "\n" + "Spin: " + pas.SysUtils.IntToStr(this.FSpin.GetValue()) + "   UpDown: " + pas.SysUtils.IntToStr(this.FUpDown.GetPosition()) + "\n" + "Combo: " + this.FWidgetCombo.GetText());
     };
     this.BuildGridModesTab = function () {
       var VSheet = null;
@@ -59046,15 +59878,19 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.WComboBox1.FItems.Add("France");
       this.WComboBox1.FItems.Add("Germany");
       this.WComboBox1.FItems.Add("Spain");
+      this.WComboBox1.SetStyle(pas.StdCtrls.TComboBoxStyle.csDropDownList);
       this.WComboBox1.SetItemIndex(0);
       this.WComboBox2.FItems.Add("Red");
       this.WComboBox2.FItems.Add("Green");
       this.WComboBox2.FItems.Add("Blue");
+      this.WComboBox2.SetStyle(pas.StdCtrls.TComboBoxStyle.csDropDown);
       this.WComboBox2.SetItemIndex(0);
       this.WListBox1.FItems.Add("Option 1");
       this.WListBox1.FItems.Add("Option 2");
       this.WListBox1.FItems.Add("Option 3");
       this.WListBox1.FItems.Add("Option 4");
+      this.WListBox1.SetColumns(10);
+      this.WListBox1.SetTopIndex(2);
       this.WListBox1.SetItemIndex(0);
       this.WProgressBar1.SetValue(50);
       this.WLabel3.SetText("Value: 50");
@@ -59076,6 +59912,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.BuildTreeTab();
       this.BuildListTab();
       this.BuildDragTab();
+      this.BuildWidgetsTab();
       this.SetupStringGrid();
       this.SetupMenu();
       this.SetupActions();
