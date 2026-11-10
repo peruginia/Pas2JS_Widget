@@ -276,6 +276,31 @@ function makeProp(name, raw) {
   return { name, raw, ...decodeValue(raw) };
 }
 
+function canonicalClassName(className) {
+  return (state.manifest.aliases && state.manifest.aliases[className]) || className;
+}
+
+function classUnit(className) {
+  const canonical = canonicalClassName(className);
+  const info = (state.manifest.classes || []).find((item) => item.name === canonical);
+  return info ? (info.unit || '') : '';
+}
+
+function collectComponents(nodes, include = true) {
+  const result = [];
+  for (const node of nodes) {
+    if (include && node.name) {
+      result.push({
+        name: node.name,
+        className: canonicalClassName(node.className),
+        unit: classUnit(node.className),
+      });
+    }
+    result.push(...collectComponents(node.children, true));
+  }
+  return result;
+}
+
 function snap(value) {
   return Math.max(0, Math.round(value / 8) * 8);
 }
@@ -307,7 +332,7 @@ function addComponent(className, parentNode, left, top) {
   renderCanvas();
   renderInspector();
   markDirty();
-  setStatus(`Added ${node.name} (${className}) · .pas sync is next`);
+  setStatus(`Added ${node.name} (${className})`);
   return node;
 }
 
@@ -566,9 +591,21 @@ async function saveProject() {
   }
   try {
     const lfm = writeLfm(state.roots);
-    const result = await api('save', {}, { project: state.project.id, lfm });
+    const formClass = state.roots[0] ? state.roots[0].className : '';
+    const components = collectComponents(state.roots, false);
+    const result = await api('save', {}, {
+      project: state.project.id,
+      lfm,
+      formClass,
+      components,
+    });
     setDirty(false);
-    setStatus(`Saved ${result.bytes} bytes`);
+    const warnings = result.warnings || [];
+    if (warnings.length > 0) {
+      setStatus(`Saved ${result.bytes} bytes; ${warnings.join('; ')}`, true);
+    } else {
+      setStatus(`Saved ${result.bytes} bytes${result.pasChanged ? ' · .pas updated' : ''}`);
+    }
   } catch (error) {
     setStatus(error.message, true);
   }

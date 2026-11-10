@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'PasSync.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
@@ -32,6 +34,14 @@ function formFile(string $value): string
     return $value;
 }
 
+function unitFile(string $value): string
+{
+    if (!preg_match('/^[A-Za-z0-9_.-]+\.pas$/', $value)) {
+        fail('Invalid unit file name.');
+    }
+    return $value;
+}
+
 function projectDir(string $projectsDir, string $id): string
 {
     return $projectsDir . DIRECTORY_SEPARATOR . $id;
@@ -53,7 +63,7 @@ function readProject(string $dir, string $id): array
     $config['id'] = $id;
     $config['name'] = (string) ($config['name'] ?? $id);
     $config['form'] = formFile((string) ($config['form'] ?? 'unit1.lfm'));
-    $config['unit'] = (string) ($config['unit'] ?? 'unit1.pas');
+    $config['unit'] = unitFile((string) ($config['unit'] ?? 'unit1.pas'));
     return $config;
 }
 
@@ -151,7 +161,39 @@ try {
             if (file_put_contents($file, $lfm) === false) {
                 fail('Cannot write form file.', 500);
             }
-            echo json_encode(['ok' => true, 'bytes' => strlen($lfm)]);
+
+            $warnings = [];
+            $pasChanged = false;
+            $formClass = trim((string) ($data['formClass'] ?? ''));
+            $components = $data['components'] ?? [];
+            if ($formClass !== '' && is_array($components)) {
+                $unitPath = $dir . DIRECTORY_SEPARATOR . $config['unit'];
+                if (is_file($unitPath)) {
+                    $pas = file_get_contents($unitPath);
+                    if ($pas === false) {
+                        $warnings[] = 'Cannot read the unit file; .pas was not synchronized.';
+                    } else {
+                        $sync = syncPasUnit($pas, $formClass, $components);
+                        $warnings = array_merge($warnings, $sync['warnings']);
+                        if ($sync['pas'] !== $pas) {
+                            if (file_put_contents($unitPath, $sync['pas']) === false) {
+                                $warnings[] = 'Cannot write the unit file; .pas was not synchronized.';
+                            } else {
+                                $pasChanged = true;
+                            }
+                        }
+                    }
+                } else {
+                    $warnings[] = 'Unit file not found; .pas was not synchronized.';
+                }
+            }
+
+            echo json_encode([
+                'ok' => true,
+                'bytes' => strlen($lfm),
+                'pasChanged' => $pasChanged,
+                'warnings' => $warnings,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             break;
         }
 
