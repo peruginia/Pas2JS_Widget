@@ -5,14 +5,15 @@ the component tree, renders a graphical preview of the form and lets you edit
 the properties of the selected component.
 
 The LFM round-trip, import/export, property editing, the palette with
-drag & drop, moving/resizing on the canvas, tree/list item editing and the
-`.pas` field synchronisation are implemented. The pas2js build/preview is the
-next step.
+drag & drop, moving/resizing on the canvas, tree/list item editing, the
+`.pas` field synchronisation and the pas2js build/preview are implemented.
 
 ## Requirements
 
 - Apache + PHP 8 (XAMPP is fine)
 - A project folder served by Apache
+- The pas2js compiler: set the `PAS2JS` environment variable to its path, or
+  use the default `C:\lazarus\pas2js\bin\x86_64-win64\pas2js.exe`
 - Optional: Node.js only for the LFM parser tests
 
 The current XAMPP setup exposes this folder as:
@@ -59,6 +60,7 @@ Make sure `designer/projects` is writable by Apache.
 - Shows and edits the `.pas` unit of the selected form in a **Source** tab;
   component fields and event handlers can be reached from the tree and the
   inspector.
+- Builds the selected form with pas2js and runs it in a preview dialog.
 - Imports an existing `.lfm` as a new project.
 
 Unknown properties, collections (`Columns = <...>`), string lists and binary
@@ -105,6 +107,30 @@ project:
 - **Remove** deletes the entry from `project.json`; with **Also delete files**
   checked it also deletes the LFM/unit file. The last form cannot be removed;
 - form units are listed as `form` and are removed together with their form.
+
+## Build and preview
+
+The **Preview** button compiles the selected form with pas2js and runs it:
+
+- unsaved form and unit changes are written before the build, so the preview
+  always matches the designer;
+- the designer writes `projects/<id>/preview/preview.lpr`, a small program that
+  creates the form class found at the root of the LFM and calls
+  `Application.Run`; it also writes `preview.html` and a placeholder icon;
+- the unit must link its form resource with `{$R *.lfm}` (the template used by
+  **New form** does). When the directive is missing the preview reports it
+  instead of opening an empty form;
+- the compiler is run with the runtime `widgets` folder and the project folder
+  on its unit path, so the form can use the other units of the project;
+- relative paths in the form (images, URLs) resolve against the project folder,
+  because the preview page uses it as its base;
+- a successful build opens the form in a dialog; **Open in tab** opens the same
+  page in a browser tab;
+- a failed build opens the compiler output in a **Build log** dialog.
+
+Every build overwrites the generated files in `preview/`, which are not part of
+the project sources. The page requests the new script with a cache-busting
+query, so the browser does not keep the previous build.
 
 ## Canvas editing
 
@@ -279,12 +305,17 @@ All responses are JSON.
 | `deleteForm` | POST | JSON `{ "project": "<id>", "form": "<lfm>", "deleteFiles": true }` |
 | `createUnit` | POST | JSON `{ "project": "<id>", "name": "<unit>.pas" }` |
 | `deleteUnit` | POST | JSON `{ "project": "<id>", "unit": "<pas>", "deleteFile": true }` |
+| `build` | POST | JSON `{ "project": "<id>", "form": "<lfm>" }` |
 | `import` | POST | JSON `{ "id": "...", "name": "...", "lfm": "..." }` |
 
 `load` uses `mainForm` when `form` is omitted; `unit` uses the main form's unit
 when `unit` is omitted. `save` returns `ok`, `form`, `unit`, `bytes`,
 `pasChanged` and `warnings`. The `formClass` and `components` fields are
 optional; when they are omitted the `.pas` file is not touched.
+
+`build` returns `ok`, `url`, `form`, `unit`, `formClass` and `output`. When the
+compiler fails, `ok` is `false` and `output` contains the compiler log (or the
+reason the build could not start).
 
 ## Tests
 
@@ -310,4 +341,6 @@ fields are not duplicated and a second run is a no-op.
   with the **+** button in the inspector.
 - The tree/list item editor changes text and structure only; image indexes
   and subitem images keep their decoded values and cannot be edited yet.
-- Build/preview via pas2js will be added after the LFM editor is stable.
+- The preview compiles the selected form and the project units it uses, not the
+  whole application: other forms are only created if the form code creates
+  them. `project.json`'s optional `program` is not used by the preview.

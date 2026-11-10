@@ -204,6 +204,8 @@ var
 
 implementation
 
+{$R *.lfm}
+
 end.
 PAS;
     return str_replace('{{N}}', (string) $number, $source) . "\n";
@@ -311,6 +313,99 @@ function nextUnitFileName(string $dir, array $config): string
     }
 
     fail('Cannot find a free unit name.');
+}
+
+/**
+ * Run a command without a shell and return its exit code and combined output.
+ *
+ * @param list<string> $command
+ * @return array{0: int, 1: string}
+ */
+function runProcess(array $command, string $cwd): array
+{
+    $stdout = tempnam(sys_get_temp_dir(), 'wcl-out-');
+    $stderr = tempnam(sys_get_temp_dir(), 'wcl-err-');
+    if ($stdout === false || $stderr === false) {
+        fail('Cannot create a temporary file.', 500);
+    }
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['file', $stdout, 'w'],
+        2 => ['file', $stderr, 'w'],
+    ];
+    $process = proc_open($command, $descriptors, $pipes, $cwd);
+    if (!is_resource($process)) {
+        @unlink($stdout);
+        @unlink($stderr);
+        fail('Cannot start the pas2js compiler.', 500);
+    }
+    if (isset($pipes[0]) && is_resource($pipes[0])) {
+        fclose($pipes[0]);
+    }
+    $code = proc_close($process);
+    $out = (string) file_get_contents($stdout);
+    $err = (string) file_get_contents($stderr);
+    @unlink($stdout);
+    @unlink($stderr);
+    $combined = rtrim($out);
+    if (trim($err) !== '') {
+        $combined .= ($combined !== '' ? "\n" : '') . rtrim($err);
+    }
+    return [$code, $combined];
+}
+
+function previewProgram(string $unitName, string $formClass): string
+{
+    $source = <<<'PAS'
+program preview;
+
+{$mode delphi}{$H+}
+
+uses
+  Interfaces, Forms, {{UNIT}};
+
+var
+  PreviewForm: {{CLASS}};
+
+begin
+  Application.Initialize;
+  Application.CreateForm({{CLASS}}, PreviewForm);
+  Application.Run;
+end.
+PAS;
+    return str_replace(['{{UNIT}}', '{{CLASS}}'], [$unitName, $formClass], $source) . "\n";
+}
+
+function previewHtml(string $title, string $version): string
+{
+    $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    return <<<HTML
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{$safeTitle}</title>
+  <!-- Relative paths inside the form (images, URLs) resolve against the project folder. -->
+  <base href="../">
+  <link rel="icon" href="preview/preview.ico">
+  <script src="preview/preview.js?v={$version}"></script>
+</head>
+<body>
+  <script>rtl.run();</script>
+</body>
+</html>
+
+HTML;
+}
+
+/** A 1x1 transparent icon: the runtime links <page>.ico, so the preview needs one. */
+function previewIcon(): string
+{
+    return "\x00\x00\x01\x00\x01\x00"
+        . pack('CCCCvvVV', 1, 1, 0, 0, 1, 32, 48, 22)
+        . pack('VVVvvVVVVVV', 40, 1, 2, 1, 32, 0, 4, 0, 0, 0, 0)
+        . str_repeat("\x00", 8);
 }
 
 function listProjects(string $projectsDir): array
@@ -697,6 +792,123 @@ try {
                 'ok' => true,
                 'unit' => $unitName,
                 'project' => $updated,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'build': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $config = readProject($dir, $id);
+            $formEntry = findProjectForm($config, trim((string) ($data['form'] ?? '')));
+            if ($formEntry === null) {
+                fail('Form not found in project.', 404);
+            }
+            $lfmPath = $dir . DIRECTORY_SEPARATOR . $formEntry['form'];
+            $unitPath = $dir . DIRECTORY_SEPARATOR . $formEntry['unit'];
+            if (!is_file($lfmPath)) {
+                fail('Form file not found.', 404);
+            }
+            if (!is_file($unitPath)) {
+                fail('Unit file not found.', 404);
+            }
+
+            $lfm = (string) file_get_contents($lfmPath);
+            $unitSource = (string) file_get_contents($unitPath);
+            if (!preg_match('/^\s*(?:object|inherited)\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Za-z_][A-Za-z0-9_]*)/m', $lfm, $classMatch)) {
+                echo json_encode([
+                    'ok' => false,
+                    'output' => "Cannot find the root form class in {$formEntry['form']}.",
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                break;
+            }
+            $formClass = $classMatch[1];
+            if (!preg_match('/^\s*unit\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/mi', $unitSource, $unitMatch)) {
+                echo json_encode([
+                    'ok' => false,
+                    'output' => "Cannot find the unit name in {$formEntry['unit']}.",
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                break;
+            }
+            $unitName = $unitMatch[1];
+            if (!preg_match('/{\$R\b[^}]*\.lfm/i', $unitSource)) {
+                echo json_encode([
+                    'ok' => false,
+                    'output' => "{$formEntry['unit']} does not link its form resource."
+                        . "\nAdd {\$R *.lfm} after the implementation keyword and build again.",
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                break;
+            }
+
+            $previewDir = $dir . DIRECTORY_SEPARATOR . 'preview';
+            if (!is_dir($previewDir) && !mkdir($previewDir, 0775, true) && !is_dir($previewDir)) {
+                fail('Cannot create the preview folder.', 500);
+            }
+            $version = (string) time();
+            $title = trim((string) ($formEntry['title'] ?? ''));
+            if ($title === '') {
+                $title = $formClass;
+            }
+            $files = [
+                'preview.lpr' => previewProgram($unitName, $formClass),
+                'preview.html' => previewHtml($title, $version),
+                'preview.ico' => previewIcon(),
+            ];
+            foreach ($files as $name => $content) {
+                if (file_put_contents($previewDir . DIRECTORY_SEPARATOR . $name, $content) === false) {
+                    fail("Cannot write preview/$name.", 500);
+                }
+            }
+            @unlink($previewDir . DIRECTORY_SEPARATOR . 'preview.js');
+
+            $compiler = getenv('PAS2JS');
+            if ($compiler === false || trim($compiler) === '') {
+                $compiler = 'C:\\lazarus\\pas2js\\bin\\x86_64-win64\\pas2js.exe';
+            }
+            if (!is_file($compiler)) {
+                echo json_encode([
+                    'ok' => false,
+                    'output' => "pas2js not found: {$compiler}"
+                        . "\nSet the PAS2JS environment variable to the compiler executable.",
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                break;
+            }
+
+            $widgetsDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'widgets';
+            $command = [
+                $compiler,
+                '-Jc',
+                '-Jirtl.js',
+                '-Jm-',
+                '-Jeutf-8',
+                '-JRjs',
+                '-O-',
+                '-Fu' . $widgetsDir,
+                '-Fi' . $widgetsDir,
+                '-Fu' . $dir,
+                '-Fu' . $previewDir,
+                '-o' . $previewDir . DIRECTORY_SEPARATOR . 'preview.js',
+                $previewDir . DIRECTORY_SEPARATOR . 'preview.lpr',
+            ];
+            [$code, $output] = runProcess($command, $dir);
+            $ok = $code === 0 && is_file($previewDir . DIRECTORY_SEPARATOR . 'preview.js');
+            if ($output === '') {
+                $output = $ok ? 'Build succeeded.' : 'The compiler returned no output.';
+            }
+            echo json_encode([
+                'ok' => $ok,
+                'form' => $formEntry['form'],
+                'unit' => $formEntry['unit'],
+                'formClass' => $formClass,
+                'url' => 'projects/' . $id . '/preview/preview.html',
+                'output' => $output,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             break;
         }

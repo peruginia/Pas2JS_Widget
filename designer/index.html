@@ -22,6 +22,7 @@
       <select id="formSelect"></select>
       <button id="reloadBtn" type="button">Reload</button>
       <button id="saveBtn" type="button">Save</button>
+      <button id="previewBtn" type="button" title="Build the selected form with pas2js and run it">Preview</button>
       <button id="projectBtn" type="button">Project…</button>
       <button id="importBtn" type="button">Import .lfm</button>
       <input id="importFile" type="file" accept=".lfm" hidden>
@@ -92,6 +93,27 @@
       <input id="deleteFilesCheck" type="checkbox">
       Also delete files when removing
     </label>
+  </dialog>
+
+  <dialog id="previewDialog" class="preview-dialog">
+    <div class="dialog-head">
+      <h2 id="previewTitle">Preview</h2>
+      <div class="dialog-actions">
+        <a id="previewOpenLink" class="dialog-link" href="#" target="_blank" rel="noopener">Open in tab</a>
+        <button id="previewCloseBtn" type="button">Close</button>
+      </div>
+    </div>
+    <div class="preview-frame-wrap">
+      <iframe id="previewFrame" title="Form preview"></iframe>
+    </div>
+  </dialog>
+
+  <dialog id="buildDialog" class="build-dialog">
+    <div class="dialog-head">
+      <h2>Build log</h2>
+      <button id="buildCloseBtn" type="button">Close</button>
+    </div>
+    <pre id="buildOutput" class="build-output"></pre>
   </dialog>
 
   <script type="module" src="assets/app.js"></script>

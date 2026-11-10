@@ -63,6 +63,15 @@ const els = {
   sourceSave: document.getElementById('sourceSaveBtn'),
   sourceEditor: document.getElementById('sourceEditor'),
   sourceGutter: document.getElementById('sourceGutter'),
+  previewBtn: document.getElementById('previewBtn'),
+  previewDialog: document.getElementById('previewDialog'),
+  previewTitle: document.getElementById('previewTitle'),
+  previewFrame: document.getElementById('previewFrame'),
+  previewOpenLink: document.getElementById('previewOpenLink'),
+  previewCloseBtn: document.getElementById('previewCloseBtn'),
+  buildDialog: document.getElementById('buildDialog'),
+  buildOutput: document.getElementById('buildOutput'),
+  buildCloseBtn: document.getElementById('buildCloseBtn'),
   projectDialog: document.getElementById('projectDialog'),
   dialogForms: document.getElementById('dialogForms'),
   dialogUnits: document.getElementById('dialogUnits'),
@@ -2671,6 +2680,63 @@ function openProjectDialog() {
   }
 }
 
+function openDialog(dialog) {
+  if (dialog.showModal) {
+    dialog.showModal();
+  } else {
+    dialog.setAttribute('open', '');
+  }
+}
+
+function closeDialog(dialog) {
+  if (dialog.close) {
+    dialog.close();
+  } else {
+    dialog.removeAttribute('open');
+  }
+}
+
+async function buildPreview() {
+  if (!state.project || !state.currentForm) {
+    setStatus('No form selected.', true);
+    return;
+  }
+  if (state.sourceDirty) {
+    await saveSource();
+    if (state.sourceDirty) return;
+  }
+  if (state.dirty) {
+    await saveProject();
+    if (state.dirty) return;
+  }
+
+  const form = state.currentForm;
+  els.previewBtn.disabled = true;
+  setStatus(`Building ${form.form}...`);
+  try {
+    const result = await api('build', {}, { project: state.project.id, form: form.form });
+    if (!result.ok) {
+      els.buildOutput.textContent = result.output || 'Build failed.';
+      openDialog(els.buildDialog);
+      setStatus('Build failed', true);
+      return;
+    }
+    const url = new URL(result.url, window.location.href);
+    url.searchParams.set('t', Date.now().toString());
+    els.previewTitle.textContent = `Preview · ${form.title || form.form}`;
+    els.previewOpenLink.href = url.href;
+    els.previewFrame.src = url.href;
+    openDialog(els.previewDialog);
+    setStatus(`Preview built · ${result.unit}`);
+  } catch (error) {
+    els.buildOutput.textContent = error.message;
+    openDialog(els.buildDialog);
+    setStatus(error.message, true);
+  } finally {
+    els.previewBtn.disabled = false;
+  }
+}
+
 async function openUnit(unit) {
   if (!state.project || !unit) return;
   if (state.sourceDirty && state.currentUnit !== unit) {
@@ -2894,6 +2960,12 @@ async function boot() {
     loadProject(state.project.id, state.currentForm ? state.currentForm.form : '');
   });
   els.save.addEventListener('click', saveProject);
+  els.previewBtn.addEventListener('click', buildPreview);
+  els.previewCloseBtn.addEventListener('click', () => closeDialog(els.previewDialog));
+  els.buildCloseBtn.addEventListener('click', () => closeDialog(els.buildDialog));
+  els.previewDialog.addEventListener('close', () => {
+    els.previewFrame.src = 'about:blank';
+  });
   els.projectBtn.addEventListener('click', openProjectDialog);
   els.projectCloseBtn.addEventListener('click', closeProjectDialog);
   els.newFormBtn.addEventListener('click', createForm);

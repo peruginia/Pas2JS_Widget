@@ -1,3 +1,4 @@
 projects/*
 !projects/demo/
 !projects/demo/**
+projects/*/preview/
