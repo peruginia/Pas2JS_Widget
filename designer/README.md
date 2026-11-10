@@ -104,10 +104,13 @@ declared in `project.json` next to the form:
   unit. When the property is empty it also assigns a unique name such as
   `Button1Click`. This covers `TNotifyEvent` handlers (`Sender: TObject`);
   events with other signatures must be written by hand. The unit is left
-  modified, so save it (the form Save saves the unit first);
+  modified; saving it (or the form) persists both the unit and the event
+  association;
 - the pane is always editable: **Save** (or Ctrl+S) writes the unit with the
-  `saveUnit` API action; the status shows "Modified" until it is saved, and
-  the original line endings are preserved;
+  `saveUnit` API action; if the form has unsaved changes (for example a new
+  event association) it also writes the LFM, so the two files stay in sync.
+  The status shows "Modified" until the text is saved, and the original line
+  endings are preserved;
 - switching between Design and Source keeps the editor content, caret,
   selection and scroll position (and returns the focus to the editor);
   **Reload** re-reads the file (asking before discarding unsaved changes), and

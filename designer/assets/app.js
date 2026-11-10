@@ -251,10 +251,14 @@ function onSourceInput() {
   updateSourceStatus();
 }
 
-async function saveSource() {
+async function saveSource({ saveForm = false } = {}) {
   if (!state.project || state.source === null) return;
   if (!state.sourceDirty) {
-    setStatus('No changes to save.');
+    if (saveForm && state.dirty) {
+      await saveProject();
+    } else {
+      setStatus('No changes to save.');
+    }
     return;
   }
   const text = sourceText().split('\n').join(state.sourceEol || '\n');
@@ -265,6 +269,11 @@ async function saveSource() {
     state.sourceDirty = false;
     updateSourceStatus();
     setStatus(`Unit saved (${result.bytes} bytes)`);
+    if (saveForm && state.dirty) {
+      // The form may hold the event association that was just generated;
+      // saving the unit alone would leave the LFM without it.
+      await saveProject();
+    }
   } catch (error) {
     els.sourceStatus.textContent = error.message;
     setStatus(error.message, true);
@@ -2566,7 +2575,7 @@ async function boot() {
     if (state.sourceDirty && !window.confirm('Discard the unsaved changes to the unit?')) return;
     loadSource(true);
   });
-  els.sourceSave.addEventListener('click', saveSource);
+  els.sourceSave.addEventListener('click', () => saveSource({ saveForm: true }));
   document.addEventListener('keydown', (event) => {
     const f12 = event.key === 'F12' && !event.ctrlKey && !event.altKey && !event.metaKey;
     const ctrlBackquote = (event.ctrlKey || event.metaKey) && event.code === 'Backquote';
@@ -2579,7 +2588,7 @@ async function boot() {
   els.sourceEditor.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
       event.preventDefault();
-      saveSource();
+      saveSource({ saveForm: true });
     }
   });
   els.project.addEventListener('change', () => {
