@@ -10,6 +10,11 @@
         <OtherUnitFiles Value="../source"/>
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
+      <Linking>
+        <Debugging>
+          <UseLineInfoUnit Value="False"/>
+        </Debugging>
+      </Linking>
     </CompilerOptions>
     <License Value="Modified LGPL:
  *****************************************************************************
@@ -46,19 +51,19 @@ MIT:
     <Version Minor="1" Release="1" Build="2"/>
     <Files Count="8">
       <Item1>
-        <Filename Value="../source/btnctrls.pas"/>
+        <Filename Value="../source/btnctrlsd.pas"/>
         <UnitName Value="BtnCtrlsD"/>
       </Item1>
       <Item2>
-        <Filename Value="../source/datagrid.pas"/>
+        <Filename Value="../source/datagridd.pas"/>
         <UnitName Value="DataGridD"/>
       </Item2>
       <Item3>
-        <Filename Value="../source/dttctrls.pas"/>
+        <Filename Value="../source/dttctrlsd.pas"/>
         <UnitName Value="DttCtrlsD"/>
       </Item3>
       <Item4>
-        <Filename Value="../source/numctrls.pas"/>
+        <Filename Value="../source/numctrlsd.pas"/>
         <UnitName Value="NumCtrlsD"/>
       </Item4>
       <Item5>
@@ -76,7 +81,7 @@ MIT:
         <UnitName Value="websocket"/>
       </Item7>
       <Item8>
-        <Filename Value="../source/webdbD.pas"/>
+        <Filename Value="../source/webdbd.pas"/>
         <UnitName Value="WebDBD"/>
       </Item8>
     </Files>
