@@ -737,6 +737,235 @@ const DELPHI_COLORS = {
   clWindowText: '#000000',
 };
 
+const COMMON_PROPERTIES = [
+  { name: 'Enabled', kind: 'boolean', value: 'True' },
+  { name: 'Visible', kind: 'boolean', value: 'True' },
+  { name: 'Hint', kind: 'string', value: '' },
+];
+
+// Published properties offered by the inspector when the LFM does not set
+// them. Editing one of these rows adds the property to the form.
+const CLASS_PROPERTIES = {
+  TWButton: [
+    { name: 'Caption', kind: 'string', value: 'Button' },
+    { name: 'ModalResult', kind: 'identifier', value: 'mrNone' },
+    { name: 'Default', kind: 'boolean', value: 'False' },
+  ],
+  TWEdit: [
+    { name: 'Text', kind: 'string', value: '' },
+    { name: 'TextHint', kind: 'string', value: '' },
+    { name: 'ReadOnly', kind: 'boolean', value: 'False' },
+    { name: 'MaxLength', kind: 'integer', value: '0' },
+  ],
+  TWMemo: [
+    { name: 'Text', kind: 'string', value: '' },
+    { name: 'ReadOnly', kind: 'boolean', value: 'False' },
+    { name: 'ScrollBars', kind: 'identifier', value: 'ssBoth' },
+  ],
+  TWComboBox: [
+    { name: 'Text', kind: 'string', value: '' },
+    { name: 'Items.Strings', kind: 'strings', value: '()' },
+    { name: 'ItemIndex', kind: 'integer', value: '-1' },
+    { name: 'Style', kind: 'identifier', value: 'csDropDown' },
+    { name: 'Sorted', kind: 'boolean', value: 'False' },
+  ],
+  TWListBox: [
+    { name: 'Items.Strings', kind: 'strings', value: '()' },
+    { name: 'ItemIndex', kind: 'integer', value: '-1' },
+    { name: 'MultiSelect', kind: 'boolean', value: 'False' },
+    { name: 'Sorted', kind: 'boolean', value: 'False' },
+  ],
+  TWCheckbox: [
+    { name: 'Caption', kind: 'string', value: 'Check' },
+    { name: 'Checked', kind: 'boolean', value: 'False' },
+  ],
+  TWRadioButton: [
+    { name: 'Caption', kind: 'string', value: 'Radio' },
+    { name: 'Checked', kind: 'boolean', value: 'False' },
+  ],
+  TWLabel: [
+    { name: 'Caption', kind: 'string', value: 'Label' },
+    { name: 'AutoSize', kind: 'boolean', value: 'True' },
+    { name: 'FocusControl', kind: 'identifier', value: '' },
+    { name: 'Transparent', kind: 'boolean', value: 'False' },
+    { name: 'WordWrap', kind: 'boolean', value: 'False' },
+  ],
+  TWImage: [
+    { name: 'Stretch', kind: 'boolean', value: 'False' },
+    { name: 'Proportional', kind: 'boolean', value: 'False' },
+    { name: 'ZoomEnabled', kind: 'boolean', value: 'True' },
+  ],
+  TWPanel: [
+    { name: 'Caption', kind: 'string', value: '' },
+    { name: 'BevelOuter', kind: 'identifier', value: 'bvRaised' },
+    { name: 'Alignment', kind: 'identifier', value: 'taLeftJustify' },
+  ],
+  TWGroupBox: [
+    { name: 'Caption', kind: 'string', value: 'Group' },
+  ],
+  TWScrollBox: [
+    { name: 'AutoScroll', kind: 'boolean', value: 'True' },
+  ],
+  TWPageControl: [
+    { name: 'ActivePage', kind: 'identifier', value: '' },
+    { name: 'ShowTabs', kind: 'boolean', value: 'True' },
+    { name: 'TabIndex', kind: 'integer', value: '0' },
+    { name: 'TabOrder', kind: 'integer', value: '0' },
+  ],
+  TTabSheet: [
+    { name: 'Caption', kind: 'string', value: 'Tab' },
+    { name: 'TabVisible', kind: 'boolean', value: 'True' },
+  ],
+  TWProgressBar: [
+    { name: 'Min', kind: 'integer', value: '0' },
+    { name: 'Max', kind: 'integer', value: '100' },
+    { name: 'Value', kind: 'integer', value: '0' },
+  ],
+  TWScrollBar: [
+    { name: 'Kind', kind: 'identifier', value: 'sbHorizontal' },
+    { name: 'Min', kind: 'integer', value: '0' },
+    { name: 'Max', kind: 'integer', value: '100' },
+    { name: 'Position', kind: 'integer', value: '0' },
+    { name: 'PageSize', kind: 'integer', value: '0' },
+  ],
+  TWTrackBar: [
+    { name: 'Min', kind: 'integer', value: '0' },
+    { name: 'Max', kind: 'integer', value: '10' },
+    { name: 'Position', kind: 'integer', value: '0' },
+    { name: 'Frequency', kind: 'integer', value: '1' },
+    { name: 'Orientation', kind: 'identifier', value: 'trHorizontal' },
+  ],
+  TWSpinEdit: [
+    { name: 'Value', kind: 'integer', value: '0' },
+    { name: 'MinValue', kind: 'integer', value: '0' },
+    { name: 'MaxValue', kind: 'integer', value: '100' },
+    { name: 'Increment', kind: 'integer', value: '1' },
+  ],
+  TWIntegerEdit: [
+    { name: 'Value', kind: 'integer', value: '0' },
+    { name: 'MinValue', kind: 'integer', value: '0' },
+    { name: 'MaxValue', kind: 'integer', value: '100' },
+    { name: 'Increment', kind: 'integer', value: '1' },
+  ],
+  TWFloatEdit: [
+    { name: 'Value', kind: 'float', value: '0' },
+    { name: 'MinValue', kind: 'float', value: '0' },
+    { name: 'MaxValue', kind: 'float', value: '100' },
+    { name: 'DecimalPlaces', kind: 'integer', value: '2' },
+    { name: 'Increment', kind: 'float', value: '1' },
+  ],
+  TWDateEditBox: [
+    { name: 'Value', kind: 'float', value: '0' },
+  ],
+  TWTimeEditBox: [
+    { name: 'Value', kind: 'float', value: '0' },
+  ],
+  TWColorPicker: [
+    { name: 'Color', kind: 'identifier', value: 'clBlack' },
+  ],
+  TWFileButton: [
+    { name: 'Caption', kind: 'string', value: 'Choose file' },
+  ],
+  TWStringGrid: [
+    { name: 'ColCount', kind: 'integer', value: '5' },
+    { name: 'RowCount', kind: 'integer', value: '5' },
+    { name: 'FixedCols', kind: 'integer', value: '1' },
+    { name: 'FixedRows', kind: 'integer', value: '1' },
+    { name: 'Cells.Strings', kind: 'strings', value: '()' },
+  ],
+  TWTreeView: [
+    { name: 'ShowLines', kind: 'boolean', value: 'True' },
+    { name: 'ShowRoot', kind: 'boolean', value: 'True' },
+    { name: 'ShowButtons', kind: 'boolean', value: 'True' },
+    { name: 'ReadOnly', kind: 'boolean', value: 'False' },
+    { name: 'Indent', kind: 'integer', value: '18' },
+  ],
+  TWListView: [
+    { name: 'ViewStyle', kind: 'identifier', value: 'vsList' },
+    { name: 'MultiSelect', kind: 'boolean', value: 'False' },
+    { name: 'Checkboxes', kind: 'boolean', value: 'False' },
+    { name: 'RowSelect', kind: 'boolean', value: 'False' },
+    { name: 'ReadOnly', kind: 'boolean', value: 'False' },
+  ],
+  TWDataGrid: [
+    { name: 'DataJSon', kind: 'string', value: '' },
+  ],
+  TWPagination: [
+    { name: 'CurrentPage', kind: 'integer', value: '1' },
+    { name: 'RecordsPerPage', kind: 'integer', value: '10' },
+    { name: 'TotalRecords', kind: 'integer', value: '0' },
+  ],
+  TWUpDown: [
+    { name: 'Min', kind: 'integer', value: '0' },
+    { name: 'Max', kind: 'integer', value: '100' },
+    { name: 'Position', kind: 'integer', value: '0' },
+    { name: 'Increment', kind: 'integer', value: '1' },
+  ],
+  TWShape: [
+    { name: 'Shape', kind: 'identifier', value: 'stRectangle' },
+  ],
+};
+
+function nodeDepth(node) {
+  let depth = 0;
+  for (let parent = node.__parent; parent; parent = parent.__parent) depth++;
+  return depth;
+}
+
+function formatStringList(values, indent) {
+  if (values.length === 0) return '()';
+  const lines = values.map((value) => `${indent}  ${encodeLfmString(value)}`);
+  return `(\n${lines.join('\n')}\n${indent})`;
+}
+
+function rawForKind(kind, value) {
+  switch (kind) {
+    case 'string':
+      return encodeLfmString(value);
+    case 'boolean':
+      return value === true || /^(true|1|yes)$/i.test(String(value)) ? 'True' : 'False';
+    case 'integer':
+      return String(parseInt(value, 10) || 0);
+    case 'float':
+      return String(Number(value) || 0);
+    case 'strings':
+      return '()';
+    default:
+      return String(value ?? '');
+  }
+}
+
+function inferKind(value) {
+  const text = String(value ?? '').trim();
+  if (text === 'True' || text === 'False') return 'boolean';
+  if (/^-?\d+$/.test(text)) return 'integer';
+  if (/^-?(?:\d+\.\d*|\d*\.\d+)$/.test(text)) return 'float';
+  if (/^['(<\[{]/.test(text)) return 'raw';
+  return 'string';
+}
+
+function classPropertySpecs(node) {
+  return [...COMMON_PROPERTIES, ...(CLASS_PROPERTIES[canonicalClassName(node.className)] || [])];
+}
+
+function missingProperties(node) {
+  const present = new Set(node.properties.map((prop) => prop.name));
+  const seen = new Set();
+  return classPropertySpecs(node).filter((spec) => {
+    if (present.has(spec.name) || seen.has(spec.name)) return false;
+    seen.add(spec.name);
+    return true;
+  });
+}
+
+function ensureProperty(node, spec) {
+  const existing = getProperty(node, spec.name);
+  if (existing) return existing;
+  const prop = makeProp(spec.name, spec.raw ?? rawForKind(spec.kind, spec.value));
+  node.properties.push(prop);
+  return prop;
+}
+
 function componentKind(node) {
   return COMPONENT_KINDS[canonicalClassName(node.className)] || '';
 }
@@ -756,12 +985,21 @@ function colorValue(raw) {
 // Parse the `( 'a' 'b' )` form used by Items.Strings and Cells.Strings.
 function parseStringList(raw) {
   const text = String(raw ?? '').trim().replace(/^\(/, '').replace(/\)$/, '');
+  if (text.trim() === '') return [];
   const result = [];
   let current = '';
+  let hasToken = false;
   let index = 0;
+  const flush = () => {
+    result.push(current);
+    current = '';
+    hasToken = false;
+  };
+
   while (index < text.length) {
     const ch = text[index];
     if (ch === "'") {
+      hasToken = true;
       index++;
       while (index < text.length) {
         if (text[index] === "'") {
@@ -776,20 +1014,21 @@ function parseStringList(raw) {
         current += text[index++];
       }
     } else if (ch === '#') {
+      hasToken = true;
       index++;
       let digits = '';
       while (index < text.length && /[0-9A-Fa-f$]/.test(text[index])) digits += text[index++];
       if (digits.startsWith('$')) current += String.fromCharCode(parseInt(digits.slice(1), 16));
       else if (digits) current += String.fromCharCode(parseInt(digits, 10));
     } else if (ch === '\n' || ch === '\r' || ch === ',') {
-      if (current !== '') result.push(current);
-      current = '';
+      if (hasToken) flush();
       index++;
     } else {
       index++;
     }
   }
-  if (current !== '' || result.length === 0) result.push(current);
+
+  if (hasToken) flush();
   return result;
 }
 
@@ -1116,58 +1355,13 @@ function renderInspector() {
   const items = componentItems(node);
   for (const prop of node.properties) {
     if (items && prop === items.prop) continue;
-    const row = document.createElement('div');
-    row.className = 'property-row';
-    const label = document.createElement('label');
-    label.textContent = prop.name;
-    label.title = prop.kind;
-    row.appendChild(label);
-
-    const kind = prop.kind;
-    let input;
-    if (kind === 'boolean') {
-      input = document.createElement('input');
-      input.type = 'checkbox';
-      input.checked = prop.value === true;
-      input.addEventListener('change', () => {
-        setPropertyValue(prop, input.checked, 'boolean');
-        markDirty();
-        renderCanvas();
-        renderTree();
-      });
-    } else if (kind === 'integer' || kind === 'float') {
-      input = document.createElement('input');
-      input.type = 'number';
-      input.value = prop.value;
-      input.addEventListener('input', () => {
-        setPropertyValue(prop, input.value, kind);
-        markDirty();
-        renderCanvas();
-        renderTree();
-      });
-    } else if (kind === 'string') {
-      input = document.createElement('input');
-      input.type = 'text';
-      input.value = prop.value;
-      input.addEventListener('input', () => {
-        setPropertyValue(prop, input.value, 'string');
-        markDirty();
-        renderCanvas();
-        renderTree();
-      });
-    } else {
-      input = document.createElement('textarea');
-      input.rows = prop.raw.includes('\n') ? 4 : 2;
-      input.value = prop.raw;
-      input.addEventListener('input', () => {
-        setPropertyValue(prop, input.value, 'raw');
-        markDirty();
-        renderCanvas();
-        renderTree();
-      });
-    }
-    input.className = 'property-input';
-    row.appendChild(input);
+    const row = propertyRow(prop.name, prop.kind);
+    row.appendChild(propertyEditor(node, prop));
+    table.appendChild(row);
+  }
+  for (const spec of missingProperties(node)) {
+    const row = propertyRow(spec.name, spec.kind, true);
+    row.appendChild(defaultPropertyEditor(node, spec, row));
     table.appendChild(row);
   }
   els.inspector.appendChild(table);
@@ -1175,6 +1369,303 @@ function renderInspector() {
   if (editor) els.inspector.appendChild(editor);
   const pages = renderPagesEditor(node);
   if (pages) els.inspector.appendChild(pages);
+  els.inspector.appendChild(renderAddProperty(node));
+}
+
+function propertyRow(name, kind, isDefault = false) {
+  const row = document.createElement('div');
+  row.className = 'property-row';
+  if (isDefault) row.classList.add('default');
+  const label = document.createElement('label');
+  label.textContent = name;
+  label.title = isDefault ? `${kind} · not set in the LFM` : kind;
+  row.appendChild(label);
+  return row;
+}
+
+function finishInput(input) {
+  input.className = 'property-input';
+  return input;
+}
+
+function propertyEditor(node, prop) {
+  const commit = () => {
+    markDirty();
+    renderCanvas();
+    renderTree();
+  };
+
+  if (prop.kind === 'boolean') {
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = prop.value === true;
+    input.addEventListener('change', () => {
+      setPropertyValue(prop, input.checked, 'boolean');
+      commit();
+    });
+    return finishInput(input);
+  }
+
+  if (prop.kind === 'integer' || prop.kind === 'float') {
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = prop.value;
+    input.addEventListener('input', () => {
+      setPropertyValue(prop, input.value, prop.kind);
+      commit();
+    });
+    return finishInput(input);
+  }
+
+  if (prop.kind === 'string') {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = prop.value;
+    input.addEventListener('input', () => {
+      setPropertyValue(prop, input.value, 'string');
+      commit();
+    });
+    return finishInput(input);
+  }
+
+  if (prop.kind === 'strings') {
+    return stringListEditor(node, prop);
+  }
+
+  if (prop.kind === 'identifier' || prop.kind === 'empty') {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = prop.raw;
+    input.addEventListener('input', () => {
+      setPropertyValue(prop, input.value, 'raw');
+      commit();
+    });
+    return finishInput(input);
+  }
+
+  const input = document.createElement('textarea');
+  input.rows = prop.raw.includes('\n') ? 4 : 2;
+  input.value = prop.raw;
+  input.addEventListener('input', () => {
+    setPropertyValue(prop, input.value, 'raw');
+    commit();
+  });
+  return finishInput(input);
+}
+
+function stringListEditor(node, prop) {
+  const values = parseStringList(prop.raw);
+  const wrap = document.createElement('div');
+  wrap.className = 'string-list';
+
+  const commit = () => {
+    prop.raw = formatStringList(values, '  '.repeat(nodeDepth(node) + 1));
+    prop.kind = 'strings';
+    prop.value = prop.raw;
+    markDirty();
+    renderCanvas();
+    renderTree();
+  };
+
+  const addRow = (value, index) => {
+    const row = document.createElement('div');
+    row.className = 'string-list-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'property-input';
+    input.value = value;
+    input.placeholder = `Item ${index + 1}`;
+    input.addEventListener('input', () => {
+      values[index] = input.value;
+      commit();
+    });
+    const remove = smallButton('×', 'Remove item');
+    remove.addEventListener('click', () => {
+      values.splice(index, 1);
+      commit();
+      renderInspector();
+    });
+    row.append(input, remove);
+    return row;
+  };
+
+  values.forEach((value, index) => wrap.appendChild(addRow(value, index)));
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'item-add';
+  add.textContent = 'Add item';
+  add.addEventListener('click', () => {
+    values.push('');
+    commit();
+    renderInspector();
+  });
+  wrap.appendChild(add);
+  return wrap;
+}
+
+function defaultPropertyEditor(node, spec, row) {
+  let created = false;
+  const ensure = () => {
+    const prop = ensureProperty(node, spec);
+    if (!created) {
+      created = true;
+      if (row) row.classList.remove('default');
+    }
+    return prop;
+  };
+  const commit = () => {
+    markDirty();
+    renderCanvas();
+    renderTree();
+  };
+
+  if (spec.kind === 'boolean') {
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = String(spec.value) === 'True';
+    input.addEventListener('change', () => {
+      setPropertyValue(ensure(), input.checked, 'boolean');
+      commit();
+    });
+    return finishInput(input);
+  }
+
+  if (spec.kind === 'integer' || spec.kind === 'float') {
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = spec.value;
+    input.addEventListener('input', () => {
+      setPropertyValue(ensure(), input.value, spec.kind);
+      commit();
+    });
+    return finishInput(input);
+  }
+
+  if (spec.kind === 'strings') {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'item-add';
+    button.textContent = 'Create list';
+    button.addEventListener('click', () => {
+      ensure();
+      commit();
+      renderInspector();
+    });
+    return button;
+  }
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = spec.kind === 'string' ? '' : spec.value;
+  input.placeholder = spec.value === '' ? '(default)' : spec.value;
+  input.addEventListener('input', () => {
+    setPropertyValue(ensure(), input.value, spec.kind === 'string' ? 'string' : 'raw');
+    commit();
+  });
+  return finishInput(input);
+}
+
+function propertySuggestions(node) {
+  const className = canonicalClassName(node.className);
+  const names = new Set(classPropertySpecs(node).map((spec) => spec.name));
+  const walk = (nodes) => {
+    for (const item of nodes) {
+      if (canonicalClassName(item.className) === className) {
+        for (const prop of item.properties) names.add(prop.name);
+      }
+      walk(item.children);
+    }
+  };
+  walk(state.roots);
+  return [...names].sort();
+}
+
+function renderAddProperty(node) {
+  const wrap = document.createElement('div');
+  wrap.className = 'add-property';
+
+  const title = document.createElement('div');
+  title.className = 'items-title';
+  const label = document.createElement('span');
+  label.textContent = 'Add property';
+  title.appendChild(label);
+
+  const name = document.createElement('input');
+  name.type = 'text';
+  name.className = 'property-input';
+  name.placeholder = 'Property name';
+  name.setAttribute('list', 'wcl-property-names');
+
+  const list = document.createElement('datalist');
+  list.id = 'wcl-property-names';
+  for (const suggestion of propertySuggestions(node)) {
+    const option = document.createElement('option');
+    option.value = suggestion;
+    list.appendChild(option);
+  }
+
+  const kind = document.createElement('select');
+  kind.className = 'property-input';
+  for (const [value, text] of [
+    ['auto', 'Auto'],
+    ['string', 'String'],
+    ['integer', 'Integer'],
+    ['float', 'Float'],
+    ['boolean', 'Boolean'],
+    ['identifier', 'Identifier'],
+    ['strings', 'String list'],
+    ['raw', 'Raw'],
+  ]) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    kind.appendChild(option);
+  }
+
+  const value = document.createElement('input');
+  value.type = 'text';
+  value.className = 'property-input';
+  value.placeholder = 'Value';
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'item-add';
+  add.textContent = 'Add';
+
+  name.addEventListener('change', () => {
+    const spec = classPropertySpecs(node).find((item) => item.name === name.value.trim());
+    if (!spec) return;
+    kind.value = spec.kind;
+    value.value = spec.kind === 'string' ? '' : spec.value;
+  });
+
+  add.addEventListener('click', () => {
+    const propertyName = name.value.trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_.]*$/.test(propertyName)) {
+      setStatus('Invalid property name.', true);
+      return;
+    }
+    const chosenKind = kind.value === 'auto' ? inferKind(value.value) : kind.value;
+    const raw = chosenKind === 'strings' ? '()' : rawForKind(chosenKind, value.value);
+    let prop = getProperty(node, propertyName);
+    if (prop) {
+      prop.raw = raw;
+      delete prop.__items;
+      Object.assign(prop, decodeValue(raw));
+    } else {
+      prop = makeProp(propertyName, raw);
+      node.properties.push(prop);
+    }
+    markDirty();
+    renderInspector();
+    renderCanvas();
+    renderTree();
+    setStatus(`${propertyName} = ${prop.raw}`);
+  });
+
+  wrap.append(title, name, list, kind, value, add);
+  return wrap;
 }
 
 function renderItemsEditor(node) {

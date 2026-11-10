@@ -46,7 +46,10 @@ Make sure `designer/projects` is writable by Apache.
 - Moves and resizes components on the canvas; `Left`, `Top`, `Width` and
   `Height` are written back to the LFM.
 - Lets you edit properties; string, integer, boolean and raw LFM values are
-  supported.
+  supported. Common properties missing from the LFM are offered as defaults
+  and any other property can be added by name.
+- Edits `Items.Strings` and `Cells.Strings` as a list of rows instead of raw
+  text.
 - Decodes `TTreeView.Items.Data` and `TListView.Items.LazData` into an item
   editor; the canvas preview shows the tree nodes and list rows.
 - Saves the generated LFM back through `api.php` and synchronises the `.pas`
@@ -79,6 +82,21 @@ progress bars, sliders, spin edits, colour pickers, images, string grids and
 pagination. The preview uses the LFM properties (`Caption`, `Text`,
 `Items.Strings`, `Min`/`Max`/`Value`, `Color`, ...) and does not run the
 runtime code.
+
+## Properties
+
+The inspector lists the properties stored in the LFM. For the known controls
+it also shows the common published properties the form does not set yet
+(`Text`, `Items.Strings`, `Checked`, `Min`/`Max`, `Visible`, ...). Those rows
+have a dashed border and an italic label; editing one adds the property to the
+LFM, so the form keeps only the values that differ from the defaults.
+
+String lists (`Items.Strings`, `Cells.Strings`) are edited as a list of rows
+with add and remove buttons, not as raw text.
+
+The **Add property** box at the bottom of the inspector accepts any property
+name, a type (auto, string, integer, float, boolean, identifier, string list or
+raw) and a value. It updates the property when it already exists.
 
 ## Page control
 

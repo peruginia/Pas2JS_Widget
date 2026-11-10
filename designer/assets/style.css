@@ -916,6 +916,54 @@ textarea.property-input {
   font-size: 11px;
 }
 
+.property-row.default label {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.property-row.default .property-input {
+  border-style: dashed;
+  background: #fbfcfd;
+}
+
+.string-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.string-list-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.string-list-row .property-input {
+  flex: 1 1 auto;
+}
+
+.add-property {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.add-property .items-title {
+  grid-column: 1 / -1;
+}
+
+.add-property datalist {
+  display: none;
+}
+
+.add-property .property-input,
+.add-property .item-add {
+  width: 100%;
+}
+
 @media (max-width: 980px) {
   .workspace {
     grid-template-columns: 1fr;
