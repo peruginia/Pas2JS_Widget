@@ -20315,6 +20315,20 @@ rtl.module("Graphics",["System","Classes","SysUtils","Types","Web"],function () 
     };
     return Result;
   };
+  this.HTMLColorToTColor = function (AValue) {
+    var Result = 0;
+    var R = 0;
+    var G = 0;
+    var B = 0;
+    Result = 0;
+    if ((AValue.length === 7) && (AValue.charAt(0) === "#")) {
+      R = pas.SysUtils.StrToIntDef("$" + pas.System.Copy(AValue,2,2),0);
+      G = pas.SysUtils.StrToIntDef("$" + pas.System.Copy(AValue,4,2),0);
+      B = pas.SysUtils.StrToIntDef("$" + pas.System.Copy(AValue,6,2),0);
+      Result = R + (G << 8) + (B << 16);
+    };
+    return Result;
+  };
   this.JSFont = function (AFont) {
     var Result = "";
     Result = "";
@@ -31814,7 +31828,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       var Result = false;
       Result = true;
       if (!this.IsUpdating() && !(pas.Classes.TComponentStateItem.csLoading in this.FComponentState)) {
-        this.FColor = this.FHandleElement.value;
+        this.FColor$1 = pas.Graphics.HTMLColorToTColor(this.FHandleElement.value);
         if (this.FOnChange != null) this.FOnChange(this);
       };
       return Result;
@@ -56708,7 +56722,7 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
     };
     this.HandleChange = function (AEvent) {
       var Result = false;
-      this.FColor = $impl.HTMLColorToTColor(this.FInput.value);
+      this.FColor = pas.Graphics.HTMLColorToTColor(this.FInput.value);
       this.FChangeHappened = true;
       this.RemoveFocusListener();
       this.DoClose(true);
@@ -56766,7 +56780,12 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
       this.FChangeHappened = false;
       this.FInput.value = pas.Graphics.JSColor(this.FColor);
       this.AddFocusListener();
-      this.FInput.click();
+      try {
+        if (this.FInput.showPicker) this.FInput.showPicker();
+        else this.FInput.click();
+      } catch (e) {
+        try { this.FInput.click(); } catch (e2) {}
+      };
     };
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;
@@ -57261,20 +57280,6 @@ rtl.module("Dialogs",["System","Classes","SysUtils","Types","Graphics","Controls
     };
     $impl.ApplicationMessageBox = function (AOwner, AMessage, ACaption, AFlags, AModalResultProc) {
       $mod.MessageBox(AOwner,AMessage,ACaption,AFlags,AModalResultProc);
-    };
-    $impl.HTMLColorToTColor = function (AValue) {
-      var Result = 0;
-      var R = 0;
-      var G = 0;
-      var B = 0;
-      Result = 0;
-      if ((AValue.length === 7) && (AValue.charAt(0) === "#")) {
-        R = pas.SysUtils.StrToIntDef("$" + pas.System.Copy(AValue,2,2),0);
-        G = pas.SysUtils.StrToIntDef("$" + pas.System.Copy(AValue,4,2),0);
-        B = pas.SysUtils.StrToIntDef("$" + pas.System.Copy(AValue,6,2),0);
-        Result = R + (G << 8) + (B << 16);
-      };
-      return Result;
     };
   };
   $mod.$init = function () {

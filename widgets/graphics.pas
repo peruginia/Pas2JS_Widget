@@ -290,6 +290,8 @@ const
   ffTimes = '"Times New Roman", Times, serif';
 
 function JSColor(const AColor: TColor): string;
+/// Converts a #RRGGBB value from <input type="color"> to a TColor.
+function HTMLColorToTColor(const AValue: string): TColor;
 function JSFont(const AFont: TFont): string;
 function JSFontFamily(const AFont: TFont): string;
 function JSMeasureText(const AText: string; const AFontName: string; const AFontSize: NativeInt; const AFixedWidth: NativeInt = 0): TSize; overload;
@@ -343,6 +345,20 @@ begin
       B := (AColor shr 16) and $FF;
       Result := '#' + IntToHex(R, 2) + IntToHex(G, 2) + IntToHex(B, 2);
     end;
+  end;
+end;
+
+function HTMLColorToTColor(const AValue: string): TColor;
+var
+  R, G, B: Integer;
+begin
+  Result := clBlack;
+  if (Length(AValue) = 7) and (AValue[1] = '#') then
+  begin
+    R := StrToIntDef('$' + Copy(AValue, 2, 2), 0);
+    G := StrToIntDef('$' + Copy(AValue, 4, 2), 0);
+    B := StrToIntDef('$' + Copy(AValue, 6, 2), 0);
+    Result := R + (G shl 8) + (B shl 16);
   end;
 end;
 

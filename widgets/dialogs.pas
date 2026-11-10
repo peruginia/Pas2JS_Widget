@@ -1001,20 +1001,6 @@ begin
    end, 50);
 end;
 
-function HTMLColorToTColor(const AValue: string): TColor;
-var
-  R, G, B: Integer;
-begin
-  Result := clBlack;
-  if (Length(AValue) = 7) and (AValue[1] = '#') then
-  begin
-    R := StrToIntDef('$' + Copy(AValue, 2, 2), 0);
-    G := StrToIntDef('$' + Copy(AValue, 4, 2), 0);
-    B := StrToIntDef('$' + Copy(AValue, 6, 2), 0);
-    Result := R + (G shl 8) + (B shl 16);
-  end;
-end;
-
 { TCustomDialog }
 
 constructor TCustomDialog.Create(AOwner: TComponent);
@@ -1269,7 +1255,14 @@ begin
   FChangeHappened := False;
   FInput.value := JSColor(FColor);
   AddFocusListener;
-  FInput.click;
+  asm
+    try {
+      if (this.FInput.showPicker) this.FInput.showPicker();
+      else this.FInput.click();
+    } catch (e) {
+      try { this.FInput.click(); } catch (e2) {}
+    }
+  end;
 end;
 
 function TColorDialog.HandleChange(AEvent: TJSEvent): Boolean;

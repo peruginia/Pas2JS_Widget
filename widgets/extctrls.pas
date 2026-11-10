@@ -1622,7 +1622,7 @@ begin
   Result := True;
   if (not IsUpdating) and not (csLoading in ComponentState) then
   begin
-    asm this.FColor = this.FHandleElement.value; end;
+    FColor := HTMLColorToTColor(TJSHTMLInputElement(HandleElement).value);
     if Assigned(FOnChange) then
       FOnChange(Self);
   end;

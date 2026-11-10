@@ -497,7 +497,7 @@ begin
 end));
 ```
 
-`TOpenDialog` uses a hidden `<input type="file">`; `Files` contains the selected names and `FileName` the first one. `TSaveDialog` uses `showSaveFilePicker` when available and otherwise asks for a file name. `TColorDialog` wraps `<input type="color">`. `TFontDialog` opens a small form with font family, size, bold/italic and colour, plus a live preview.
+`TOpenDialog` uses a hidden `<input type="file">`; `Files` contains the selected names and `FileName` the first one. `TSaveDialog` uses `showSaveFilePicker` when available and otherwise asks for a file name. `TColorDialog` wraps `<input type="color">` and uses `showPicker` when available. `TFontDialog` opens a small form with font family, size, bold/italic and colour, plus a live preview.
 
 ---
 
