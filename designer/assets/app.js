@@ -5,10 +5,11 @@ import {
   getPropertyValue,
   setPropertyValue,
   decodeValue,
+  encodeLfmString,
 } from './lfm.js';
 
 const state = {
-  manifest: { nonVisual: [], aliases: {}, classes: [] },
+  manifest: { nonVisual: [], aliases: {}, classes: [], defaults: {} },
   projects: [],
   project: null,
   roots: [],
@@ -23,6 +24,7 @@ const els = {
   importFile: document.getElementById('importFile'),
   importBtn: document.getElementById('importBtn'),
   status: document.getElementById('status'),
+  palette: document.getElementById('palette'),
   tree: document.getElementById('tree'),
   canvas: document.getElementById('canvas'),
   inspector: document.getElementById('inspector'),
@@ -30,6 +32,46 @@ const els = {
 };
 
 const nonVisual = new Set();
+const containerClasses = new Set([
+  'TWForm', 'TWFrame', 'TWPanel', 'TWGroupBox', 'TWScrollBox',
+  'TWPageControl', 'TTabSheet',
+]);
+
+const fallbackDefaults = {
+  TWButton: { width: 100, height: 30, caption: 'Button' },
+  TWEdit: { width: 160, height: 28 },
+  TWMemo: { width: 200, height: 100 },
+  TWComboBox: { width: 160, height: 28 },
+  TWListBox: { width: 160, height: 100 },
+  TWLabel: { width: 100, height: 20, caption: 'Label' },
+  TWCheckbox: { width: 100, height: 24, caption: 'Check' },
+  TWRadioButton: { width: 100, height: 24, caption: 'Radio' },
+  TWPanel: { width: 200, height: 120 },
+  TWGroupBox: { width: 200, height: 100, caption: 'Group' },
+  TWScrollBox: { width: 200, height: 150 },
+  TWPageControl: { width: 320, height: 220 },
+  TTabSheet: { width: 300, height: 200, caption: 'Tab' },
+  TWImage: { width: 100, height: 100 },
+  TWFileButton: { width: 130, height: 30, caption: 'Choose file' },
+  TWDataGrid: { width: 320, height: 220 },
+  TWPagination: { width: 220, height: 40 },
+  TWStringGrid: { width: 320, height: 220 },
+  TWTreeView: { width: 220, height: 220 },
+  TWListView: { width: 260, height: 180 },
+  TWScrollBar: { width: 120, height: 24 },
+  TWSpinEdit: { width: 120, height: 28 },
+  TWUpDown: { width: 26, height: 28 },
+  TWTrackBar: { width: 160, height: 30 },
+  TWProgressBar: { width: 200, height: 20 },
+  TWColorPicker: { width: 60, height: 28 },
+  TWSplitter: { width: 8, height: 120 },
+  TWShape: { width: 80, height: 80 },
+  TWPaintBox: { width: 200, height: 150 },
+  TWFloatEdit: { width: 160, height: 28 },
+  TWIntegerEdit: { width: 160, height: 28 },
+  TWDateEditBox: { width: 160, height: 28 },
+  TWTimeEditBox: { width: 120, height: 28 },
+};
 
 async function api(action, params = {}, body = null) {
   const url = new URL('api.php', window.location.href);
@@ -173,6 +215,159 @@ function renderTree() {
   const ul = document.createElement('ul');
   build(state.roots, ul);
   els.tree.appendChild(ul);
+}
+
+function displayClassName(name) {
+  return String(name || '').replace(/^TW/, '').replace(/^T/, '') || 'Component';
+}
+
+function renderPalette() {
+  els.palette.innerHTML = '';
+  const classes = (state.manifest.classes || [])
+    .filter((item) => item.visual && item.name !== 'TWForm' && item.name !== 'TWFrame');
+  for (const item of classes) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'palette-item';
+    button.draggable = true;
+    button.dataset.className = item.name;
+    button.title = `${item.name}${item.unit ? ` · ${item.unit}` : ''}`;
+    const mark = document.createElement('span');
+    mark.className = 'palette-mark';
+    const label = document.createElement('span');
+    label.textContent = displayClassName(item.name);
+    button.append(mark, label);
+    button.addEventListener('dragstart', (event) => {
+      event.dataTransfer.setData('text/plain', item.name);
+      event.dataTransfer.effectAllowed = 'copy';
+      button.classList.add('dragging');
+    });
+    button.addEventListener('dragend', () => {
+      button.classList.remove('dragging');
+      clearDropTargets();
+    });
+    els.palette.appendChild(button);
+  }
+}
+
+function defaultsFor(className) {
+  return (state.manifest.defaults && state.manifest.defaults[className])
+    || fallbackDefaults[className]
+    || { width: 120, height: 28 };
+}
+
+function collectNames(nodes, names = new Set()) {
+  for (const node of nodes) {
+    if (node.name) names.add(node.name);
+    collectNames(node.children, names);
+  }
+  return names;
+}
+
+function uniqueName(className) {
+  const base = displayClassName(className);
+  const names = collectNames(state.roots);
+  let index = 1;
+  while (names.has(`${base}${index}`)) index++;
+  return `${base}${index}`;
+}
+
+function makeProp(name, raw) {
+  return { name, raw, ...decodeValue(raw) };
+}
+
+function snap(value) {
+  return Math.max(0, Math.round(value / 8) * 8);
+}
+
+function addComponent(className, parentNode, left, top) {
+  if (!parentNode) return null;
+  const defaults = defaultsFor(className);
+  const node = {
+    kind: 'object',
+    name: uniqueName(className),
+    className,
+    properties: [],
+    children: [],
+  };
+  node.properties.push(makeProp('Left', String(snap(left))));
+  node.properties.push(makeProp('Top', String(snap(top))));
+  node.properties.push(makeProp('Width', String(Math.max(1, defaults.width || 120))));
+  node.properties.push(makeProp('Height', String(Math.max(1, defaults.height || 28))));
+  if (defaults.caption) {
+    node.properties.push(makeProp('Caption', encodeLfmString(defaults.caption)));
+  }
+  if (['TWEdit', 'TWMemo', 'TWComboBox'].includes(className)) {
+    node.properties.push(makeProp('Text', encodeLfmString('')));
+  }
+  parentNode.children.push(node);
+  assignIds(state.roots);
+  state.selected = node;
+  renderTree();
+  renderCanvas();
+  renderInspector();
+  markDirty();
+  setStatus(`Added ${node.name} (${className}) · .pas sync is next`);
+  return node;
+}
+
+function findDropElement(target) {
+  let element = target instanceof Element
+    ? target.closest('.designer-form, .designer-component')
+    : null;
+  while (element && element.classList.contains('designer-component')) {
+    const node = findById(element.dataset.id);
+    if (node && node.className === 'TWPageControl') {
+      const sheet = selectedTabSheet(node)[0];
+      const sheetElement = sheet
+        ? els.canvas.querySelector(`[data-id="${sheet.__id}"]`)
+        : null;
+      if (sheetElement) return sheetElement;
+    }
+    if (node && (containerClasses.has(node.className) || node.children.length > 0)) {
+      return element;
+    }
+    element = element.parentElement
+      ? element.parentElement.closest('.designer-form, .designer-component')
+      : null;
+  }
+  return els.canvas.querySelector('.designer-form');
+}
+
+function nodeFromDropElement(element) {
+  if (!element) return null;
+  if (element.classList.contains('designer-form')) return state.roots[0] || null;
+  return findById(element.dataset.id);
+}
+
+function clearDropTargets() {
+  for (const element of document.querySelectorAll('.drop-target')) {
+    element.classList.remove('drop-target');
+  }
+}
+
+function handleDragOver(event) {
+  if (!event.dataTransfer) return;
+  const types = Array.from(event.dataTransfer.types || []);
+  if (!types.includes('text/plain')) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'copy';
+  const element = findDropElement(event.target);
+  clearDropTargets();
+  if (element) element.classList.add('drop-target');
+}
+
+function handleDrop(event) {
+  if (!event.dataTransfer) return;
+  event.preventDefault();
+  clearDropTargets();
+  const className = event.dataTransfer.getData('text/plain');
+  if (!className) return;
+  const element = findDropElement(event.target);
+  const parent = nodeFromDropElement(element);
+  if (!parent) return;
+  const rect = element.getBoundingClientRect();
+  addComponent(className, parent, event.clientX - rect.left, event.clientY - rect.top);
 }
 
 function renderCanvas() {
@@ -406,6 +601,13 @@ async function boot() {
   } catch (error) {
     // The manifest is optional for the tree/canvas.
   }
+  renderPalette();
+  els.canvas.addEventListener('dragover', handleDragOver);
+  els.canvas.addEventListener('drop', handleDrop);
+  els.canvas.addEventListener('dragleave', (event) => {
+    if (!els.canvas.contains(event.relatedTarget)) clearDropTargets();
+  });
+  document.addEventListener('dragend', clearDropTargets);
   els.reload.addEventListener('click', () => {
     if (state.project) loadProject(state.project.id);
   });
@@ -418,9 +620,6 @@ async function boot() {
     const file = els.importFile.files[0];
     if (file) importFile(file);
     els.importFile.value = '';
-  });
-  document.addEventListener('click', () => {
-    // Keep the current selection when clicking outside the designer surface.
   });
   try {
     await loadProjects();

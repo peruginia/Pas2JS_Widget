@@ -4,9 +4,10 @@ A small web designer for WCL forms. It imports and saves **LFM** files, shows
 the component tree, renders a graphical preview of the form and lets you edit
 the properties of the selected component.
 
-This is the first skeleton: the LFM round-trip, import/export and property
-editing are implemented. A palette with drag & drop, adding components,
-`.pas` field synchronisation and the pas2js build/preview are the next steps.
+This is the first skeleton: the LFM round-trip, import/export, property
+editing and a palette with drag & drop are implemented. Adding a component
+writes it to the LFM only; `.pas` field synchronisation and the pas2js
+build/preview are the next steps.
 
 ## Requirements
 
@@ -38,6 +39,8 @@ Make sure `designer/projects` is writable by Apache.
 - Loads the form file declared in `project.json`.
 - Parses LFM into a lossless AST in the browser.
 - Shows the component tree and a graphical preview.
+- Shows a palette of visual components; drag one onto the form or into a
+  container (panel, group box, tab sheet, page control) to add it.
 - Lets you edit properties; string, integer, boolean and raw LFM values are
   supported.
 - Saves the generated LFM back through `api.php`.
@@ -86,8 +89,8 @@ the ASTs.
 
 - The canvas is a preview, not a full layout engine: `Align`/`Anchors` are
   not simulated yet.
-- Adding components and synchronising fields in the `.pas` file is not
-  implemented yet.
+- New components are written to the LFM but their fields are not added to
+  the `.pas` yet; this is the next step.
 - `.lfm` binary properties are preserved but not decoded, so tree/list items
   cannot be edited in the web designer yet.
 - Build/preview via pas2js will be added after the LFM editor is stable.
