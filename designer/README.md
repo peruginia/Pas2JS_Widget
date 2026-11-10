@@ -93,17 +93,18 @@ runtime code.
 The **Design / Source** switch in the canvas header shows the `.pas` unit
 declared in `project.json` next to the form:
 
-- the source is loaded on demand with the `unit` API action and rendered with
-  line numbers;
-- selecting a component in the component tree highlights its field
-  declaration and scrolls it into view;
+- the source is loaded on demand with the `unit` API action and rendered in a
+  text editor with a line-number gutter;
+- selecting a component in the component tree scrolls to its field
+  declaration;
 - event properties (`OnClick`, `OnChange`, ...) have a **{ }** button that
   opens the source at the handler implementation;
-- **Edit** turns the pane into an editor: **Save** (or Ctrl+S) writes the unit
-  with the `saveUnit` API action and reloads it, **Cancel** discards the
-  changes. The original line endings are preserved;
-- the **Reload** button re-reads the file, and a save or project reload
-  refreshes it automatically.
+- the pane is always editable: **Save** (or Ctrl+S) writes the unit with the
+  `saveUnit` API action; the status shows "Modified" until it is saved, and
+  the original line endings are preserved;
+- switching between Design and Source keeps the editor content and scroll
+  position; **Reload** re-reads the file (asking before discarding unsaved
+  changes), and a save or project reload refreshes it automatically.
 
 ## Properties
 

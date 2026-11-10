@@ -49,12 +49,13 @@
           <div class="source-head">
             <span id="sourceName">unit1.pas</span>
             <span id="sourceStatus" class="source-status"></span>
-            <button id="sourceEditBtn" type="button">Edit</button>
-            <button id="sourceSaveBtn" type="button" class="hidden-view">Save</button>
-            <button id="sourceCancelBtn" type="button" class="hidden-view">Cancel</button>
+            <button id="sourceSaveBtn" type="button">Save</button>
             <button id="sourceReloadBtn" type="button">Reload</button>
           </div>
-          <div id="sourceCode" class="source-lines"></div>
+          <div class="source-editor-wrap">
+            <div id="sourceGutter" class="source-gutter" aria-hidden="true"></div>
+            <textarea id="sourceEditor" class="source-editor" spellcheck="false" wrap="off"></textarea>
+          </div>
         </div>
       </div>
     </section>

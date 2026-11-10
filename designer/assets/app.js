@@ -31,7 +31,7 @@ const state = {
   source: null,
   sourceEol: '\n',
   sourceTarget: null,
-  editingSource: false,
+  sourceDirty: false,
   dirty: false,
 };
 
@@ -53,10 +53,9 @@ const els = {
   sourceName: document.getElementById('sourceName'),
   sourceStatus: document.getElementById('sourceStatus'),
   sourceReload: document.getElementById('sourceReloadBtn'),
-  sourceEdit: document.getElementById('sourceEditBtn'),
   sourceSave: document.getElementById('sourceSaveBtn'),
-  sourceCancel: document.getElementById('sourceCancelBtn'),
-  sourceCode: document.getElementById('sourceCode'),
+  sourceEditor: document.getElementById('sourceEditor'),
+  sourceGutter: document.getElementById('sourceGutter'),
 };
 
 const nonVisual = new Set();
@@ -140,45 +139,60 @@ function escapeRegExp(text) {
   return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function setSourceEditButtons(editing) {
-  els.sourceEdit.classList.toggle('hidden-view', editing);
-  els.sourceSave.classList.toggle('hidden-view', !editing);
-  els.sourceCancel.classList.toggle('hidden-view', !editing);
-  els.sourceReload.disabled = editing;
+function sourceText() {
+  return els.sourceEditor.value;
+}
+
+function syncSourceGutter() {
+  els.sourceGutter.scrollTop = els.sourceEditor.scrollTop;
+}
+
+function updateSourceGutter() {
+  const count = sourceText().split('\n').length;
+  const numbers = [];
+  for (let index = 1; index <= count; index++) numbers.push(index);
+  els.sourceGutter.textContent = numbers.join('\n');
+  syncSourceGutter();
 }
 
 function updateSourceStatus() {
-  if (state.editingSource) {
-    els.sourceStatus.textContent = 'Editing · Ctrl+S to save';
-  } else if (state.source !== null) {
-    els.sourceStatus.textContent = `${state.source.split('\n').length} lines`;
+  if (state.source === null) {
+    els.sourceStatus.textContent = '';
+    return;
   }
+  const count = sourceText().split('\n').length;
+  els.sourceStatus.textContent = state.sourceDirty
+    ? `Modified · ${count} lines`
+    : `${count} lines`;
 }
 
 function setView(view) {
-  if (view === 'design' && state.editingSource) {
-    if (!window.confirm('Discard the unsaved changes to the unit?')) return;
-    cancelSourceEdit();
-  }
   state.view = view;
   const source = view === 'source';
   els.designTab.classList.toggle('active', !source);
   els.sourceTab.classList.toggle('active', source);
   els.canvas.classList.toggle('hidden-view', source);
   els.sourceView.classList.toggle('hidden-view', !source);
-  if (source) loadSource();
+  if (source) {
+    if (state.source === null) {
+      loadSource();
+    } else if (state.sourceTarget) {
+      applySourceNavigation({ focus: true });
+    }
+  }
 }
 
 async function loadSource(force = false) {
   if (!state.project) {
     els.sourceName.textContent = 'No unit';
     els.sourceStatus.textContent = 'Select a project.';
-    els.sourceCode.innerHTML = '';
+    els.sourceEditor.value = '';
+    els.sourceGutter.textContent = '';
+    state.source = null;
     return;
   }
   els.sourceName.textContent = state.project.unit || 'unit';
   if (state.source !== null && !force) {
-    renderSource();
     return;
   }
   els.sourceStatus.textContent = 'Loading...';
@@ -186,63 +200,41 @@ async function loadSource(force = false) {
     const data = await api('unit', { project: state.project.id });
     state.sourceEol = data.source.includes('\r\n') ? '\r\n' : '\n';
     state.source = data.source.replace(/\r\n/g, '\n');
+    state.sourceDirty = false;
     els.sourceName.textContent = data.unit;
-    state.editingSource = false;
-    setSourceEditButtons(false);
+    els.sourceEditor.value = state.source;
+    updateSourceGutter();
     updateSourceStatus();
-    renderSource();
+    applySourceNavigation({ focus: !!state.sourceTarget });
   } catch (error) {
     state.source = null;
-    state.editingSource = false;
-    setSourceEditButtons(false);
+    state.sourceDirty = false;
+    els.sourceEditor.value = '';
+    els.sourceGutter.textContent = '';
     els.sourceStatus.textContent = error.message;
-    els.sourceCode.innerHTML = '';
   }
 }
 
-function startSourceEdit() {
-  if (state.source === null || state.editingSource) return;
-  state.editingSource = true;
-  els.sourceCode.classList.add('editing');
-  els.sourceCode.innerHTML = '';
-  const editor = document.createElement('textarea');
-  editor.className = 'source-editor';
-  editor.spellcheck = false;
-  editor.value = state.source;
-  editor.addEventListener('keydown', (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-      event.preventDefault();
-      saveSource();
-    }
-  });
-  els.sourceCode.appendChild(editor);
-  setSourceEditButtons(true);
+function onSourceInput() {
+  if (state.source === null) return;
+  state.sourceDirty = sourceText() !== state.source;
+  updateSourceGutter();
   updateSourceStatus();
-  editor.focus();
-}
-
-function cancelSourceEdit() {
-  if (!state.editingSource) return;
-  state.editingSource = false;
-  els.sourceCode.classList.remove('editing');
-  setSourceEditButtons(false);
-  updateSourceStatus();
-  renderSource();
 }
 
 async function saveSource() {
-  if (!state.editingSource || !state.project) return;
-  const editor = els.sourceCode.querySelector('.source-editor');
-  if (!editor) return;
-  const text = editor.value.split('\n').join(state.sourceEol || '\n');
+  if (!state.project || state.source === null) return;
+  if (!state.sourceDirty) {
+    setStatus('No changes to save.');
+    return;
+  }
+  const text = sourceText().split('\n').join(state.sourceEol || '\n');
   els.sourceStatus.textContent = 'Saving...';
   try {
     const result = await api('saveUnit', {}, { project: state.project.id, source: text });
-    state.editingSource = false;
-    els.sourceCode.classList.remove('editing');
-    setSourceEditButtons(false);
-    state.source = null;
-    await loadSource(true);
+    state.source = sourceText();
+    state.sourceDirty = false;
+    updateSourceStatus();
     setStatus(`Unit saved (${result.bytes} bytes)`);
   } catch (error) {
     els.sourceStatus.textContent = error.message;
@@ -271,38 +263,41 @@ function findMethodLine(lines, name) {
   return -1;
 }
 
-function renderSource() {
-  els.sourceCode.classList.remove('editing');
-  els.sourceCode.innerHTML = '';
+function applySourceNavigation({ focus = false } = {}) {
   if (state.source === null) return;
-  const lines = state.source.split('\n');
-  let highlight = -1;
+  const lines = sourceText().split('\n');
+  let line = -1;
 
   if (state.sourceTarget && state.sourceTarget.kind === 'method') {
-    highlight = findMethodLine(lines, state.sourceTarget.name);
-    if (highlight < 0) {
+    line = findMethodLine(lines, state.sourceTarget.name);
+    if (line < 0) {
       setStatus(`Handler ${state.sourceTarget.name} not found in the unit.`, true);
+      return;
     }
   } else if (state.selected && state.selected.name) {
-    highlight = findFieldLine(lines, state.selected.name);
+    line = findFieldLine(lines, state.selected.name);
   }
 
-  lines.forEach((line, index) => {
-    const row = document.createElement('div');
-    row.className = 'source-line';
-    if (index === highlight) row.classList.add('highlight');
-    const number = document.createElement('span');
-    number.className = 'source-num';
-    number.textContent = String(index + 1);
-    const code = document.createElement('span');
-    code.className = 'source-code';
-    code.textContent = line === '' ? ' ' : line;
-    row.append(number, code);
-    els.sourceCode.appendChild(row);
-  });
+  if (line >= 0) {
+    scrollSourceToLine(line, focus);
+    if (state.sourceTarget) state.sourceTarget = null;
+  }
+}
 
-  const marked = els.sourceCode.querySelector('.highlight');
-  if (marked) marked.scrollIntoView({ block: 'nearest' });
+function scrollSourceToLine(line, focus) {
+  const editor = els.sourceEditor;
+  const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 18;
+  const centered = line * lineHeight - editor.clientHeight / 2 + lineHeight / 2;
+  editor.scrollTop = Math.max(0, centered);
+  syncSourceGutter();
+
+  if (!focus) return;
+  const lines = editor.value.split('\n');
+  let offset = 0;
+  for (let index = 0; index < line; index++) offset += lines[index].length + 1;
+  const end = offset + (lines[line] || '').length;
+  editor.focus();
+  editor.setSelectionRange(offset, end);
 }
 
 function nodeTitle(node) {
@@ -1779,7 +1774,11 @@ function gotoHandler(prop) {
     return;
   }
   state.sourceTarget = { kind: 'method', name };
-  setView('source');
+  if (state.view === 'source') {
+    applySourceNavigation({ focus: true });
+  } else {
+    setView('source');
+  }
 }
 
 function stringListEditor(node, prop) {
@@ -2221,7 +2220,7 @@ function selectNode(node) {
   renderTree();
   renderCanvas();
   renderInspector();
-  if (state.view === 'source') renderSource();
+  if (state.view === 'source') applySourceNavigation();
 }
 
 function renderAll() {
@@ -2263,9 +2262,9 @@ async function loadProject(id) {
     state.activeTabs.clear();
     state.source = null;
     state.sourceTarget = null;
-    state.editingSource = false;
-    els.sourceCode.classList.remove('editing');
-    setSourceEditButtons(false);
+    state.sourceDirty = false;
+    els.sourceEditor.value = '';
+    els.sourceGutter.textContent = '';
     els.project.value = id;
     renderAll();
     setStatus(`${data.project.name} loaded`);
@@ -2280,9 +2279,9 @@ async function saveProject() {
     setStatus('No project selected.', true);
     return;
   }
-  if (state.editingSource) {
+  if (state.sourceDirty) {
     await saveSource();
-    if (state.editingSource) return;
+    if (state.sourceDirty) return;
   }
   try {
     const lfm = writeLfm(state.roots);
@@ -2344,19 +2343,28 @@ async function boot() {
   document.addEventListener('dragend', clearDropTargets);
   els.reload.addEventListener('click', () => {
     if (!state.project) return;
-    if (state.editingSource && !window.confirm('Discard the unsaved changes to the unit?')) return;
+    if (state.sourceDirty && !window.confirm('Discard the unsaved changes to the unit?')) return;
     loadProject(state.project.id);
   });
   els.save.addEventListener('click', saveProject);
   els.designTab.addEventListener('click', () => setView('design'));
   els.sourceTab.addEventListener('click', () => setView('source'));
-  els.sourceReload.addEventListener('click', () => loadSource(true));
-  els.sourceEdit.addEventListener('click', startSourceEdit);
+  els.sourceReload.addEventListener('click', () => {
+    if (state.sourceDirty && !window.confirm('Discard the unsaved changes to the unit?')) return;
+    loadSource(true);
+  });
   els.sourceSave.addEventListener('click', saveSource);
-  els.sourceCancel.addEventListener('click', cancelSourceEdit);
+  els.sourceEditor.addEventListener('input', onSourceInput);
+  els.sourceEditor.addEventListener('scroll', syncSourceGutter);
+  els.sourceEditor.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      saveSource();
+    }
+  });
   els.project.addEventListener('change', () => {
     if (!els.project.value) return;
-    if (state.editingSource && !window.confirm('Discard the unsaved changes to the unit?')) {
+    if (state.sourceDirty && !window.confirm('Discard the unsaved changes to the unit?')) {
       els.project.value = state.project ? state.project.id : els.project.value;
       return;
     }
