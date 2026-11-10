@@ -99,6 +99,10 @@ type
     FTreeInfo: TWLabel;
     FList: TWListView;
     FListInfo: TWLabel;
+    FDragInfo: TWLabel;
+    FDragPanel: TWPanel;
+    FDragList: TWListBox;
+    FDropCount: NativeInt;
     procedure BuildTreeTab;
     procedure TreeSelectionChanged(Sender: TObject);
     procedure TreeExpandAll(Sender: TObject);
@@ -114,6 +118,15 @@ type
     procedure ListCycleView(Sender: TObject);
     procedure ListToggleMulti(Sender: TObject);
     procedure ListColumnClick(Sender: TObject; Column: TListColumn);
+    procedure BuildDragTab;
+    procedure DragStart(Sender: TObject; var DragObject: TDragObject);
+    procedure DragEnd(Sender: TObject; Target: TObject; X, Y: Integer);
+    procedure DragOver(Sender, Source: TObject; X, Y: Integer;
+      State: TDragState; var Accept: Boolean);
+    procedure DragDropPanel(Sender, Source: TObject; X, Y: Integer);
+    procedure DragDropList(Sender, Source: TObject; X, Y: Integer);
+    procedure DragManualMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: NativeInt);
     procedure BuildGridModesTab;
     procedure BuildGridPopup;
     procedure BuildSplitterTab;
@@ -217,6 +230,7 @@ begin
   BuildCanvasTab;
   BuildTreeTab;
   BuildListTab;
+  BuildDragTab;
   SetupStringGrid;
   SetupMenu;
   SetupActions;
@@ -1111,6 +1125,125 @@ procedure TWForm1.ListColumnClick(Sender: TObject; Column: TListColumn);
 begin
   if Assigned(FListInfo) and Assigned(Column) then
     FListInfo.Caption := 'Column clicked: ' + Column.Caption;
+end;
+
+{ --- drag and drop demo: automatic and manual drag sources, panel/list targets --- }
+
+procedure TWForm1.BuildDragTab;
+var
+  VSheet: TCustomTabSheet;
+  VButton: TWButton;
+begin
+  VSheet := WPageControl1.AddTabSheet;
+  VSheet.Caption := 'Drag';
+  VSheet.SetBounds(0, 0, WPageControl1.Width, WPageControl1.Height);
+
+  VButton := TWButton.Create(Self);
+  VButton.Parent := VSheet;
+  VButton.SetBounds(16, 16, 150, 31);
+  VButton.Caption := 'Drag me';
+  VButton.DragMode := dmAutomatic;
+  VButton.OnStartDrag := @DragStart;
+  VButton.OnEndDrag := @DragEnd;
+
+  VButton := TWButton.Create(Self);
+  VButton.Parent := VSheet;
+  VButton.SetBounds(16, 58, 150, 31);
+  VButton.Caption := 'Drag me too';
+  VButton.OnMouseDown := @DragManualMouseDown;
+  VButton.OnStartDrag := @DragStart;
+  VButton.OnEndDrag := @DragEnd;
+
+  FDragInfo := TWLabel.Create(Self);
+  FDragInfo.Parent := VSheet;
+  FDragInfo.SetBounds(16, 108, 160, 120);
+  FDragInfo.Caption := 'Drag a button: automatic on the first, BeginDrag on the second.';
+
+  FDragPanel := TWPanel.Create(Self);
+  FDragPanel.Parent := VSheet;
+  FDragPanel.SetBounds(200, 16, 320, 200);
+  FDragPanel.Color := clWhite;
+  FDragPanel.OnDragOver := @DragOver;
+  FDragPanel.OnDragDrop := @DragDropPanel;
+
+  FDragList := TWListBox.Create(Self);
+  FDragList.Parent := VSheet;
+  FDragList.SetBounds(200, 230, 320, 100);
+  FDragList.OnDragOver := @DragOver;
+  FDragList.OnDragDrop := @DragDropList;
+  FDragList.Items.Add('Drop a button here');
+end;
+
+procedure TWForm1.DragStart(Sender: TObject; var DragObject: TDragObject);
+begin
+  if Assigned(FDragInfo) and (Sender is TControl) then
+    FDragInfo.Caption := 'Dragging: ' + TControl(Sender).Caption;
+end;
+
+procedure TWForm1.DragEnd(Sender: TObject; Target: TObject; X, Y: Integer);
+begin
+  if (not Assigned(FDragInfo)) then
+    Exit;
+  if Target is TControl then
+    FDragInfo.Caption := 'Dropped on ' + TControl(Target).ClassName
+  else
+    FDragInfo.Caption := 'Drag cancelled';
+end;
+
+procedure TWForm1.DragOver(Sender, Source: TObject; X, Y: Integer;
+  State: TDragState; var Accept: Boolean);
+begin
+  Accept := Source is TControl;
+end;
+
+procedure TWForm1.DragDropPanel(Sender, Source: TObject; X, Y: Integer);
+var
+  VLabel: TWLabel;
+  VCaption: string;
+  VX, VY: Integer;
+begin
+  VCaption := 'Item';
+  if Source is TControl then
+    VCaption := TControl(Source).Caption;
+  Inc(FDropCount);
+  VX := X;
+  VY := Y;
+  if (VX < 0) then
+    VX := 0;
+  if (VX > (FDragPanel.ClientWidth - 140)) then
+    VX := FDragPanel.ClientWidth - 140;
+  if (VY < 0) then
+    VY := 0;
+  if (VY > (FDragPanel.ClientHeight - 24)) then
+    VY := FDragPanel.ClientHeight - 24;
+
+  VLabel := TWLabel.Create(Self);
+  VLabel.Parent := FDragPanel;
+  VLabel.SetBounds(VX, VY, 140, 20);
+  VLabel.Caption := VCaption + ' #' + IntToStr(FDropCount);
+
+  if Assigned(FDragInfo) then
+    FDragInfo.Caption := 'Panel drop at ' + IntToStr(X) + ', ' + IntToStr(Y);
+end;
+
+procedure TWForm1.DragDropList(Sender, Source: TObject; X, Y: Integer);
+var
+  VCaption: string;
+begin
+  VCaption := 'Item';
+  if Source is TControl then
+    VCaption := TControl(Source).Caption;
+  Inc(FDropCount);
+  FDragList.Items.Add(VCaption + ' #' + IntToStr(FDropCount));
+  if Assigned(FDragInfo) then
+    FDragInfo.Caption := 'List drop: ' + VCaption;
+end;
+
+procedure TWForm1.DragManualMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: NativeInt);
+begin
+  if (Button = mbLeft) and (Sender is TControl) then
+    TControl(Sender).BeginDrag(True);
 end;
 
 { --- TStringGrid demo: inline editing, events and keyboard navigation --- }

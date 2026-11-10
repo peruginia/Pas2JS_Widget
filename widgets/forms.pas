@@ -907,14 +907,14 @@ begin
   inherited AfterConstruction;
   Application.UpdateMainForm(Self);
   Application.RegisterModule(Self);
-  Window.AddEventListener('resize', @HandleWindowResize);
+  Window.AddEventListener('resize', TJSEventHandler(@HandleWindowResize));
   Loaded;
   DoCreate;
 end;
 
 procedure TCustomForm.BeforeDestruction;
 begin
-  Window.RemoveEventListener('resize', @HandleWindowResize);
+  Window.RemoveEventListener('resize', TJSEventHandler(@HandleWindowResize));
   inherited BeforeDestruction;
   Application.UnRegisterModule(Self);
   DoDestroy;
@@ -1244,12 +1244,12 @@ procedure TApplication.RegisterHandleEvents;
 begin
   with Window do
   begin
-    AddEventListener('error', @HandleError);
-    AddEventListener('resize', @HandleResize);
+    AddEventListener('error', TJSEventHandler(@HandleError));
+    AddEventListener('resize', TJSEventHandler(@HandleResize));
     /// 'pagehide' instead of 'unload': modern browsers block unload handlers
     /// through the Permissions Policy and log a violation for every page load.
     /// pagehide fires in the same situations (navigation, tab close, bfcache).
-    AddEventListener('pagehide', @HandleUnload);
+    AddEventListener('pagehide', TJSEventHandler(@HandleUnload));
   end;
 end;
 
@@ -1257,9 +1257,9 @@ procedure TApplication.UnRegisterHandleEvents;
 begin
   with Window do
   begin
-    RemoveEventListener('error', @HandleError);
-    RemoveEventListener('resize', @HandleResize);
-    RemoveEventListener('pagehide', @HandleUnload);
+    RemoveEventListener('error', TJSEventHandler(@HandleError));
+    RemoveEventListener('resize', TJSEventHandler(@HandleResize));
+    RemoveEventListener('pagehide', TJSEventHandler(@HandleUnload));
   end;
 end;
 
@@ -1335,7 +1335,7 @@ begin
   inherited Create(AOwner);
   SetResourceSource(rsJS);
 {$if PAS2JS_FULLVERSION >= 10501}
-  SetOnUnCaughtExceptionHandler(@DoUncaughtPascalException);
+  SetOnUnCaughtExceptionHandler(TUncaughtPascalExceptionHandler(@DoUncaughtPascalException));
   asm
     rtl.showUncaughtExceptions=true;
   end;

@@ -524,7 +524,7 @@ begin
   fLabel := TJSHTMLLabelElement(document.createElement('label'));
   Result.append(fInput);
   fInput.onselect := @ChangeHandler;
-  fInput.addEventListener('change', @ChangeHandler);
+  fInput.addEventListener('change', TJSEventHandler(@ChangeHandler));
   Result.append(fLabel);
 end;
 
@@ -721,7 +721,7 @@ begin
   inherited RegisterHandleEvents;
   with HandleElement do
   begin
-    AddEventListener('change', @HandleChange);
+    AddEventListener('change', TJSEventHandler(@HandleChange));
   end;
 end;
 
@@ -730,7 +730,7 @@ begin
   inherited UnRegisterHandleEvents;
   with HandleElement do
   begin
-    RemoveEventListener('change', @HandleChange);
+    RemoveEventListener('change', TJSEventHandler(@HandleChange));
   end;
 end;
 
@@ -999,7 +999,7 @@ begin
   inherited RegisterHandleEvents;
   with HandleElement do
   begin
-    AddEventListener('change', @HandleChange);
+    AddEventListener('change', TJSEventHandler(@HandleChange));
   end;
 end;
 
@@ -1008,7 +1008,7 @@ begin
   inherited UnRegisterHandleEvents;
   with HandleElement do
   begin
-    RemoveEventListener('change', @HandleChange);
+    RemoveEventListener('change', TJSEventHandler(@HandleChange));
   end;
 end;
 
@@ -1411,7 +1411,7 @@ begin
   inherited RegisterHandleEvents;
   with HandleElement do
   begin
-    AddEventListener('input', @HandleInput);
+    AddEventListener('input', TJSEventHandler(@HandleInput));
   end;
 end;
 
@@ -1420,7 +1420,7 @@ begin
   inherited UnRegisterHandleEvents;
   with HandleElement do
   begin
-    RemoveEventListener('input', @HandleInput);
+    RemoveEventListener('input', TJSEventHandler(@HandleInput));
   end;
 end;
 
@@ -1839,7 +1839,7 @@ begin
   inherited RegisterHandleEvents;
   with HandleElement do
   begin
-    AddEventListener('input', @HandleChange);
+    AddEventListener('input', TJSEventHandler(@HandleChange));
   end;
 end;
 
@@ -1848,7 +1848,7 @@ begin
   inherited UnRegisterHandleEvents;
   with HandleElement do
   begin
-    RemoveEventListener('input', @HandleChange);
+    RemoveEventListener('input', TJSEventHandler(@HandleChange));
   end;
 end;
 

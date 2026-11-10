@@ -1240,7 +1240,7 @@ begin
   FPanel.Style.SetProperty('position', 'fixed');
   FPanel.Style.SetProperty('display', 'none');
   FPanel.Style.SetProperty('z-index', '2000');
-  FPanel.AddEventListener('click', @HandlePanelClick);
+  FPanel.AddEventListener('click', TJSEventHandler(@HandlePanelClick));
   Document.Body.AppendChild(FPanel);
 end;
 

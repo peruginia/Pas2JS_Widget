@@ -123,6 +123,26 @@ type
   TBasicAction = class;
   TCustomPopupMenu = class;
 
+  TDragMode = (dmManual, dmAutomatic);
+  TDragKind = (dkDrag, dkDock);
+  TDragState = (dsDragEnter, dsDragLeave, dsDragMove);
+
+  /// Payload of a drag operation. A custom object can be supplied from
+  /// OnStartDrag; the manager frees it when the drag ends.
+  TDragObject = class(TObject)
+  private
+    FSource: TControl;
+  public
+    constructor Create(ASource: TControl);
+    property Source: TControl read FSource;
+  end;
+
+  TDragOverEvent = procedure(Sender, Source: TObject; X, Y: Integer;
+    State: TDragState; var Accept: Boolean) of object;
+  TDragDropEvent = procedure(Sender, Source: TObject; X, Y: Integer) of object;
+  TStartDragEvent = procedure(Sender: TObject; var DragObject: TDragObject) of object;
+  TEndDragEvent = procedure(Sender: TObject; Target: TObject; X, Y: Integer) of object;
+
   /// Base class for context menus. The real implementation lives in Menus,
   /// which depends on Controls, so only the hook is declared here.
   TCustomPopupMenu = class(TComponent)
@@ -257,8 +277,14 @@ type
     FControls: TJSArray; /// The child controls
     FCursor: TCursor;
     FDesignRect: TRect;
+    FDragKind: TDragKind;
+    FDragMode: TDragMode;
     FEnabled: boolean;
     FFont: TFont;
+    FOnDragDrop: TDragDropEvent;
+    FOnDragOver: TDragOverEvent;
+    FOnEndDrag: TEndDragEvent;
+    FOnStartDrag: TStartDragEvent;
     FHandleClass: string;
     FHandleElement: TJSHTMLElement;
     FHandleId: string;
@@ -330,6 +356,9 @@ type
     procedure ActionUpdate(Sender: TObject); virtual;
     procedure Click; virtual;
     procedure DblClick; virtual;
+    function DoDragOver(ASource: TObject; X, Y: NativeInt;
+      AState: TDragState): Boolean; virtual;
+    procedure DoDragDrop(ASource: TObject; X, Y: NativeInt); virtual;
     procedure DoResize; virtual;
     procedure DoScroll; virtual;
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: integer); virtual;
@@ -357,6 +386,7 @@ type
     function HandleDblClick(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleMouseDown(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleMouseEnter(AEvent: TJSMouseEvent): boolean; virtual;
+    function HandlePointerDown(AEvent: TJSPointerEvent): boolean; virtual;
     function HandleMouseLeave(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleMouseMove(AEvent: TJSMouseEvent): boolean; virtual;
     function HandleMouseUp(AEvent: TJSMouseEvent): boolean; virtual;
@@ -402,6 +432,9 @@ type
     procedure BringToFront; virtual;
     procedure SendToBack; virtual;
     procedure SetBounds(ALeft, ATop, AWidth, AHeight: NativeInt); virtual;
+    procedure BeginDrag(Immediate: Boolean; Threshold: Integer = -1); virtual;
+    procedure EndDrag(Drop: Boolean = True); virtual;
+    function GetDragging: Boolean; virtual;
   public
     property Align: TAlign read FAlign write SetAlign;
     property Anchors: TAnchors read FAnchors write SetAnchors stored IsAnchorsStored default [akLeft, akTop];
@@ -430,6 +463,13 @@ type
     property Constraints: TSizeConstraints read FConstraints write SetConstraints;
     property Cursor: TCursor read FCursor write SetCursor;
     property Action: TBasicAction read FAction write SetAction;
+    property Dragging: Boolean read GetDragging;
+    property DragKind: TDragKind read FDragKind write FDragKind default dkDrag;
+    property DragMode: TDragMode read FDragMode write FDragMode default dmManual;
+    property OnDragDrop: TDragDropEvent read FOnDragDrop write FOnDragDrop;
+    property OnDragOver: TDragOverEvent read FOnDragOver write FOnDragOver;
+    property OnEndDrag: TEndDragEvent read FOnEndDrag write FOnEndDrag;
+    property OnStartDrag: TStartDragEvent read FOnStartDrag write FOnStartDrag;
     property PopupMenu: TCustomPopupMenu read FPopupMenu write SetPopupMenu;
     property Left: NativeInt read FLeft write SetLeft;
     property Height: NativeInt read FHeight write SetHeight;
@@ -591,9 +631,88 @@ implementation
 uses
   Forms;
 
+type
+  /// Global drag operation: tracks the pending click, the source control, the
+  /// ghost element and the control under the pointer. It uses pointer events
+  /// and pointer capture so the drag keeps working outside the source bounds.
+  TDragManager = class
+  private
+    FAccept: Boolean;
+    FDragObject: TDragObject;
+    FDragging: Boolean;
+    FGhost: TJSHTMLElement;
+    FListeners: Boolean;
+    FPending: Boolean;
+    FPointerId: JSValue;
+    FPointerX: NativeInt;
+    FPointerY: NativeInt;
+    FSource: TControl;
+    FStartX: NativeInt;
+    FStartY: NativeInt;
+    FTarget: TControl;
+    FThreshold: NativeInt;
+    procedure AddListeners;
+    procedure RemoveListeners;
+    procedure CapturePointer;
+    procedure ReleasePointer;
+    procedure CreateGhost;
+    procedure DestroyGhost;
+    procedure MoveGhost(const AX, AY: NativeInt);
+    procedure ClearTarget;
+    function FindControlAt(const AX, AY: NativeInt): TControl;
+    procedure GetLocal(const AControl: TControl; const AX, AY: NativeInt;
+      out LX, LY: NativeInt);
+    procedure UpdateTarget(const AX, AY: NativeInt; const AState: TDragState);
+    function PointerMove(AEvent: TJSPointerEvent): boolean;
+    function PointerUp(AEvent: TJSPointerEvent): boolean;
+    function PointerCancel(AEvent: TJSEvent): boolean;
+    function KeyDown(AEvent: TJSKeyBoardEvent): boolean;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure StartPending(ASource: TControl; const AX, AY: NativeInt;
+      const AThreshold: Integer; const AImmediate: Boolean);
+    procedure StartDrag;
+    procedure EndDrag(const ADrop: Boolean);
+    procedure SetPointerId(AEvent: TJSPointerEvent);
+    procedure SetPointerPos(const AX, AY: NativeInt);
+    property Dragging: Boolean read FDragging;
+    property PointerX: NativeInt read FPointerX;
+    property PointerY: NativeInt read FPointerY;
+    property Source: TControl read FSource;
+  end;
+
+var
+  _DragManager: TDragManager;
+  _WCLDragRulesRegistered: Boolean = False;
+
 var
   _WCLTheme: string = '';
   _WCLThemeInjected: Boolean = False;
+
+procedure _RegisterWCLDragRules;
+begin
+  if _WCLDragRulesRegistered then
+    Exit;
+  RegisterWCLStyle(
+    '.wcl-drag-ghost{' +
+    'position:fixed;' +
+    'pointer-events:none;' +
+    'z-index:100000;' +
+    'padding:4px 10px;' +
+    'border:1px solid #4A90D9;' +
+    'border-radius:4px;' +
+    'background:#fff;' +
+    'box-shadow:0 4px 12px rgba(0,0,0,0.2);' +
+    'font:14px sans-serif;' +
+    'color:#333;' +
+    'opacity:0.92;}' +
+    '.wcl-drag-over{' +
+    'outline:2px dashed #4A90D9;' +
+    'outline-offset:-2px;}'
+  );
+  _WCLDragRulesRegistered := True;
+end;
 
 procedure RegisterWCLStyle(const ARules: string);
 var
@@ -612,6 +731,386 @@ begin
   else
   begin
     TJSHTMLElement(Document.Head.QuerySelector('style[data-wcl]')).InnerHTML := _WCLTheme;
+  end;
+end;
+
+{ TDragObject }
+
+constructor TDragObject.Create(ASource: TControl);
+begin
+  inherited Create;
+  FSource := ASource;
+end;
+
+{ TDragManager }
+
+constructor TDragManager.Create;
+begin
+  inherited Create;
+  FAccept := False;
+  FDragObject := nil;
+  FDragging := False;
+  FGhost := nil;
+  FListeners := False;
+  FPending := False;
+  FPointerId := 0;
+  FPointerX := 0;
+  FPointerY := 0;
+  FSource := nil;
+  FStartX := 0;
+  FStartY := 0;
+  FTarget := nil;
+  FThreshold := 5;
+end;
+
+destructor TDragManager.Destroy;
+begin
+  EndDrag(False);
+  inherited Destroy;
+end;
+
+procedure TDragManager.SetPointerId(AEvent: TJSPointerEvent);
+begin
+  asm
+    this.FPointerId = (AEvent && AEvent.pointerId != null) ? AEvent.pointerId : 0;
+  end;
+end;
+
+procedure TDragManager.SetPointerPos(const AX, AY: NativeInt);
+begin
+  FPointerX := AX;
+  FPointerY := AY;
+end;
+
+procedure TDragManager.AddListeners;
+begin
+  if FListeners then
+    Exit;
+  Document.AddEventListener('pointermove', TJSEventHandler(@PointerMove));
+  Document.AddEventListener('pointerup', TJSEventHandler(@PointerUp));
+  Document.AddEventListener('pointercancel', TJSEventHandler(@PointerCancel));
+  Document.AddEventListener('keydown', TJSEventHandler(@KeyDown));
+  FListeners := True;
+end;
+
+procedure TDragManager.RemoveListeners;
+begin
+  if (not FListeners) then
+    Exit;
+  Document.RemoveEventListener('pointermove', TJSEventHandler(@PointerMove));
+  Document.RemoveEventListener('pointerup', TJSEventHandler(@PointerUp));
+  Document.RemoveEventListener('pointercancel', TJSEventHandler(@PointerCancel));
+  Document.RemoveEventListener('keydown', TJSEventHandler(@KeyDown));
+  FListeners := False;
+end;
+
+procedure TDragManager.CapturePointer;
+var
+  VElement: TJSHTMLElement;
+begin
+  if (not Assigned(FSource)) then
+    Exit;
+  VElement := FSource.HandleElement;
+  asm
+    try {
+      if (VElement && VElement.setPointerCapture && this.FPointerId)
+        VElement.setPointerCapture(this.FPointerId);
+    } catch (e) {}
+  end;
+end;
+
+procedure TDragManager.ReleasePointer;
+var
+  VElement: TJSHTMLElement;
+begin
+  if (not Assigned(FSource)) then
+    Exit;
+  VElement := FSource.HandleElement;
+  asm
+    try {
+      if (VElement && VElement.releasePointerCapture && this.FPointerId)
+        VElement.releasePointerCapture(this.FPointerId);
+    } catch (e) {}
+  end;
+end;
+
+procedure TDragManager.StartPending(ASource: TControl; const AX, AY: NativeInt;
+  const AThreshold: Integer; const AImmediate: Boolean);
+begin
+  if FDragging then
+    Exit;
+  if FPending and (FSource <> ASource) then
+  begin
+    RemoveListeners;
+    FPending := False;
+    FSource := nil;
+  end;
+  FSource := ASource;
+  FPending := True;
+  FDragging := False;
+  FStartX := AX;
+  FStartY := AY;
+  FPointerX := AX;
+  FPointerY := AY;
+  FThreshold := AThreshold;
+  if (FThreshold < 0) then
+    FThreshold := 5;
+  AddListeners;
+  if AImmediate then
+    StartDrag;
+end;
+
+procedure TDragManager.StartDrag;
+var
+  VDragObject: TDragObject;
+begin
+  if (not FPending) or (not Assigned(FSource)) then
+    Exit;
+  FPending := False;
+  FDragging := True;
+  VDragObject := nil;
+  if Assigned(FSource.FOnStartDrag) then
+  begin
+    FSource.FOnStartDrag(FSource, VDragObject);
+    FDragObject := VDragObject;
+  end;
+  if (not Assigned(FDragObject)) then
+    FDragObject := TDragObject.Create(FSource);
+  CreateGhost;
+  CapturePointer;
+  UpdateTarget(FPointerX, FPointerY, dsDragEnter);
+end;
+
+procedure TDragManager.EndDrag(const ADrop: Boolean);
+var
+  VAccept: Boolean;
+  VDropTarget, VSource, VTarget: TControl;
+  VX, VY: NativeInt;
+begin
+  if (not FDragging) and (not FPending) then
+    Exit;
+  VSource := FSource;
+  VTarget := FTarget;
+  VDropTarget := nil;
+  if FDragging and ADrop and FAccept and Assigned(VTarget) then
+  begin
+    GetLocal(VTarget, FPointerX, FPointerY, VX, VY);
+    VTarget.DoDragDrop(VSource, VX, VY);
+    VDropTarget := VTarget;
+  end;
+  if FDragging and Assigned(VSource) and Assigned(VSource.FOnEndDrag) then
+  begin
+    if Assigned(VDropTarget) then
+      GetLocal(VDropTarget, FPointerX, FPointerY, VX, VY)
+    else
+    begin
+      VX := FPointerX;
+      VY := FPointerY;
+    end;
+    VSource.FOnEndDrag(VSource, VDropTarget, VX, VY);
+  end;
+  ReleasePointer;
+  DestroyGhost;
+  if Assigned(FTarget) then
+  begin
+    FTarget.HandleElement.classList.remove('wcl-drag-over');
+    VAccept := FTarget.DoDragOver(FSource, 0, 0, dsDragLeave);
+  end;
+  FTarget := nil;
+  FAccept := False;
+  RemoveListeners;
+  if Assigned(FDragObject) then
+  begin
+    FDragObject.Free;
+    FDragObject := nil;
+  end;
+  FPending := False;
+  FDragging := False;
+  FSource := nil;
+  FPointerId := 0;
+end;
+
+procedure TDragManager.CreateGhost;
+begin
+  DestroyGhost;
+  FGhost := TJSHTMLElement(Document.CreateElement('div'));
+  FGhost.classList.add('wcl-drag-ghost');
+  if Assigned(FSource) then
+  begin
+    if (FSource.Caption <> '') then
+      FGhost.TextContent := FSource.Caption
+    else
+      FGhost.TextContent := FSource.ClassName;
+  end;
+  Document.Body.AppendChild(FGhost);
+end;
+
+procedure TDragManager.DestroyGhost;
+begin
+  if Assigned(FGhost) then
+  begin
+    FGhost.remove;
+    FGhost := nil;
+  end;
+end;
+
+procedure TDragManager.MoveGhost(const AX, AY: NativeInt);
+begin
+  if Assigned(FGhost) then
+  begin
+    FGhost.Style.SetProperty('left', IntToStr(AX + 12) + 'px');
+    FGhost.Style.SetProperty('top', IntToStr(AY + 12) + 'px');
+  end;
+end;
+
+procedure TDragManager.GetLocal(const AControl: TControl;
+  const AX, AY: NativeInt; out LX, LY: NativeInt);
+var
+  VOffsets: TRect;
+begin
+  VOffsets := OffSets(AControl.HandleElement);
+  LX := AX - VOffsets.Left;
+  LY := AY - VOffsets.Top;
+end;
+
+function TDragManager.FindControlAt(const AX, AY: NativeInt): TControl;
+var
+  VControl: TControl;
+  VElement: TJSElement;
+begin
+  Result := nil;
+  VElement := Document.elementFromPoint(AX, AY);
+  while Assigned(VElement) do
+  begin
+    VControl := nil;
+    asm
+      VControl = VElement.__wclControl || null;
+    end;
+    if Assigned(VControl) and VControl.Visible and VControl.Enabled and
+      Assigned(VControl.FOnDragOver) then
+    begin
+      Result := VControl;
+      Exit;
+    end;
+    VElement := VElement.parentElement;
+  end;
+end;
+
+procedure TDragManager.ClearTarget;
+var
+  VAccept: Boolean;
+begin
+  if Assigned(FTarget) then
+  begin
+    FTarget.HandleElement.classList.remove('wcl-drag-over');
+    VAccept := FTarget.DoDragOver(FSource, 0, 0, dsDragLeave);
+  end;
+  FTarget := nil;
+  FAccept := False;
+end;
+
+procedure TDragManager.UpdateTarget(const AX, AY: NativeInt;
+  const AState: TDragState);
+var
+  VAccept: Boolean;
+  VNew: TControl;
+  VX, VY: NativeInt;
+begin
+  VNew := FindControlAt(AX, AY);
+  if Assigned(VNew) and (VNew = FSource) then
+    VNew := nil;
+  if (VNew <> FTarget) then
+  begin
+    ClearTarget;
+    FTarget := VNew;
+    if Assigned(FTarget) then
+    begin
+      GetLocal(FTarget, AX, AY, VX, VY);
+      FAccept := FTarget.DoDragOver(FSource, VX, VY, dsDragEnter);
+      if FAccept then
+        FTarget.HandleElement.classList.add('wcl-drag-over');
+    end;
+  end
+  else if Assigned(FTarget) then
+  begin
+    GetLocal(FTarget, AX, AY, VX, VY);
+    FAccept := FTarget.DoDragOver(FSource, VX, VY, AState);
+    if FAccept then
+      FTarget.HandleElement.classList.add('wcl-drag-over')
+    else
+      FTarget.HandleElement.classList.remove('wcl-drag-over');
+  end;
+end;
+
+function TDragManager.PointerMove(AEvent: TJSPointerEvent): boolean;
+var
+  VX, VY: NativeInt;
+begin
+  Result := False;
+  if (not FPending) and (not FDragging) then
+    Exit;
+  VX := Trunc(AEvent.ClientX);
+  VY := Trunc(AEvent.ClientY);
+  FPointerX := VX;
+  FPointerY := VY;
+  if FDragging then
+  begin
+    MoveGhost(VX, VY);
+    UpdateTarget(VX, VY, dsDragMove);
+    AEvent.PreventDefault;
+    Result := True;
+  end
+  else if FPending then
+  begin
+    if (Abs(VX - FStartX) >= FThreshold) or (Abs(VY - FStartY) >= FThreshold) then
+    begin
+      StartDrag;
+      if FDragging then
+      begin
+        MoveGhost(VX, VY);
+        UpdateTarget(VX, VY, dsDragMove);
+      end;
+    end;
+    Result := True;
+  end;
+end;
+
+function TDragManager.PointerUp(AEvent: TJSPointerEvent): boolean;
+begin
+  Result := False;
+  if FDragging then
+  begin
+    EndDrag(True);
+    Result := True;
+  end
+  else if FPending then
+  begin
+    EndDrag(False);
+    Result := True;
+  end;
+end;
+
+function TDragManager.PointerCancel(AEvent: TJSEvent): boolean;
+begin
+  Result := False;
+  if FDragging or FPending then
+  begin
+    EndDrag(False);
+    Result := True;
+  end;
+end;
+
+function TDragManager.KeyDown(AEvent: TJSKeyBoardEvent): boolean;
+begin
+  Result := False;
+  if (not FDragging) and (not FPending) then
+    Exit;
+  if SameText(AEvent.Key, 'Escape') then
+  begin
+    EndDrag(False);
+    AEvent.PreventDefault;
+    AEvent.StopPropagation;
+    Result := True;
   end;
 end;
 
@@ -1751,6 +2250,8 @@ begin
   VShift := ExtractShiftState(AEvent);
   X := Trunc(AEvent.ClientX - VOffSets.Left);
   Y := Trunc(AEvent.ClientY - VOffSets.Top);
+  if Assigned(_DragManager) then
+    _DragManager.SetPointerPos(Trunc(AEvent.ClientX), Trunc(AEvent.ClientY));
   AEvent.StopPropagation;
   MouseDown(VButton, VShift, X, Y);
   Result := True;
@@ -1800,6 +2301,69 @@ begin
   AEvent.StopPropagation;
   MouseUp(VButton, VShift, X, Y);
   Result := True;
+end;
+
+function TControl.HandlePointerDown(AEvent: TJSPointerEvent): boolean;
+var
+  VControl: TControl;
+  VElement: TJSElement;
+begin
+  Result := False;
+  VControl := nil;
+  if (not Assigned(_DragManager)) or (not Assigned(AEvent)) then
+    Exit;
+  /// Only the closest control under the pointer starts the drag: a click on a
+  /// child control must not drag its parent.
+  VElement := AEvent.targetElement;
+  while Assigned(VElement) and (VElement <> FHandleElement) do
+  begin
+    asm
+      VControl = VElement.__wclControl || null;
+    end;
+    if Assigned(VControl) then
+      Exit;
+    VElement := VElement.parentElement;
+  end;
+  if (VElement <> FHandleElement) then
+    Exit;
+  _DragManager.SetPointerId(AEvent);
+  _DragManager.SetPointerPos(Trunc(AEvent.ClientX), Trunc(AEvent.ClientY));
+  if (FDragMode = dmAutomatic) and (AEvent.button = 0) then
+    _DragManager.StartPending(Self, Trunc(AEvent.ClientX),
+      Trunc(AEvent.ClientY), 5, False);
+end;
+
+procedure TControl.BeginDrag(Immediate: Boolean; Threshold: Integer);
+begin
+  if Assigned(_DragManager) then
+    _DragManager.StartPending(Self, _DragManager.PointerX,
+      _DragManager.PointerY, Threshold, Immediate);
+end;
+
+procedure TControl.EndDrag(Drop: Boolean);
+begin
+  if Assigned(_DragManager) and (_DragManager.Source = Self) then
+    _DragManager.EndDrag(Drop);
+end;
+
+function TControl.GetDragging: Boolean;
+begin
+  Result := Assigned(_DragManager) and _DragManager.Dragging and
+    (_DragManager.Source = Self);
+end;
+
+function TControl.DoDragOver(ASource: TObject; X, Y: NativeInt;
+  AState: TDragState): Boolean;
+begin
+  Result := False;
+  if Assigned(FOnDragOver) then
+    FOnDragOver(Self, ASource, X, Y, AState, Result);
+end;
+
+procedure TControl.DoDragDrop(ASource: TObject; X, Y: NativeInt);
+begin
+  if Assigned(FOnDragDrop) then
+    FOnDragDrop(Self, ASource, X, Y);
 end;
 
 function TControl.HandleMouseWheel(AEvent: TJSWheelEvent): boolean;
@@ -2174,17 +2738,18 @@ procedure TControl.RegisterHandleEvents;
 begin
   with FHandleElement do
   begin
-    AddEventListener('click', @HandleClick);
-    AddEventListener('contextmenu', @HandleContextMenu);
-    AddEventListener('dblclick', @HandleDblClick);
-    AddEventListener('mousedown', @HandleMouseDown);
-    AddEventListener('mouseenter', @HandleMouseEnter);
-    AddEventListener('mouseleave', @HandleMouseLeave);
-    AddEventListener('mousemove', @HandleMouseMove);
-    AddEventListener('mouseup', @HandleMouseUp);
-    AddEventListener('scroll', @HandleScroll);
-    AddEventListener('resize', @HandleResize);
-    AddEventListener('wheel', @HandleMouseWheel);
+    AddEventListener('click', TJSEventHandler(@HandleClick));
+    AddEventListener('contextmenu', TJSEventHandler(@HandleContextMenu));
+    AddEventListener('dblclick', TJSEventHandler(@HandleDblClick));
+    AddEventListener('mousedown', TJSEventHandler(@HandleMouseDown));
+    AddEventListener('mouseenter', TJSEventHandler(@HandleMouseEnter));
+    AddEventListener('mouseleave', TJSEventHandler(@HandleMouseLeave));
+    AddEventListener('mousemove', TJSEventHandler(@HandleMouseMove));
+    AddEventListener('mouseup', TJSEventHandler(@HandleMouseUp));
+    AddEventListener('pointerdown', TJSEventHandler(@HandlePointerDown));
+    AddEventListener('scroll', TJSEventHandler(@HandleScroll));
+    AddEventListener('resize', TJSEventHandler(@HandleResize));
+    AddEventListener('wheel', TJSEventHandler(@HandleMouseWheel));
   end;
 end;
 
@@ -2192,17 +2757,18 @@ procedure TControl.UnRegisterHandleEvents;
 begin
   with FHandleElement do
   begin
-    RemoveEventListener('click', @HandleClick);
-    RemoveEventListener('contextmenu', @HandleContextMenu);
-    RemoveEventListener('dblclick', @HandleDblClick);
-    RemoveEventListener('mousedown', @HandleMouseDown);
-    RemoveEventListener('mouseenter', @HandleMouseEnter);
-    RemoveEventListener('mouseleave', @HandleMouseLeave);
-    RemoveEventListener('mousemove', @HandleMouseMove);
-    RemoveEventListener('mouseup', @HandleMouseUp);
-    RemoveEventListener('scroll', @HandleScroll);
-    RemoveEventListener('resize', @HandleResize);
-    RemoveEventListener('wheel', @HandleMouseWheel);
+    RemoveEventListener('click', TJSEventHandler(@HandleClick));
+    RemoveEventListener('contextmenu', TJSEventHandler(@HandleContextMenu));
+    RemoveEventListener('dblclick', TJSEventHandler(@HandleDblClick));
+    RemoveEventListener('mousedown', TJSEventHandler(@HandleMouseDown));
+    RemoveEventListener('mouseenter', TJSEventHandler(@HandleMouseEnter));
+    RemoveEventListener('mouseleave', TJSEventHandler(@HandleMouseLeave));
+    RemoveEventListener('mousemove', TJSEventHandler(@HandleMouseMove));
+    RemoveEventListener('mouseup', TJSEventHandler(@HandleMouseUp));
+    RemoveEventListener('pointerdown', TJSEventHandler(@HandlePointerDown));
+    RemoveEventListener('scroll', TJSEventHandler(@HandleScroll));
+    RemoveEventListener('resize', TJSEventHandler(@HandleResize));
+    RemoveEventListener('wheel', TJSEventHandler(@HandleMouseWheel));
   end;
 end;
 
@@ -2611,9 +3177,13 @@ var
   sz: TSize;
 begin
   inherited Create(AOwner);
+  _RegisterWCLDragRules;
   FHandleElement := CreateHandleElement;
   FHandleClass := '';
   FHandleId := '';
+  asm
+    this.FHandleElement.__wclControl = this;
+  end;
   RegisterHandleEvents;
   FControls := TJSArray.New;
   FBorderSpacing := TControlBorderSpacing.Create;
@@ -2629,6 +3199,12 @@ begin
   FCaption := '';
   FColor := clDefault;
   FCursor := crDefault;
+  FDragKind := dkDrag;
+  FDragMode := dmManual;
+  FOnDragDrop := nil;
+  FOnDragOver := nil;
+  FOnEndDrag := nil;
+  FOnStartDrag := nil;
   sz := GetControlClassDefaultSize;
   FDesignRect := Rect(0, 0, sz.cx - 1, sz.cy - 1);
   FEnabled := True;
@@ -2647,8 +3223,15 @@ end;
 
 destructor TControl.Destroy;
 begin
+  if Assigned(_DragManager) and (_DragManager.Source = Self) then
+    _DragManager.EndDrag(False);
   if Assigned(FHandleElement) then
+  begin
+    asm
+      this.FHandleElement.__wclControl = null;
+    end;
     UnRegisterHandleEvents;
+  end;
   if (Assigned(FParent)) then
   begin
     FParent.UnRegisterChild(Self);
@@ -3030,11 +3613,11 @@ begin
   inherited RegisterHandleEvents;
   with FHandleElement do
   begin
-    AddEventListener('focus', @HandleEnter);
-    AddEventListener('blur', @HandleExit);
-    AddEventListener('keydown', @HandleKeyDown);
-    AddEventListener('keypress', @HandleKeyPress);
-    AddEventListener('keyup', @HandleKeyUp);
+    AddEventListener('focus', TJSEventHandler(@HandleEnter));
+    AddEventListener('blur', TJSEventHandler(@HandleExit));
+    AddEventListener('keydown', TJSEventHandler(@HandleKeyDown));
+    AddEventListener('keypress', TJSEventHandler(@HandleKeyPress));
+    AddEventListener('keyup', TJSEventHandler(@HandleKeyUp));
   end;
 end;
 
@@ -3043,11 +3626,11 @@ begin
   inherited UnRegisterHandleEvents;
   with FHandleElement do
   begin
-    RemoveEventListener('focus', @HandleEnter);
-    RemoveEventListener('blur', @HandleExit);
-    RemoveEventListener('keydown', @HandleKeyDown);
-    RemoveEventListener('keypress', @HandleKeyPress);
-    RemoveEventListener('keyup', @HandleKeyUp);
+    RemoveEventListener('focus', TJSEventHandler(@HandleEnter));
+    RemoveEventListener('blur', TJSEventHandler(@HandleExit));
+    RemoveEventListener('keydown', TJSEventHandler(@HandleKeyDown));
+    RemoveEventListener('keypress', TJSEventHandler(@HandleKeyPress));
+    RemoveEventListener('keyup', TJSEventHandler(@HandleKeyUp));
   end;
 end;
 
@@ -3288,5 +3871,7 @@ begin
 end;
 
 initialization
+  _DragManager := TDragManager.Create;
   RegisterIntegerConsts(TypeInfo(TCursor), @IdentToCursor, @CursorToIdent);
+
 end.

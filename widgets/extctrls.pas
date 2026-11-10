@@ -487,7 +487,7 @@ begin
         if Assigned(OnBinaryMessage) then begin
           reader := TJSFileReader.new;
           reader.readAsArrayBuffer(TJSBlob(TJSMessageEvent(aEvent).Data));
-          reader.addEventListener('loadend', @WebSocketReaderHandler);
+          reader.addEventListener('loadend', TJSEventHandler(@WebSocketReaderHandler));
         end;
     end;
 end;
@@ -1061,9 +1061,9 @@ begin
    FZoomEnabled := True;
    FInitialDist := 0;
 
-   HandleElement.addEventListener('mousedown', @HandleMouseDown);
-   HandleElement.addEventListener('mousemove', @HandleMouseMove);
-   HandleElement.addEventListener('mouseup', @HandleMouseUp);
+   HandleElement.addEventListener('mousedown', TJSEventHandler(@HandleMouseDown));
+   HandleElement.addEventListener('mousemove', TJSEventHandler(@HandleMouseMove));
+   HandleElement.addEventListener('mouseup', TJSEventHandler(@HandleMouseUp));
    
    cbStart := @HandleTouchStart;
    cbMove  := @HandleTouchMove;
@@ -1507,7 +1507,7 @@ function TCustomTrackBar.CreateHandleElement: TJSHTMLElement;
 begin
   Result := TJSHTMLElement(Document.CreateElement('input'));
   TJSHTMLInputElement(Result)._type := 'range';
-  Result.AddEventListener('change', @HandleChange);
+  Result.AddEventListener('change', TJSEventHandler(@HandleChange));
 end;
 
 procedure TCustomTrackBar.Changed;
@@ -1604,7 +1604,7 @@ function TCustomColorPicker.CreateHandleElement: TJSHTMLElement;
 begin
   Result := TJSHTMLElement(Document.CreateElement('input'));
   TJSHTMLInputElement(Result)._type := 'color';
-  Result.AddEventListener('change', @HandleChange);
+  Result.AddEventListener('change', TJSEventHandler(@HandleChange));
 end;
 
 procedure TCustomColorPicker.Changed;

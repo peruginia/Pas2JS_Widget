@@ -24862,6 +24862,31 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
   this.$rtti.$ClassRef("TControlClass",{instancetype: this.$rtti["TControl"]});
   this.$rtti.$Class("TBasicAction");
   this.$rtti.$Class("TCustomPopupMenu");
+  this.TDragMode = {"0": "dmManual", dmManual: 0, "1": "dmAutomatic", dmAutomatic: 1};
+  this.$rtti.$Enum("TDragMode",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TDragMode});
+  this.TDragKind = {"0": "dkDrag", dkDrag: 0, "1": "dkDock", dkDock: 1};
+  this.$rtti.$Enum("TDragKind",{minvalue: 0, maxvalue: 1, ordtype: 1, enumtype: this.TDragKind});
+  this.TDragState = {"0": "dsDragEnter", dsDragEnter: 0, "1": "dsDragLeave", dsDragLeave: 1, "2": "dsDragMove", dsDragMove: 2};
+  this.$rtti.$Enum("TDragState",{minvalue: 0, maxvalue: 2, ordtype: 1, enumtype: this.TDragState});
+  rtl.createClass(this,"TDragObject",pas.System.TObject,function () {
+    this.$init = function () {
+      pas.System.TObject.$init.call(this);
+      this.FSource = null;
+    };
+    this.$final = function () {
+      this.FSource = undefined;
+      pas.System.TObject.$final.call(this);
+    };
+    this.Create$1 = function (ASource) {
+      pas.System.TObject.Create.call(this);
+      this.FSource = ASource;
+      return this;
+    };
+  });
+  this.$rtti.$MethodVar("TDragOverEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Source",pas.System.$rtti["TObject"]],["X",rtl.longint],["Y",rtl.longint],["State",this.$rtti["TDragState"]],["Accept",rtl.boolean,1]]), methodkind: 0});
+  this.$rtti.$MethodVar("TDragDropEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Source",pas.System.$rtti["TObject"]],["X",rtl.longint],["Y",rtl.longint]]), methodkind: 0});
+  this.$rtti.$MethodVar("TStartDragEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["DragObject",this.$rtti["TDragObject"],1]]), methodkind: 0});
+  this.$rtti.$MethodVar("TEndDragEvent",{procsig: rtl.newTIProcSig([["Sender",pas.System.$rtti["TObject"]],["Target",pas.System.$rtti["TObject"]],["X",rtl.longint],["Y",rtl.longint]]), methodkind: 0});
   rtl.createClass(this,"TCustomPopupMenu",pas.Classes.TComponent,function () {
     this.PopupAt = function (AX, AY) {
     };
@@ -25143,8 +25168,14 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       this.FControls = null;
       this.FCursor = 0;
       this.FDesignRect = pas.Types.TRect.$new();
+      this.FDragKind = 0;
+      this.FDragMode = 0;
       this.FEnabled = false;
       this.FFont = null;
+      this.FOnDragDrop = null;
+      this.FOnDragOver = null;
+      this.FOnEndDrag = null;
+      this.FOnStartDrag = null;
       this.FHandleClass = "";
       this.FHandleElement = null;
       this.FHandleId = "";
@@ -25183,6 +25214,10 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       this.FControls = undefined;
       this.FDesignRect = undefined;
       this.FFont = undefined;
+      this.FOnDragDrop = undefined;
+      this.FOnDragOver = undefined;
+      this.FOnEndDrag = undefined;
+      this.FOnStartDrag = undefined;
       this.FHandleElement = undefined;
       this.FParent = undefined;
       this.FPopupMenu = undefined;
@@ -25452,6 +25487,19 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
         this.FOnDblClick(this);
       };
     };
+    this.DoDragOver = function (ASource, X, Y, AState) {
+      var Result = false;
+      Result = false;
+      if (this.FOnDragOver != null) this.FOnDragOver(this,ASource,X,Y,AState,{get: function () {
+          return Result;
+        }, set: function (v) {
+          Result = v;
+        }});
+      return Result;
+    };
+    this.DoDragDrop = function (ASource, X, Y) {
+      if (this.FOnDragDrop != null) this.FOnDragDrop(this,ASource,X,Y);
+    };
     this.DoResize = function () {
       if (this.FOnResize != null) {
         this.FOnResize(this);
@@ -25528,6 +25576,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       VShift = rtl.refSet($mod.ExtractShiftState$1(AEvent));
       X = pas.System.Trunc(AEvent.clientX - VOffSets.Left);
       Y = pas.System.Trunc(AEvent.clientY - VOffSets.Top);
+      if ($impl._DragManager != null) $impl._DragManager.SetPointerPos(pas.System.Trunc(AEvent.clientX),pas.System.Trunc(AEvent.clientY));
       AEvent.stopPropagation();
       this.MouseDown(VButton,rtl.refSet(VShift),X,Y);
       Result = true;
@@ -25538,6 +25587,25 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       AEvent.stopPropagation();
       this.MouseEnter();
       Result = true;
+      return Result;
+    };
+    this.HandlePointerDown = function (AEvent) {
+      var Result = false;
+      var VControl = null;
+      var VElement = null;
+      Result = false;
+      VControl = null;
+      if (!($impl._DragManager != null) || !(AEvent != null)) return Result;
+      VElement = pas.Web.TJSEventHelper.GetTargetElement.call(AEvent);
+      while ((VElement != null) && (VElement !== this.FHandleElement)) {
+        VControl = VElement.__wclControl || null;
+        if (VControl != null) return Result;
+        VElement = VElement.parentElement;
+      };
+      if (VElement !== this.FHandleElement) return Result;
+      $impl._DragManager.SetPointerId(AEvent);
+      $impl._DragManager.SetPointerPos(pas.System.Trunc(AEvent.clientX),pas.System.Trunc(AEvent.clientY));
+      if ((this.FDragMode === $mod.TDragMode.dmAutomatic) && (AEvent.button === 0)) $impl._DragManager.StartPending(this,pas.System.Trunc(AEvent.clientX),pas.System.Trunc(AEvent.clientY),5,false);
       return Result;
     };
     this.HandleMouseLeave = function (AEvent) {
@@ -25718,8 +25786,9 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       $with.addEventListener("mouseleave",rtl.createCallback(this,"HandleMouseLeave"));
       $with.addEventListener("mousemove",rtl.createCallback(this,"HandleMouseMove"));
       $with.addEventListener("mouseup",rtl.createCallback(this,"HandleMouseUp"));
-      $with.addEventListener("scroll",rtl.createSafeCallback(this,"HandleScroll"));
-      $with.addEventListener("resize",rtl.createSafeCallback(this,"HandleResize"));
+      $with.addEventListener("pointerdown",rtl.createCallback(this,"HandlePointerDown"));
+      $with.addEventListener("scroll",rtl.createCallback(this,"HandleScroll"));
+      $with.addEventListener("resize",rtl.createCallback(this,"HandleResize"));
       $with.addEventListener("wheel",rtl.createCallback(this,"HandleMouseWheel"));
     };
     this.UnRegisterHandleEvents = function () {
@@ -25732,8 +25801,9 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       $with.removeEventListener("mouseleave",rtl.createCallback(this,"HandleMouseLeave"));
       $with.removeEventListener("mousemove",rtl.createCallback(this,"HandleMouseMove"));
       $with.removeEventListener("mouseup",rtl.createCallback(this,"HandleMouseUp"));
-      $with.removeEventListener("scroll",rtl.createSafeCallback(this,"HandleScroll"));
-      $with.removeEventListener("resize",rtl.createSafeCallback(this,"HandleResize"));
+      $with.removeEventListener("pointerdown",rtl.createCallback(this,"HandlePointerDown"));
+      $with.removeEventListener("scroll",rtl.createCallback(this,"HandleScroll"));
+      $with.removeEventListener("resize",rtl.createCallback(this,"HandleResize"));
       $with.removeEventListener("wheel",rtl.createCallback(this,"HandleMouseWheel"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
@@ -26032,9 +26102,11 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
     this.Create$1 = function (AOwner) {
       var sz = pas.Types.TSize.$new();
       pas.Classes.TComponent.Create$1.call(this,AOwner);
+      $impl._RegisterWCLDragRules();
       this.FHandleElement = this.CreateHandleElement();
       this.FHandleClass = "";
       this.FHandleId = "";
+      this.FHandleElement.__wclControl = this;
       this.RegisterHandleEvents();
       this.FControls = new Array();
       this.FBorderSpacing = $mod.TControlBorderSpacing.$create("Create$1");
@@ -26050,6 +26122,12 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       this.FCaption = "";
       this.FColor = 536870912;
       this.FCursor = 0;
+      this.FDragKind = $mod.TDragKind.dkDrag;
+      this.FDragMode = $mod.TDragMode.dmManual;
+      this.FOnDragDrop = null;
+      this.FOnDragOver = null;
+      this.FOnEndDrag = null;
+      this.FOnStartDrag = null;
       sz.$assign(this.$class.GetControlClassDefaultSize());
       this.FDesignRect.$assign(pas.Types.Rect(0,0,sz.cx - 1,sz.cy - 1));
       this.FEnabled = true;
@@ -26067,7 +26145,11 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       return this;
     };
     this.Destroy = function () {
-      if (this.FHandleElement != null) this.UnRegisterHandleEvents();
+      if (($impl._DragManager != null) && ($impl._DragManager.FSource === this)) $impl._DragManager.EndDrag(false);
+      if (this.FHandleElement != null) {
+        this.FHandleElement.__wclControl = null;
+        this.UnRegisterHandleEvents();
+      };
       if (this.FParent != null) {
         this.FParent.UnRegisterChild(this);
       };
@@ -26175,12 +26257,30 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
         this.ReAlign();
       };
     };
+    this.BeginDrag = function (Immediate, Threshold) {
+      if ($impl._DragManager != null) $impl._DragManager.StartPending(this,$impl._DragManager.FPointerX,$impl._DragManager.FPointerY,Threshold,Immediate);
+    };
+    this.EndDrag = function (Drop) {
+      if (($impl._DragManager != null) && ($impl._DragManager.FSource === this)) $impl._DragManager.EndDrag(Drop);
+    };
+    this.GetDragging = function () {
+      var Result = false;
+      Result = ($impl._DragManager != null) && $impl._DragManager.FDragging && ($impl._DragManager.FSource === this);
+      return Result;
+    };
     rtl.addIntf(this,pas.System.IUnknown);
     var $r = this.$rtti;
     $r.addMethod("Create$1",2,[["AOwner",pas.Classes.$rtti["TComponent"]]]);
     $r.addProperty("Constraints",2,$mod.$rtti["TSizeConstraints"],"FConstraints","SetConstraints");
     $r.addProperty("Cursor",2,$mod.$rtti["TCursor"],"FCursor","SetCursor");
     $r.addProperty("Action",2,$mod.$rtti["TBasicAction"],"FAction","SetAction");
+    $r.addProperty("Dragging",1,rtl.boolean,"GetDragging","");
+    $r.addProperty("DragKind",0,$mod.$rtti["TDragKind"],"FDragKind","FDragKind",{Default: $mod.TDragKind.dkDrag});
+    $r.addProperty("DragMode",0,$mod.$rtti["TDragMode"],"FDragMode","FDragMode",{Default: $mod.TDragMode.dmManual});
+    $r.addProperty("OnDragDrop",0,$mod.$rtti["TDragDropEvent"],"FOnDragDrop","FOnDragDrop");
+    $r.addProperty("OnDragOver",0,$mod.$rtti["TDragOverEvent"],"FOnDragOver","FOnDragOver");
+    $r.addProperty("OnEndDrag",0,$mod.$rtti["TEndDragEvent"],"FOnEndDrag","FOnEndDrag");
+    $r.addProperty("OnStartDrag",0,$mod.$rtti["TStartDragEvent"],"FOnStartDrag","FOnStartDrag");
     $r.addProperty("PopupMenu",2,$mod.$rtti["TCustomPopupMenu"],"FPopupMenu","SetPopupMenu");
     $r.addProperty("Left",2,rtl.nativeint,"FLeft","SetLeft");
     $r.addProperty("Height",2,rtl.nativeint,"FHeight","SetHeight");
@@ -26547,7 +26647,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       $mod.TControl.RegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
       $with.addEventListener("focus",rtl.createCallback(this,"HandleEnter"));
-      $with.addEventListener("blur",rtl.createSafeCallback(this,"HandleExit"));
+      $with.addEventListener("blur",rtl.createCallback(this,"HandleExit"));
       $with.addEventListener("keydown",rtl.createCallback(this,"HandleKeyDown"));
       $with.addEventListener("keypress",rtl.createCallback(this,"HandleKeyPress"));
       $with.addEventListener("keyup",rtl.createCallback(this,"HandleKeyUp"));
@@ -26556,7 +26656,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
       $mod.TControl.UnRegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
       $with.removeEventListener("focus",rtl.createCallback(this,"HandleEnter"));
-      $with.removeEventListener("blur",rtl.createSafeCallback(this,"HandleExit"));
+      $with.removeEventListener("blur",rtl.createCallback(this,"HandleExit"));
       $with.removeEventListener("keydown",rtl.createCallback(this,"HandleKeyDown"));
       $with.removeEventListener("keypress",rtl.createCallback(this,"HandleKeyPress"));
       $with.removeEventListener("keyup",rtl.createCallback(this,"HandleKeyUp"));
@@ -27196,8 +27296,355 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
     };
   };
   $mod.$implcode = function () {
+    rtl.createClass($impl,"TDragManager",pas.System.TObject,function () {
+      this.$init = function () {
+        pas.System.TObject.$init.call(this);
+        this.FAccept = false;
+        this.FDragObject = null;
+        this.FDragging = false;
+        this.FGhost = null;
+        this.FListeners = false;
+        this.FPending = false;
+        this.FPointerId = undefined;
+        this.FPointerX = 0;
+        this.FPointerY = 0;
+        this.FSource = null;
+        this.FStartX = 0;
+        this.FStartY = 0;
+        this.FTarget = null;
+        this.FThreshold = 0;
+      };
+      this.$final = function () {
+        this.FDragObject = undefined;
+        this.FGhost = undefined;
+        this.FSource = undefined;
+        this.FTarget = undefined;
+        pas.System.TObject.$final.call(this);
+      };
+      this.AddListeners = function () {
+        if (this.FListeners) return;
+        document.addEventListener("pointermove",rtl.createCallback(this,"PointerMove"));
+        document.addEventListener("pointerup",rtl.createCallback(this,"PointerUp"));
+        document.addEventListener("pointercancel",rtl.createCallback(this,"PointerCancel"));
+        document.addEventListener("keydown",rtl.createCallback(this,"KeyDown"));
+        this.FListeners = true;
+      };
+      this.RemoveListeners = function () {
+        if (!this.FListeners) return;
+        document.removeEventListener("pointermove",rtl.createCallback(this,"PointerMove"));
+        document.removeEventListener("pointerup",rtl.createCallback(this,"PointerUp"));
+        document.removeEventListener("pointercancel",rtl.createCallback(this,"PointerCancel"));
+        document.removeEventListener("keydown",rtl.createCallback(this,"KeyDown"));
+        this.FListeners = false;
+      };
+      this.CapturePointer = function () {
+        var VElement = null;
+        if (!(this.FSource != null)) return;
+        VElement = this.FSource.FHandleElement;
+        try {
+          if (VElement && VElement.setPointerCapture && this.FPointerId)
+            VElement.setPointerCapture(this.FPointerId);
+        } catch (e) {};
+      };
+      this.ReleasePointer = function () {
+        var VElement = null;
+        if (!(this.FSource != null)) return;
+        VElement = this.FSource.FHandleElement;
+        try {
+          if (VElement && VElement.releasePointerCapture && this.FPointerId)
+            VElement.releasePointerCapture(this.FPointerId);
+        } catch (e) {};
+      };
+      this.CreateGhost = function () {
+        this.DestroyGhost();
+        this.FGhost = document.createElement("div");
+        this.FGhost.classList.add("wcl-drag-ghost");
+        if (this.FSource != null) {
+          if (this.FSource.GetText() !== "") {
+            this.FGhost.textContent = this.FSource.GetText()}
+           else this.FGhost.textContent = this.FSource.$classname;
+        };
+        document.body.appendChild(this.FGhost);
+      };
+      this.DestroyGhost = function () {
+        if (this.FGhost != null) {
+          this.FGhost.remove();
+          this.FGhost = null;
+        };
+      };
+      this.MoveGhost = function (AX, AY) {
+        if (this.FGhost != null) {
+          this.FGhost.style.setProperty("left",pas.SysUtils.IntToStr(AX + 12) + "px");
+          this.FGhost.style.setProperty("top",pas.SysUtils.IntToStr(AY + 12) + "px");
+        };
+      };
+      this.ClearTarget = function () {
+        var VAccept = false;
+        if (this.FTarget != null) {
+          this.FTarget.FHandleElement.classList.remove("wcl-drag-over");
+          VAccept = this.FTarget.DoDragOver(this.FSource,0,0,$mod.TDragState.dsDragLeave);
+        };
+        this.FTarget = null;
+        this.FAccept = false;
+      };
+      this.FindControlAt = function (AX, AY) {
+        var Result = null;
+        var VControl = null;
+        var VElement = null;
+        Result = null;
+        VElement = document.elementFromPoint(AX,AY);
+        while (VElement != null) {
+          VControl = null;
+          VControl = VElement.__wclControl || null;
+          if ((VControl != null) && VControl.FVisible && VControl.FEnabled && (VControl.FOnDragOver != null)) {
+            Result = VControl;
+            return Result;
+          };
+          VElement = VElement.parentElement;
+        };
+        return Result;
+      };
+      this.GetLocal = function (AControl, AX, AY, LX, LY) {
+        var VOffsets = pas.Types.TRect.$new();
+        VOffsets.$assign($mod.OffSets(AControl.FHandleElement));
+        LX.set(AX - VOffsets.Left);
+        LY.set(AY - VOffsets.Top);
+      };
+      this.UpdateTarget = function (AX, AY, AState) {
+        var VAccept = false;
+        var VNew = null;
+        var VX = 0;
+        var VY = 0;
+        VNew = this.FindControlAt(AX,AY);
+        if ((VNew != null) && (VNew === this.FSource)) VNew = null;
+        if (VNew !== this.FTarget) {
+          this.ClearTarget();
+          this.FTarget = VNew;
+          if (this.FTarget != null) {
+            this.GetLocal(this.FTarget,AX,AY,{get: function () {
+                return VX;
+              }, set: function (v) {
+                VX = v;
+              }},{get: function () {
+                return VY;
+              }, set: function (v) {
+                VY = v;
+              }});
+            this.FAccept = this.FTarget.DoDragOver(this.FSource,VX,VY,$mod.TDragState.dsDragEnter);
+            if (this.FAccept) this.FTarget.FHandleElement.classList.add("wcl-drag-over");
+          };
+        } else if (this.FTarget != null) {
+          this.GetLocal(this.FTarget,AX,AY,{get: function () {
+              return VX;
+            }, set: function (v) {
+              VX = v;
+            }},{get: function () {
+              return VY;
+            }, set: function (v) {
+              VY = v;
+            }});
+          this.FAccept = this.FTarget.DoDragOver(this.FSource,VX,VY,AState);
+          if (this.FAccept) {
+            this.FTarget.FHandleElement.classList.add("wcl-drag-over")}
+           else this.FTarget.FHandleElement.classList.remove("wcl-drag-over");
+        };
+      };
+      this.PointerMove = function (AEvent) {
+        var Result = false;
+        var VX = 0;
+        var VY = 0;
+        Result = false;
+        if (!this.FPending && !this.FDragging) return Result;
+        VX = pas.System.Trunc(AEvent.clientX);
+        VY = pas.System.Trunc(AEvent.clientY);
+        this.FPointerX = VX;
+        this.FPointerY = VY;
+        if (this.FDragging) {
+          this.MoveGhost(VX,VY);
+          this.UpdateTarget(VX,VY,$mod.TDragState.dsDragMove);
+          AEvent.preventDefault();
+          Result = true;
+        } else if (this.FPending) {
+          if ((Math.abs(VX - this.FStartX) >= this.FThreshold) || (Math.abs(VY - this.FStartY) >= this.FThreshold)) {
+            this.StartDrag();
+            if (this.FDragging) {
+              this.MoveGhost(VX,VY);
+              this.UpdateTarget(VX,VY,$mod.TDragState.dsDragMove);
+            };
+          };
+          Result = true;
+        };
+        return Result;
+      };
+      this.PointerUp = function (AEvent) {
+        var Result = false;
+        Result = false;
+        if (this.FDragging) {
+          this.EndDrag(true);
+          Result = true;
+        } else if (this.FPending) {
+          this.EndDrag(false);
+          Result = true;
+        };
+        return Result;
+      };
+      this.PointerCancel = function (AEvent) {
+        var Result = false;
+        Result = false;
+        if (this.FDragging || this.FPending) {
+          this.EndDrag(false);
+          Result = true;
+        };
+        return Result;
+      };
+      this.KeyDown = function (AEvent) {
+        var Result = false;
+        Result = false;
+        if (!this.FDragging && !this.FPending) return Result;
+        if (pas.SysUtils.SameText(AEvent.key,"Escape")) {
+          this.EndDrag(false);
+          AEvent.preventDefault();
+          AEvent.stopPropagation();
+          Result = true;
+        };
+        return Result;
+      };
+      this.Create$1 = function () {
+        pas.System.TObject.Create.call(this);
+        this.FAccept = false;
+        this.FDragObject = null;
+        this.FDragging = false;
+        this.FGhost = null;
+        this.FListeners = false;
+        this.FPending = false;
+        this.FPointerId = 0;
+        this.FPointerX = 0;
+        this.FPointerY = 0;
+        this.FSource = null;
+        this.FStartX = 0;
+        this.FStartY = 0;
+        this.FTarget = null;
+        this.FThreshold = 5;
+        return this;
+      };
+      this.Destroy = function () {
+        this.EndDrag(false);
+        pas.System.TObject.Destroy.call(this);
+      };
+      this.StartPending = function (ASource, AX, AY, AThreshold, AImmediate) {
+        if (this.FDragging) return;
+        if (this.FPending && (this.FSource !== ASource)) {
+          this.RemoveListeners();
+          this.FPending = false;
+          this.FSource = null;
+        };
+        this.FSource = ASource;
+        this.FPending = true;
+        this.FDragging = false;
+        this.FStartX = AX;
+        this.FStartY = AY;
+        this.FPointerX = AX;
+        this.FPointerY = AY;
+        this.FThreshold = AThreshold;
+        if (this.FThreshold < 0) this.FThreshold = 5;
+        this.AddListeners();
+        if (AImmediate) this.StartDrag();
+      };
+      this.StartDrag = function () {
+        var VDragObject = null;
+        if (!this.FPending || !(this.FSource != null)) return;
+        this.FPending = false;
+        this.FDragging = true;
+        VDragObject = null;
+        if (this.FSource.FOnStartDrag != null) {
+          this.FSource.FOnStartDrag(this.FSource,{get: function () {
+              return VDragObject;
+            }, set: function (v) {
+              VDragObject = v;
+            }});
+          this.FDragObject = VDragObject;
+        };
+        if (!(this.FDragObject != null)) this.FDragObject = $mod.TDragObject.$create("Create$1",[this.FSource]);
+        this.CreateGhost();
+        this.CapturePointer();
+        this.UpdateTarget(this.FPointerX,this.FPointerY,$mod.TDragState.dsDragEnter);
+      };
+      this.EndDrag = function (ADrop) {
+        var VAccept = false;
+        var VDropTarget = null;
+        var VSource = null;
+        var VTarget = null;
+        var VX = 0;
+        var VY = 0;
+        if (!this.FDragging && !this.FPending) return;
+        VSource = this.FSource;
+        VTarget = this.FTarget;
+        VDropTarget = null;
+        if (this.FDragging && ADrop && this.FAccept && (VTarget != null)) {
+          this.GetLocal(VTarget,this.FPointerX,this.FPointerY,{get: function () {
+              return VX;
+            }, set: function (v) {
+              VX = v;
+            }},{get: function () {
+              return VY;
+            }, set: function (v) {
+              VY = v;
+            }});
+          VTarget.DoDragDrop(VSource,VX,VY);
+          VDropTarget = VTarget;
+        };
+        if (this.FDragging && (VSource != null) && (VSource.FOnEndDrag != null)) {
+          if (VDropTarget != null) {
+            this.GetLocal(VDropTarget,this.FPointerX,this.FPointerY,{get: function () {
+                return VX;
+              }, set: function (v) {
+                VX = v;
+              }},{get: function () {
+                return VY;
+              }, set: function (v) {
+                VY = v;
+              }})}
+           else {
+            VX = this.FPointerX;
+            VY = this.FPointerY;
+          };
+          VSource.FOnEndDrag(VSource,VDropTarget,VX,VY);
+        };
+        this.ReleasePointer();
+        this.DestroyGhost();
+        if (this.FTarget != null) {
+          this.FTarget.FHandleElement.classList.remove("wcl-drag-over");
+          VAccept = this.FTarget.DoDragOver(this.FSource,0,0,$mod.TDragState.dsDragLeave);
+        };
+        this.FTarget = null;
+        this.FAccept = false;
+        this.RemoveListeners();
+        if (this.FDragObject != null) {
+          rtl.free(this,"FDragObject");
+          this.FDragObject = null;
+        };
+        this.FPending = false;
+        this.FDragging = false;
+        this.FSource = null;
+        this.FPointerId = 0;
+      };
+      this.SetPointerId = function (AEvent) {
+        this.FPointerId = (AEvent && AEvent.pointerId != null) ? AEvent.pointerId : 0;
+      };
+      this.SetPointerPos = function (AX, AY) {
+        this.FPointerX = AX;
+        this.FPointerY = AY;
+      };
+    });
+    $impl._DragManager = null;
+    $impl._WCLDragRulesRegistered = false;
     $impl._WCLTheme = "";
     $impl._WCLThemeInjected = false;
+    $impl._RegisterWCLDragRules = function () {
+      if ($impl._WCLDragRulesRegistered) return;
+      $mod.RegisterWCLStyle(".wcl-drag-ghost{" + "position:fixed;" + "pointer-events:none;" + "z-index:100000;" + "padding:4px 10px;" + "border:1px solid #4A90D9;" + "border-radius:4px;" + "background:#fff;" + "box-shadow:0 4px 12px rgba(0,0,0,0.2);" + "font:14px sans-serif;" + "color:#333;" + "opacity:0.92;}" + ".wcl-drag-over{" + "outline:2px dashed #4A90D9;" + "outline-offset:-2px;}");
+      $impl._WCLDragRulesRegistered = true;
+    };
     $impl.CursorIdents$a$clone = function (a) {
       var b = [];
       b.length = 31;
@@ -27218,6 +27665,7 @@ rtl.module("Controls",["System","Classes","SysUtils","Types","JS","Web","Math","
     };
   };
   $mod.$init = function () {
+    $impl._DragManager = $impl.TDragManager.$create("Create$1");
     pas.Classes.RegisterIntegerConsts($mod.$rtti["TCursor"],$impl.IdentToCursor,$impl.CursorToIdent);
   };
 },["Forms"]);
@@ -27642,12 +28090,12 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
       pas.System.TObject.AfterConstruction.call(this);
       $mod.Application().UpdateMainForm(this);
       $mod.Application().RegisterModule(this);
-      window.addEventListener("resize",rtl.createSafeCallback(this,"HandleWindowResize"));
+      window.addEventListener("resize",rtl.createCallback(this,"HandleWindowResize"));
       this.Loaded();
       this.DoCreate();
     };
     this.BeforeDestruction = function () {
-      window.removeEventListener("resize",rtl.createSafeCallback(this,"HandleWindowResize"));
+      window.removeEventListener("resize",rtl.createCallback(this,"HandleWindowResize"));
       pas.Classes.TComponent.BeforeDestruction.call(this);
       $mod.Application().UnRegisterModule(this);
       this.DoDestroy();
@@ -27892,12 +28340,12 @@ rtl.module("Forms",["System","Classes","SysUtils","Types","JS","Web","Graphics",
     };
     this.RegisterHandleEvents = function () {
       window.addEventListener("error",rtl.createCallback(this,"HandleError"));
-      window.addEventListener("resize",rtl.createSafeCallback(this,"HandleResize"));
+      window.addEventListener("resize",rtl.createCallback(this,"HandleResize"));
       window.addEventListener("pagehide",rtl.createCallback(this,"HandleUnload"));
     };
     this.UnRegisterHandleEvents = function () {
       window.removeEventListener("error",rtl.createCallback(this,"HandleError"));
-      window.removeEventListener("resize",rtl.createSafeCallback(this,"HandleResize"));
+      window.removeEventListener("resize",rtl.createCallback(this,"HandleResize"));
       window.removeEventListener("pagehide",rtl.createCallback(this,"HandleUnload"));
     };
     var CLE = pas.System.LineEnding;
@@ -28410,12 +28858,12 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.RegisterHandleEvents = function () {
       pas.Controls.TWinControl.RegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
-      $with.addEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
+      $with.addEventListener("change",rtl.createCallback(this,"HandleChange"));
     };
     this.UnRegisterHandleEvents = function () {
       pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
-      $with.removeEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
+      $with.removeEventListener("change",rtl.createCallback(this,"HandleChange"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -28649,12 +29097,12 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.RegisterHandleEvents = function () {
       pas.Controls.TWinControl.RegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
-      $with.addEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
+      $with.addEventListener("change",rtl.createCallback(this,"HandleChange"));
     };
     this.UnRegisterHandleEvents = function () {
       pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
-      $with.removeEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
+      $with.removeEventListener("change",rtl.createCallback(this,"HandleChange"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -28992,12 +29440,12 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.RegisterHandleEvents = function () {
       pas.Controls.TWinControl.RegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
-      $with.addEventListener("input",rtl.createSafeCallback(this,"HandleInput"));
+      $with.addEventListener("input",rtl.createCallback(this,"HandleInput"));
     };
     this.UnRegisterHandleEvents = function () {
       pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
-      $with.removeEventListener("input",rtl.createSafeCallback(this,"HandleInput"));
+      $with.removeEventListener("input",rtl.createCallback(this,"HandleInput"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -29334,12 +29782,12 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
     this.RegisterHandleEvents = function () {
       pas.Controls.TWinControl.RegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
-      $with.addEventListener("input",rtl.createSafeCallback(this,"HandleChange"));
+      $with.addEventListener("input",rtl.createCallback(this,"HandleChange"));
     };
     this.UnRegisterHandleEvents = function () {
       pas.Controls.TWinControl.UnRegisterHandleEvents.call(this);
       var $with = this.FHandleElement;
-      $with.removeEventListener("input",rtl.createSafeCallback(this,"HandleChange"));
+      $with.removeEventListener("input",rtl.createCallback(this,"HandleChange"));
     };
     this.CheckChildClassAllowed = function (AChildClass) {
       var Result = false;
@@ -29676,7 +30124,7 @@ rtl.module("StdCtrls",["System","Classes","SysUtils","Types","Web","WebExtra","G
       this.fLabel = document.createElement("label");
       Result.append(this.fInput);
       this.fInput.onselect = rtl.createSafeCallback(this,"ChangeHandler");
-      this.fInput.addEventListener("change",rtl.createSafeCallback(this,"ChangeHandler"));
+      this.fInput.addEventListener("change",rtl.createCallback(this,"ChangeHandler"));
       Result.append(this.fLabel);
       return Result;
     };
@@ -30612,7 +31060,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
        else if ($tmp === pas.JS.TJSValueType.jvtObject) if (this.fOnBinaryMessage != null) {
         reader = new FileReader();
         reader.readAsArrayBuffer(aEvent.data);
-        reader.addEventListener("loadend",rtl.createSafeCallback(this,"WebSocketReaderHandler"));
+        reader.addEventListener("loadend",rtl.createCallback(this,"WebSocketReaderHandler"));
       };
       return Result;
     };
@@ -30786,7 +31234,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       var Result = null;
       Result = document.createElement("input");
       Result.type = "range";
-      Result.addEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
+      Result.addEventListener("change",rtl.createCallback(this,"HandleChange"));
       return Result;
     };
     this.GetControlClassDefaultSize = function () {
@@ -30851,7 +31299,7 @@ rtl.module("ExtCtrls",["System","JS","Classes","SysUtils","Types","Web","WebExtr
       var Result = null;
       Result = document.createElement("input");
       Result.type = "color";
-      Result.addEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
+      Result.addEventListener("change",rtl.createCallback(this,"HandleChange"));
       return Result;
     };
     this.GetControlClassDefaultSize = function () {
@@ -34374,7 +34822,7 @@ rtl.module("BtnCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
     this.Create$1 = function (AOwner) {
       pas.Controls.TControl.Create$1.call(this,AOwner);
       this.FOpendDialogElement = this.CreateOpendDialogElement();
-      this.FOpendDialogElement.addEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
+      this.FOpendDialogElement.addEventListener("change",rtl.createCallback(this,"HandleChange"));
       this.FFilter = "";
       this.FFileSelect = null;
       this.BeginUpdate();
@@ -34390,7 +34838,7 @@ rtl.module("BtnCtrls",["System","Classes","SysUtils","Types","Web","Graphics","C
     };
     this.Destroy = function () {
       if (this.FOpendDialogElement != null) {
-        this.FOpendDialogElement.removeEventListener("change",rtl.createSafeCallback(this,"HandleChange"));
+        this.FOpendDialogElement.removeEventListener("change",rtl.createCallback(this,"HandleChange"));
       };
       pas.Controls.TControl.Destroy.call(this);
     };
@@ -51763,7 +52211,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
         VFilterInput.setAttribute("value",this.FFilterText);
         VFilterInput.style.setProperty("width","100%");
         VFilterInput.style.setProperty("box-sizing","border-box");
-        VFilterInput.addEventListener("keyup",rtl.createSafeCallback(this,"HandleFilterInput"));
+        VFilterInput.addEventListener("keyup",rtl.createCallback(this,"HandleFilterInput"));
         VFilterCell.appendChild(VFilterInput);
       };
       VRow = VHead.appendChild(document.createElement("tr"));
@@ -51797,7 +52245,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
       VViewportWidth = this.GetViewportWidth();
       this.Body = this.FHandleElement.appendChild(document.createElement("tbody"));
       this.Body.setAttribute("name",this.FName + "_body");
-      this.Body.addEventListener("scroll",rtl.createSafeCallback(this,"HandleBodyScroll"));
+      this.Body.addEventListener("scroll",rtl.createCallback(this,"HandleBodyScroll"));
       this.Body.addEventListener("click",rtl.createCallback(this,"HandleBodyClick"));
       this.Body.addEventListener("touchend",rtl.createCallback(this,"HandleBodyTouchEnd"));
       this.Body.addEventListener("touchstart",rtl.createCallback(this,"HandleBodyTouchStart"));
@@ -52458,7 +52906,7 @@ rtl.module("DataGrid",["System","Classes","SysUtils","Types","JS","Web","Graphic
               VFilterInput.setAttribute("type","text");
               VFilterInput.setAttribute("placeholder","Filter...");
               VFilterInput.setAttribute("value",this.FFilterText);
-              VFilterInput.addEventListener("keyup",rtl.createSafeCallback(this,"HandleFilterInput"));
+              VFilterInput.addEventListener("keyup",rtl.createCallback(this,"HandleFilterInput"));
               VFilterCard.appendChild(VFilterInput);
               this.FHandleElement.appendChild(VFilterCard);
             };
@@ -56979,7 +57427,7 @@ rtl.module("Grids",["System","SysUtils","Classes","Controls","Types","Web","Grap
         this.fEditor.addEventListener("keydown",rtl.createCallback(this,"HandleEditorKeyDown"));
         this.fEditor.addEventListener("keypress",rtl.createCallback(this,"HandleEditorKeyPress"));
         this.fEditor.addEventListener("keyup",rtl.createCallback(this,"HandleEditorKeyUp"));
-        this.fEditor.addEventListener("blur",rtl.createSafeCallback(this,"HandleEditorBlur"));
+        this.fEditor.addEventListener("blur",rtl.createCallback(this,"HandleEditorBlur"));
       };
       VValue = this.GetCells(this.fCol,this.fRow);
       if (this.fOnGetEditText != null) this.fOnGetEditText(this,this.fCol,this.fRow,{get: function () {
@@ -57624,6 +58072,10 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FTreeInfo = null;
       this.FList = null;
       this.FListInfo = null;
+      this.FDragInfo = null;
+      this.FDragPanel = null;
+      this.FDragList = null;
+      this.FDropCount = 0;
     };
     this.$final = function () {
       this.btnAggiornaApp = undefined;
@@ -57698,6 +58150,9 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.FTreeInfo = undefined;
       this.FList = undefined;
       this.FListInfo = undefined;
+      this.FDragInfo = undefined;
+      this.FDragPanel = undefined;
+      this.FDragList = undefined;
       pas.Forms.TWForm.$final.call(this);
     };
     this.btnAggiornaAppClick = function (Sender) {
@@ -57954,6 +58409,86 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
     };
     this.ListColumnClick = function (Sender, Column) {
       if ((this.FListInfo != null) && (Column != null)) this.FListInfo.SetText("Column clicked: " + Column.FCaption);
+    };
+    this.BuildDragTab = function () {
+      var VSheet = null;
+      var VButton = null;
+      VSheet = this.WPageControl1.AddTabSheet();
+      VSheet.SetText("Drag");
+      VSheet.SetBounds(0,0,this.WPageControl1.FWidth,this.WPageControl1.FHeight);
+      VButton = pas.WebCtrls.TWButton.$create("Create$1",[this]);
+      VButton.SetParent(VSheet);
+      VButton.SetBounds(16,16,150,31);
+      VButton.SetText("Drag me");
+      VButton.FDragMode = pas.Controls.TDragMode.dmAutomatic;
+      VButton.FOnStartDrag = rtl.createCallback(this,"DragStart");
+      VButton.FOnEndDrag = rtl.createCallback(this,"DragEnd");
+      VButton = pas.WebCtrls.TWButton.$create("Create$1",[this]);
+      VButton.SetParent(VSheet);
+      VButton.SetBounds(16,58,150,31);
+      VButton.SetText("Drag me too");
+      VButton.FOnMouseDown = rtl.createCallback(this,"DragManualMouseDown");
+      VButton.FOnStartDrag = rtl.createCallback(this,"DragStart");
+      VButton.FOnEndDrag = rtl.createCallback(this,"DragEnd");
+      this.FDragInfo = pas.WebCtrls.TWLabel.$create("Create$1",[this]);
+      this.FDragInfo.SetParent(VSheet);
+      this.FDragInfo.SetBounds(16,108,160,120);
+      this.FDragInfo.SetText("Drag a button: automatic on the first, BeginDrag on the second.");
+      this.FDragPanel = pas.WebCtrls.TWPanel.$create("Create$1",[this]);
+      this.FDragPanel.SetParent(VSheet);
+      this.FDragPanel.SetBounds(200,16,320,200);
+      this.FDragPanel.SetColor(16777215);
+      this.FDragPanel.FOnDragOver = rtl.createCallback(this,"DragOver");
+      this.FDragPanel.FOnDragDrop = rtl.createCallback(this,"DragDropPanel");
+      this.FDragList = pas.WebCtrls.TWListBox.$create("Create$1",[this]);
+      this.FDragList.SetParent(VSheet);
+      this.FDragList.SetBounds(200,230,320,100);
+      this.FDragList.FOnDragOver = rtl.createCallback(this,"DragOver");
+      this.FDragList.FOnDragDrop = rtl.createCallback(this,"DragDropList");
+      this.FDragList.FItems.Add("Drop a button here");
+    };
+    this.DragStart = function (Sender, DragObject) {
+      if ((this.FDragInfo != null) && pas.Controls.TControl.isPrototypeOf(Sender)) this.FDragInfo.SetText("Dragging: " + Sender.GetText());
+    };
+    this.DragEnd = function (Sender, Target, X, Y) {
+      if (!(this.FDragInfo != null)) return;
+      if (pas.Controls.TControl.isPrototypeOf(Target)) {
+        this.FDragInfo.SetText("Dropped on " + Target.$classname)}
+       else this.FDragInfo.SetText("Drag cancelled");
+    };
+    this.DragOver = function (Sender, Source, X, Y, State, Accept) {
+      Accept.set(pas.Controls.TControl.isPrototypeOf(Source));
+    };
+    this.DragDropPanel = function (Sender, Source, X, Y) {
+      var VLabel = null;
+      var VCaption = "";
+      var VX = 0;
+      var VY = 0;
+      VCaption = "Item";
+      if (pas.Controls.TControl.isPrototypeOf(Source)) VCaption = Source.GetText();
+      this.FDropCount += 1;
+      VX = X;
+      VY = Y;
+      if (VX < 0) VX = 0;
+      if (VX > (this.FDragPanel.GetClientWidth() - 140)) VX = this.FDragPanel.GetClientWidth() - 140;
+      if (VY < 0) VY = 0;
+      if (VY > (this.FDragPanel.GetClientHeight() - 24)) VY = this.FDragPanel.GetClientHeight() - 24;
+      VLabel = pas.WebCtrls.TWLabel.$create("Create$1",[this]);
+      VLabel.SetParent(this.FDragPanel);
+      VLabel.SetBounds(VX,VY,140,20);
+      VLabel.SetText(VCaption + " #" + pas.SysUtils.IntToStr(this.FDropCount));
+      if (this.FDragInfo != null) this.FDragInfo.SetText("Panel drop at " + pas.SysUtils.IntToStr(X) + ", " + pas.SysUtils.IntToStr(Y));
+    };
+    this.DragDropList = function (Sender, Source, X, Y) {
+      var VCaption = "";
+      VCaption = "Item";
+      if (pas.Controls.TControl.isPrototypeOf(Source)) VCaption = Source.GetText();
+      this.FDropCount += 1;
+      this.FDragList.FItems.Add(VCaption + " #" + pas.SysUtils.IntToStr(this.FDropCount));
+      if (this.FDragInfo != null) this.FDragInfo.SetText("List drop: " + VCaption);
+    };
+    this.DragManualMouseDown = function (Sender, Button, Shift, X, Y) {
+      if ((Button === pas.Controls.TMouseButton.mbLeft) && pas.Controls.TControl.isPrototypeOf(Sender)) Sender.BeginDrag(true,-1);
     };
     this.BuildGridModesTab = function () {
       var VSheet = null;
@@ -58540,6 +59075,7 @@ rtl.module("Unit1",["System","JS","Classes","SysUtils","Graphics","Controls","Fo
       this.BuildCanvasTab();
       this.BuildTreeTab();
       this.BuildListTab();
+      this.BuildDragTab();
       this.SetupStringGrid();
       this.SetupMenu();
       this.SetupActions();

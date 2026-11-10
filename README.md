@@ -349,6 +349,38 @@ In `vsReport`, clicking a column header sorts the rows when `AutoSort` is True (
 
 Items are built in code; the binary `Items.Data`/`Items.LazData` saved by the LCL list editor is accepted and ignored. Default rows grow to 36 px on touch devices, and the list shares the WCL theme.
 
+### Drag and drop
+
+Every control exposes the LCL drag properties and events:
+
+```pascal
+SourceButton.DragMode := dmAutomatic;   // dmManual is the default
+SourceButton.OnStartDrag := @DragStart;
+SourceButton.OnEndDrag := @DragEnd;
+
+TargetPanel.OnDragOver := @PanelDragOver;
+TargetPanel.OnDragDrop := @PanelDragDrop;
+```
+
+`dmAutomatic` starts a drag after the pointer moves 5 px; with `dmManual` call `BeginDrag(True)` (immediately) or `BeginDrag(False, Threshold)` from `OnMouseDown`. `EndDrag(False)` cancels a drag and `Dragging` reports whether the control is the current source. `DragKind` (`dkDrag`/`dkDock`) is accepted for LCL compatibility.
+
+`OnDragOver` is called while the pointer is over a target with the source control, the target-relative coordinates and `TDragState` (`dsDragEnter`, `dsDragMove`, `dsDragLeave`); set `Accept := True` to allow the drop. `OnDragDrop` receives the source and the target-relative `X`/`Y` when the pointer is released. `OnStartDrag` can supply a custom `TDragObject`; `OnEndDrag` runs on the source with the drop target (or `nil` when the drag is cancelled).
+
+```pascal
+procedure TForm1.PanelDragOver(Sender, Source: TObject; X, Y: Integer;
+  State: TDragState; var Accept: Boolean);
+begin
+  Accept := Source is TControl;
+end;
+
+procedure TForm1.PanelDragDrop(Sender, Source: TObject; X, Y: Integer);
+begin
+  // X and Y are relative to the target panel
+end;
+```
+
+The drag manager uses pointer events with pointer capture, shows a small ghost element under the pointer and outlines the accepted target with `.wcl-drag-over`. Press `Esc` to cancel a drag. A control only becomes a target when it has an `OnDragOver` handler, as in LCL.
+
 ---
 
 ### Infrastructure
@@ -363,6 +395,7 @@ Items are built in code; the binary `Items.Data`/`Items.LazData` saved by the LC
 | **Theme** | Shared CSS via `RegisterWCLStyle` — `.wcl-btn`, `.wcl-input`, `.wcl-panel` classes with hover/active/focus |
 | **Responsive** | Touch devices (`pointer: coarse`): 16px inputs (no iOS zoom), 36px targets, hover gated to `(hover: hover)`, `touch-action`, reduced motion |
 | **Keyboard nav** | Tab / Shift+Tab between controls via `TabOrder` |
+| **Drag and drop** | `DragMode`/`DragKind`, `BeginDrag`/`EndDrag`, `Dragging`, `OnStartDrag`/`OnDragOver`/`OnDragDrop`/`OnEndDrag`, pointer capture, ghost and drop highlight |
 | **Dialogs** | `MessageDlg`, `ShowMessage`, `InputBox`, `QuestionDlg`, `ShowMessageFmt` |
 
 ---
@@ -407,7 +440,7 @@ A demo project showcasing all components including `TWWebDBConnection` + `TWWebD
 
 The **Grid Modes** tab shows the same `TWDataGrid` fed by all three sources (`Data`, `DataJSon`, `DataTable`) and lets you toggle responsive cards, grouping by a field, separator rows and CSV export — all in memory, so it works without a backend.
 
-The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Tree** tab has a `TWTreeView` with folders built in code plus Expand/Collapse/Add child/Sort buttons, the **List** tab has a `TWListView` in report mode with columns, checkboxes, multi-select, column sorting and a view-style cycler, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
+The **Layout** tab shows `TWSplitter` in both orientations, the **Canvas** tab shows `TShape` figures and a `TPaintBox` drawing a small bar chart, the **Tree** tab has a `TWTreeView` with folders built in code plus Expand/Collapse/Add child/Sort buttons, the **List** tab has a `TWListView` in report mode with columns, checkboxes, multi-select, column sorting and a view-style cycler, the **Drag** tab has automatic and manual drag sources with a panel and a list box as drop targets, the **Other** tab has an editable `TWStringGrid`, and the main form has a **menu bar** (File / View / Help) built with `TWMainMenu`. The **View** menu has a **Mobile: fit layout** toggle that switches between the responsive viewport and a scaled fixed design width. The **Basic Inputs** tab has an **Action demo** button linked to a `TAction`; the same action appears in the View menu with `Ctrl+Shift+A`, so the caption, check mark and shortcut come from the action.
 
 The demo starts on a **login form** and switches to the main form after a successful login — see [Multi-form login](#multi-form-login) below.
 

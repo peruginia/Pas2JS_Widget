@@ -50,12 +50,16 @@ a responsive tile grid, with checkboxes, multi-selection, keyboard navigation,
 shared touch theme. Items are built in code; `Items.Data`/`Items.LazData` from
 the IDE list editor are accepted and ignored.
 
-## 5. Drag and drop between controls
+## 5. Drag and drop between controls — done
 
-No `DragMode`, `DragKind`, `OnDragOver`, `OnDragDrop`, `OnStartDrag`,
-`OnEndDrag` or `BeginDrag`. Add pointer-capture based dragging with a
-`TDragObject`, a drop target under the pointer and a `TDragImageList`-free
-ghost element.
+`TControl` now has `DragMode` (`dmManual`/`dmAutomatic`), `DragKind`,
+`Dragging`, `BeginDrag`, `EndDrag` and the `OnStartDrag`/`OnDragOver`/
+`OnDragDrop`/`OnEndDrag` events. A global drag manager in `controls.pas`
+tracks the pending click, uses pointer events with pointer capture, finds
+the control under the pointer, shows a ghost element and highlights the
+accepted target (`.wcl-drag-over`). `OnDragOver` decides whether a control
+accepts the drop; `OnDragDrop` receives the source and target-relative
+coordinates. `TDragObject` is the drag payload and `Esc` cancels a drag.
 
 ## 6. TScrollBar, TSpinEdit/TUpDown, TComboBox.Style, TLabel accelerators
 

@@ -2142,7 +2142,7 @@ begin
       VToggle.TextContent := '▾'
     else
       VToggle.TextContent := '▸';
-    VToggle.addEventListener('click', @NodeToggleClick);
+    VToggle.addEventListener('click', TJSEventHandler(@NodeToggleClick));
   end;
   VRow.AppendChild(VToggle);
 
@@ -2160,8 +2160,8 @@ begin
   VText.TextContent := ANode.Text;
   VRow.AppendChild(VText);
 
-  VRow.addEventListener('click', @NodeClick);
-  VRow.addEventListener('dblclick', @NodeDblClick);
+  VRow.addEventListener('click', TJSEventHandler(@NodeClick));
+  VRow.addEventListener('dblclick', TJSEventHandler(@NodeDblClick));
 
   VLi.AppendChild(VRow);
 
@@ -3467,7 +3467,7 @@ begin
       VTh := TJSHTMLElement(Document.CreateElement('th'));
       VTh.setAttribute('data-wcl-col', IntToStr(I));
       RenderHeader(VTh, VColumn);
-      VTh.addEventListener('click', @ColumnClickHandler);
+      VTh.addEventListener('click', TJSEventHandler(@ColumnClickHandler));
       VHeadRow.AppendChild(VTh);
     end;
     VThead.AppendChild(VHeadRow);
@@ -3494,7 +3494,7 @@ begin
       VInput.setAttribute('type', 'checkbox');
       VInput.setAttribute('data-wcl-item', IntToStr(J));
       TJSHTMLInputElement(VInput).checked := VItem.Checked;
-      VInput.addEventListener('click', @ItemCheckClick);
+      VInput.addEventListener('click', TJSEventHandler(@ItemCheckClick));
       VTd.AppendChild(VInput);
       VTr.AppendChild(VTd);
     end;
@@ -3513,7 +3513,7 @@ begin
       VTr.AppendChild(VTd);
     end;
 
-    VTr.addEventListener('click', @ItemClick);
+    VTr.addEventListener('click', TJSEventHandler(@ItemClick));
     VTbody.AppendChild(VTr);
   end;
   VTable.AppendChild(VTbody);
@@ -3546,7 +3546,7 @@ begin
       VInput.setAttribute('type', 'checkbox');
       VInput.setAttribute('data-wcl-item', IntToStr(I));
       TJSHTMLInputElement(VInput).checked := VItem.Checked;
-      VInput.addEventListener('click', @ItemCheckClick);
+      VInput.addEventListener('click', TJSEventHandler(@ItemCheckClick));
       VLi.AppendChild(VInput);
     end;
 
@@ -3564,7 +3564,7 @@ begin
     VText.TextContent := VItem.Caption;
     VLi.AppendChild(VText);
 
-    VLi.addEventListener('click', @ItemClick);
+    VLi.addEventListener('click', TJSEventHandler(@ItemClick));
     VUl.AppendChild(VLi);
   end;
   HandleElement.AppendChild(VUl);
@@ -3594,7 +3594,7 @@ begin
       VInput.setAttribute('type', 'checkbox');
       VInput.setAttribute('data-wcl-item', IntToStr(I));
       TJSHTMLInputElement(VInput).checked := VItem.Checked;
-      VInput.addEventListener('click', @ItemCheckClick);
+      VInput.addEventListener('click', TJSEventHandler(@ItemCheckClick));
       VTile.AppendChild(VInput);
     end;
 
@@ -3619,7 +3619,7 @@ begin
       VTile.AppendChild(VSub);
     end;
 
-    VTile.addEventListener('click', @ItemClick);
+    VTile.addEventListener('click', TJSEventHandler(@ItemClick));
     VDiv.AppendChild(VTile);
   end;
   HandleElement.AppendChild(VDiv);

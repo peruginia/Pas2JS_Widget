@@ -835,10 +835,10 @@ begin
    Body := TJSHTMLTableSectionElement(HandleElement.AppendChild(Document.CreateElement('tbody')));
    Body.setAttribute('name', Name + '_body' );
 
-   Body.AddEventListener('scroll', @HandleBodyScroll);
-   Body.AddEventListener('click', @HandleBodyClick);
-   Body.AddEventListener('touchend', @HandleBodyTouchEnd);
-   Body.AddEventListener('touchstart', @HandleBodyTouchStart);
+   Body.AddEventListener('scroll', TJSEventHandler(@HandleBodyScroll));
+   Body.AddEventListener('click', TJSEventHandler(@HandleBodyClick));
+   Body.AddEventListener('touchend', TJSEventHandler(@HandleBodyTouchEnd));
+   Body.AddEventListener('touchstart', TJSEventHandler(@HandleBodyTouchStart));
    if Assigned(fontouchmove) then Body.AddEventListener('touchmove', fontouchmove);
     if Assigned(fontouchcancel) then Body.AddEventListener('touchcancel', fontouchcancel);
 
@@ -1114,7 +1114,7 @@ begin
             end;
             VCard := TJSHTMLElement(Document.CreateElement('div'));
             VCard.setAttribute('class', 'dg-card');
-            VCard.AddEventListener('click', @HandleCardClick);
+            VCard.AddEventListener('click', TJSEventHandler(@HandleCardClick));
             if (VDisplayRow mod 2)=0 then
                VCard.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
             VCard.setAttribute('data-row', VDisplayRow.ToString);
@@ -1172,7 +1172,7 @@ begin
 
           VCard := TJSHTMLElement(Document.CreateElement('div'));
           VCard.setAttribute('class', 'dg-card');
-          VCard.AddEventListener('click', @HandleCardClick);
+          VCard.AddEventListener('click', TJSEventHandler(@HandleCardClick));
           if (VDisplayRow mod 2)=0 then
              VCard.Style.SetProperty('background-color', JSColor(FAlternateRowColor));
           VCard.setAttribute('data-row', VDisplayRow.ToString);
@@ -2043,7 +2043,7 @@ begin
              VFilterInput.setAttribute('type', 'text');
              VFilterInput.setAttribute('placeholder', 'Filter...');
              VFilterInput.setAttribute('value', FFilterText);
-             VFilterInput.AddEventListener('keyup', @HandleFilterInput);
+             VFilterInput.AddEventListener('keyup', TJSEventHandler(@HandleFilterInput));
              VFilterCard.AppendChild(VFilterInput);
              HandleElement.AppendChild(VFilterCard);
            end;
@@ -2239,7 +2239,7 @@ begin
       VFilterInput.setAttribute('value', FFilterText);
       VFilterInput.Style.SetProperty('width', '100%');
       VFilterInput.Style.SetProperty('box-sizing', 'border-box');
-      VFilterInput.AddEventListener('keyup', @HandleFilterInput);
+      VFilterInput.AddEventListener('keyup', TJSEventHandler(@HandleFilterInput));
      VFilterCell.AppendChild(VFilterInput);
    end;
    VRow := TJSHTMLTableRowElement(VHead.AppendChild(Document.CreateElement('tr')));
@@ -2248,7 +2248,7 @@ begin
       if not IsColumnVisibleAtWidth(VColumn, VViewportWidth) then continue;
       VCell := TJSHTMLTableCellElement(VRow.AppendChild(Document.CreateElement('th')));
       VCell.setAttribute('data-col', VColumnIndex.ToString);
-      VCell.AddEventListener('click', @HandleHeaderClick);
+      VCell.AddEventListener('click', TJSEventHandler(@HandleHeaderClick));
       VCell.InnerHTML := RenderTableHeadCell(VColumn, VColumnIndex);
    end;
 end;

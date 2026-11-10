@@ -184,7 +184,7 @@ constructor TCustomFileButton.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FOpendDialogElement := CreateOpendDialogElement;
-  FOpendDialogElement.AddEventListener('change', @HandleChange);
+  FOpendDialogElement.AddEventListener('change', TJSEventHandler(@HandleChange));
   FFilter := '';
   FFileSelect := nil;
   BeginUpdate;
@@ -204,7 +204,7 @@ destructor TCustomFileButton.Destroy;
 begin
   if (Assigned(OpendDialogElement)) then
   begin
-    OpendDialogElement.RemoveEventListener('change', @HandleChange);
+    OpendDialogElement.RemoveEventListener('change', TJSEventHandler(@HandleChange));
   end;
   inherited Destroy;
 end;

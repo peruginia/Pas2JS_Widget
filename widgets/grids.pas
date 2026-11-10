@@ -2275,10 +2275,10 @@ begin
     fEditor.style.SetProperty('background-color', '#ffffff');
     fEditor.style.SetProperty('font', 'inherit');
     fEditor.style.SetProperty('z-index', '10');
-    fEditor.addEventListener('keydown', @HandleEditorKeyDown);
-    fEditor.addEventListener('keypress', @HandleEditorKeyPress);
-    fEditor.addEventListener('keyup', @HandleEditorKeyUp);
-    fEditor.addEventListener('blur', @HandleEditorBlur);
+    fEditor.addEventListener('keydown', TJSEventHandler(@HandleEditorKeyDown));
+    fEditor.addEventListener('keypress', TJSEventHandler(@HandleEditorKeyPress));
+    fEditor.addEventListener('keyup', TJSEventHandler(@HandleEditorKeyUp));
+    fEditor.addEventListener('blur', TJSEventHandler(@HandleEditorBlur));
   end;
 
   VValue := GetCells(fCol, fRow);
