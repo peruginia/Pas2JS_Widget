@@ -47,6 +47,8 @@ const state = {
   history: [],
   historyIndex: -1,
   savedLfm: '',
+  inspectorTab: 'properties',
+  inspectorFilter: '',
 };
 
 const els = {
@@ -77,7 +79,15 @@ const els = {
   palette: document.getElementById('palette'),
   tree: document.getElementById('tree'),
   canvas: document.getElementById('canvas'),
-  inspector: document.getElementById('inspector'),
+  inspectorHeader: document.getElementById('inspectorHeader'),
+  inspectorTabs: document.getElementById('inspectorTabs'),
+  inspectorPropsTab: document.getElementById('inspectorPropsTab'),
+  inspectorEventsTab: document.getElementById('inspectorEventsTab'),
+  inspectorEventsCount: document.getElementById('inspectorEventsCount'),
+  inspectorFilterBox: document.getElementById('inspectorFilterBox'),
+  inspectorFilter: document.getElementById('inspectorFilter'),
+  inspectorFilterClear: document.getElementById('inspectorFilterClear'),
+  inspectorBody: document.getElementById('inspectorBody'),
   formTitle: document.getElementById('formTitle'),
   undoBtn: document.getElementById('undoBtn'),
   redoBtn: document.getElementById('redoBtn'),
@@ -2192,7 +2202,7 @@ function applyNodeFont(element, font) {
 // colour edit clears inheritance without rebuilding the whole inspector.
 function syncParentToggle(node, name, value) {
   if (state.selected !== node) return;
-  const row = [...document.querySelectorAll('#inspector > .property-list > .property-row')]
+  const row = [...document.querySelectorAll('#inspectorBody > .property-list > .property-row')]
     .find((entry) => entry.querySelector('label')?.textContent === name);
   if (!row) return;
   const input = row.querySelector('input[type="checkbox"]');
@@ -2705,29 +2715,109 @@ function renderDefaultPropertyRow(node, spec, labelText) {
   return row;
 }
 
-function renderInspector() {
-  els.inspector.innerHTML = '';
-  const node = state.selected;
+function setInspectorTab(tab) {
+  if (tab !== 'properties' && tab !== 'events') return;
+  if (state.inspectorTab === tab) return;
+  state.inspectorTab = tab;
+  renderInspector();
+}
+
+function clearInspectorFilter() {
+  state.inspectorFilter = '';
+  els.inspectorFilter.value = '';
+  els.inspectorFilterClear.classList.add('hidden-view');
+  renderInspectorBody();
+}
+
+function countAssignedEvents(node) {
+  return node.properties.filter((prop) => isEventProperty(prop)
+    && String(prop.value ?? prop.raw ?? '').trim() !== '').length;
+}
+
+function updateInspectorEventsCount(node = state.selected) {
   if (!node) {
-    els.inspector.textContent = 'Select a component.';
+    els.inspectorEventsCount.textContent = '';
     return;
   }
-  const header = document.createElement('div');
-  header.className = 'inspector-header';
+  const assigned = countAssignedEvents(node);
+  els.inspectorEventsCount.textContent = assigned > 0 ? String(assigned) : '';
+  els.inspectorEventsCount.title = assigned === 1 ? '1 assigned event' : `${assigned} assigned events`;
+}
+
+function inspectorRowMatches(name, filter) {
+  if (!filter) return true;
+  const lower = name.toLowerCase();
+  if (lower.includes(filter)) return true;
+  const prefix = propertyGroupPrefix(name);
+  if (!prefix) return false;
+  const groupLabel = (NESTED_GROUP_LABELS[prefix] || prefix).toLowerCase();
+  if (prefix.toLowerCase().includes(filter) || groupLabel.includes(filter)) return true;
+  return name.slice(prefix.length + 1).toLowerCase().includes(filter);
+}
+
+function renderInspector() {
+  const node = state.selected;
+  const hasNode = !!node;
+  els.inspectorHeader.innerHTML = '';
+  els.inspectorHeader.classList.toggle('hidden-view', !hasNode);
+  els.inspectorTabs.classList.toggle('hidden-view', !hasNode);
+  els.inspectorFilterBox.classList.toggle('hidden-view', !hasNode);
+  if (!hasNode) {
+    els.inspectorFilterClear.classList.add('hidden-view');
+    els.inspectorBody.textContent = 'Select a component.';
+    return;
+  }
+
   const title = document.createElement('strong');
   title.textContent = node.name || node.className;
   const sub = document.createElement('span');
   sub.textContent = node.className;
-  header.append(title, sub);
-  els.inspector.appendChild(header);
+  els.inspectorHeader.append(title, sub);
 
-  const table = document.createElement('div');
-  table.className = 'property-list';
+  const events = state.inspectorTab === 'events';
+  els.inspectorPropsTab.classList.toggle('active', !events);
+  els.inspectorEventsTab.classList.toggle('active', events);
+  els.inspectorPropsTab.setAttribute('aria-selected', String(!events));
+  els.inspectorEventsTab.setAttribute('aria-selected', String(events));
+  els.inspectorFilter.placeholder = events ? 'Filter events...' : 'Filter properties...';
+  els.inspectorFilter.value = state.inspectorFilter;
+  els.inspectorFilterClear.classList.toggle('hidden-view', state.inspectorFilter.trim() === '');
+  renderInspectorBody();
+}
+
+function renderInspectorBody() {
+  els.inspectorBody.innerHTML = '';
+  const node = state.selected;
+  if (!node) {
+    els.inspectorBody.textContent = 'Select a component.';
+    return;
+  }
+
+  const eventsOnly = state.inspectorTab === 'events';
+  const filter = state.inspectorFilter.trim().toLowerCase();
   const items = componentItems(node);
   const collectionConfig = collectionConfigFor(node);
   const collectionInfo = collectionConfig
     ? readCollectionProperty(node, collectionConfig.property)
     : null;
+
+  updateInspectorEventsCount(node);
+
+  const rows = [];
+  for (const prop of node.properties) {
+    if (isEventProperty(prop) !== eventsOnly) continue;
+    if (!eventsOnly && items && prop === items.prop) continue;
+    if (!eventsOnly && collectionInfo && collectionInfo.valid && prop === collectionInfo.prop) continue;
+    rows.push({ name: prop.name, prop, isDefault: false });
+  }
+  for (const spec of missingProperties(node)) {
+    if (isEventProperty(spec) !== eventsOnly) continue;
+    rows.push({ name: spec.name, spec, isDefault: true });
+  }
+  const matched = rows.filter((row) => inspectorRowMatches(row.name, filter));
+
+  const table = document.createElement('div');
+  table.className = 'property-list';
   const entries = [];
   const groups = new Map();
   const addEntry = (name, entry) => {
@@ -2752,20 +2842,15 @@ function renderInspector() {
     group.rows.push({ name, label: name.slice(prefix.length + 1), ...entry });
   };
 
-  for (const prop of node.properties) {
-    if (items && prop === items.prop) continue;
-    if (collectionInfo && collectionInfo.valid && prop === collectionInfo.prop) continue;
-    addEntry(prop.name, { prop, isDefault: false });
-  }
-  for (const spec of missingProperties(node)) {
-    addEntry(spec.name, { spec, isDefault: true });
+  for (const row of matched) {
+    addEntry(row.name, { prop: row.prop, spec: row.spec, isDefault: row.isDefault });
   }
 
   for (const entry of entries) {
     if (entry.type === 'group') {
       const details = document.createElement('details');
       details.className = 'property-group';
-      if (entry.hasExisting) details.open = true;
+      if (entry.hasExisting || filter !== '') details.open = true;
       const summary = document.createElement('summary');
       summary.append(document.createTextNode(entry.label));
       if (!entry.hasExisting) {
@@ -2790,15 +2875,28 @@ function renderInspector() {
         : renderDefaultPropertyRow(node, entry.spec, entry.name));
     }
   }
-  els.inspector.appendChild(table);
+
+  if (entries.length > 0) {
+    els.inspectorBody.appendChild(table);
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'inspector-empty';
+    empty.textContent = filter
+      ? `No ${eventsOnly ? 'events' : 'properties'} match "${state.inspectorFilter.trim()}".`
+      : `No ${eventsOnly ? 'events' : 'properties'}.`;
+    els.inspectorBody.appendChild(empty);
+  }
+
+  if (eventsOnly) return;
+
   const editor = renderItemsEditor(node);
-  if (editor) els.inspector.appendChild(editor);
+  if (editor) els.inspectorBody.appendChild(editor);
   if (collectionConfig && collectionInfo && collectionInfo.valid) {
-    els.inspector.appendChild(renderCollectionEditor(node, collectionConfig, collectionInfo));
+    els.inspectorBody.appendChild(renderCollectionEditor(node, collectionConfig, collectionInfo));
   }
   const pages = renderPagesEditor(node);
-  if (pages) els.inspector.appendChild(pages);
-  els.inspector.appendChild(renderAddProperty(node));
+  if (pages) els.inspectorBody.appendChild(pages);
+  els.inspectorBody.appendChild(renderAddProperty(node));
 }
 
 function propertyRow(name, kind, isDefault = false, labelText = name) {
@@ -2962,6 +3060,7 @@ function propertyEditor(node, prop) {
   const commit = () => {
     if (prop.name.startsWith('Font.')) ensureOwnFont(node);
     if (prop.name === 'Color') ensureOwnColor(node);
+    if (isEventProperty(prop)) updateInspectorEventsCount(node);
     markDirty();
     renderCanvas();
     renderTree();
@@ -3297,6 +3396,7 @@ function defaultEventEditor(node, spec, row) {
     markDirty();
     renderCanvas();
     renderTree();
+    updateInspectorEventsCount(node);
   });
 
   const go = document.createElement('button');
@@ -4571,7 +4671,6 @@ function clearProjectView() {
   els.canvas.textContent = 'No project selected.';
   els.formTitle.textContent = 'No form';
   els.tree.textContent = 'No project selected.';
-  els.inspector.textContent = 'Select a component.';
 }
 
 async function loadProjects(loadFirst = true) {
@@ -5040,6 +5139,7 @@ function defaultProjectUnit(project) {
 }
 
 async function loadProject(id, formName = '') {
+  state.inspectorFilter = '';
   try {
     setStatus(`Loading ${id}...`);
     const params = { project: id };
@@ -5309,6 +5409,23 @@ async function boot() {
     loadProject(state.project.id, state.currentForm ? state.currentForm.form : '');
   });
   els.save.addEventListener('click', saveAll);
+  els.inspectorPropsTab.addEventListener('click', () => setInspectorTab('properties'));
+  els.inspectorEventsTab.addEventListener('click', () => setInspectorTab('events'));
+  els.inspectorFilter.addEventListener('input', () => {
+    state.inspectorFilter = els.inspectorFilter.value;
+    els.inspectorFilterClear.classList.toggle('hidden-view', state.inspectorFilter.trim() === '');
+    renderInspectorBody();
+  });
+  els.inspectorFilter.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearInspectorFilter();
+  });
+  els.inspectorFilterClear.addEventListener('click', () => {
+    clearInspectorFilter();
+    els.inspectorFilter.focus();
+  });
   els.previewBtn.addEventListener('click', buildPreview);
   els.previewCloseBtn.addEventListener('click', () => closeDialog(els.previewDialog));
   els.buildCloseBtn.addEventListener('click', () => closeDialog(els.buildDialog));
@@ -5385,6 +5502,13 @@ async function boot() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       closeEditMenu();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f'
+        && state.view === 'design' && state.currentForm && state.selected && !hasOpenDialog()) {
+      event.preventDefault();
+      els.inspectorFilter.focus();
+      els.inspectorFilter.select();
       return;
     }
     if (hasOpenDialog() || state.view !== 'design' || !state.currentForm) return;

@@ -1486,18 +1486,120 @@ body.dragging {
 }
 
 .inspector {
-  padding: 8px;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .inspector-header {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 6px 10px;
+  padding: 8px 8px 6px;
   border-bottom: 1px solid var(--line);
-  margin-bottom: 6px;
+}
+
+.inspector-tabs {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.inspector-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.inspector-tab:hover {
+  color: #34495e;
+}
+
+.inspector-tab.active {
+  border-color: var(--line);
+  background: #fff;
+  color: #34495e;
+  font-weight: 600;
+}
+
+.inspector-tab-count {
+  display: inline-block;
+  min-width: 14px;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
+}
+
+.inspector-tab-count:empty {
+  display: none;
+}
+
+.inspector-filter {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.inspector-filter .property-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.inspector-filter-clear {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #cfd6de;
+  border-radius: 4px;
+  background: #fafbfc;
+  color: #4b5b6b;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.inspector-filter-clear:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.inspector-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+}
+
+.inspector-empty {
+  padding: 8px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: italic;
 }
 
 .inspector-header strong {

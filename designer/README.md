@@ -58,6 +58,8 @@ Make sure `designer/projects` is writable by Apache.
   enumerations, colours and sets have dedicated editors. Common properties
   missing from the LFM are offered as defaults, nested properties are grouped,
   and any other property can be added by name.
+- Splits the inspector into **Properties** and **Events** tabs with a name
+  filter.
 - Renders fonts (`Font.Name`, `Font.Height`/`Font.Size`, `Font.Style`,
   `Font.Color`) and `Color`/`ParentColor` backgrounds in the canvas preview.
 - Edits `Items.Strings` and `Cells.Strings` as a list of rows instead of raw
@@ -408,6 +410,19 @@ Application.Run;
 ```
 
 ## Properties
+
+The inspector has two tabs: **Properties** for the published properties and
+**Events** for the `On...` handlers. The Events tab shows the assigned handler
+count; it lists both the events already stored in the LFM and the events
+offered as defaults. Component-specific editors and the **Add property** box
+stay in the Properties tab.
+
+Above the tabs, the filter box matches property and event names as you type.
+Matching nested groups open automatically and empty groups disappear. The
+filter stays active when you select another component; use **×** or **Esc**
+to clear it, and Ctrl+F to focus it. It is reset when you switch form or
+project. Component-specific editors and the Add property box stay available
+below the filtered list.
 
 The inspector lists the properties stored in the LFM. For the known controls
 it also shows the common published properties the form does not set yet

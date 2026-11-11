@@ -98,8 +98,19 @@
     </section>
 
     <aside class="panel inspector-panel">
-      <div class="panel-title">Properties</div>
-      <div id="inspector" class="inspector"></div>
+      <div class="panel-title">Inspector</div>
+      <div id="inspector" class="inspector">
+        <div id="inspectorHeader" class="inspector-header hidden-view"></div>
+        <div id="inspectorTabs" class="inspector-tabs hidden-view" role="tablist">
+          <button id="inspectorPropsTab" type="button" class="inspector-tab active" role="tab" aria-selected="true">Properties</button>
+          <button id="inspectorEventsTab" type="button" class="inspector-tab" role="tab" aria-selected="false">Events <span id="inspectorEventsCount" class="inspector-tab-count"></span></button>
+        </div>
+        <div id="inspectorFilterBox" class="inspector-filter hidden-view">
+          <input id="inspectorFilter" type="text" class="property-input" placeholder="Filter properties..." aria-label="Filter properties and events" autocomplete="off" spellcheck="false">
+          <button id="inspectorFilterClear" type="button" class="inspector-filter-clear hidden-view" title="Clear filter">×</button>
+        </div>
+        <div id="inspectorBody" class="inspector-body"></div>
+      </div>
     </aside>
   </main>
 
