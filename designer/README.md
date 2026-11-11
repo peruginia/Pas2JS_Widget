@@ -52,13 +52,20 @@ Make sure `designer/projects` is writable by Apache.
   control, with the active tab selectable.
 - Moves and resizes components on the canvas; `Left`, `Top`, `Width` and
   `Height` are written back to the LFM.
-- Lets you edit properties; string, integer, boolean and raw LFM values are
-  supported. Common properties missing from the LFM are offered as defaults
+- Edits with undo/redo, copy/paste/duplicate/delete, multi-selection,
+  alignment/distribution and z-order.
+- Lets you edit properties; string, integer, boolean, raw LFM values, known
+  enumerations, colours and sets have dedicated editors. Common properties
+  missing from the LFM are offered as defaults, nested properties are grouped,
   and any other property can be added by name.
+- Renders fonts (`Font.Name`, `Font.Height`/`Font.Size`, `Font.Style`,
+  `Font.Color`) and `Color`/`ParentColor` backgrounds in the canvas preview.
 - Edits `Items.Strings` and `Cells.Strings` as a list of rows instead of raw
   text.
 - Decodes `TTreeView.Items.Data` and `TListView.Items.LazData` into an item
   editor; the canvas preview shows the tree nodes and list rows.
+- Edits DataGrid and ListView columns with a dedicated editor (title, field,
+  width, alignment, format, visibility, ...).
 - Saves the generated LFM back through `api.php` and synchronises the unit of
   the selected form.
 - Shows and edits the project sources in a **Source** tab: the selected form's
@@ -69,9 +76,9 @@ Make sure `designer/projects` is writable by Apache.
   preview dialog.
 - Imports a project from a ZIP archive (LFM, PAS, LPR, HTML and assets).
 
-Unknown properties, collections (`Columns = <...>`), string lists and binary
-properties the designer does not decode are preserved as raw text, so saving a
-form does not drop data the designer does not understand yet.
+Unknown properties, binary blobs and collections the designer does not decode
+are preserved as raw text, so saving a form does not drop data the designer
+does not understand yet.
 
 ## Frontend and API on different servers
 
@@ -301,14 +308,60 @@ parent area in that order and `alClient` fills the rest. Aligned components
 cannot be moved or resized on the canvas; set `Align = alNone` to move them
 freely. `Anchors` are not simulated yet.
 
+### Selection and multiple components
+
+- **Ctrl+click** (or **Shift+click**) a component or a tree row to add or
+  remove it from the selection; a normal click selects it alone.
+- When more than one component is selected, an alignment bar appears with
+  **Left**, **Center**, **Right**, **Top**, **Middle**, **Bottom** and
+  **Dist H**/**Dist V** (three or more). The components must share the same
+  parent and have `Align = alNone`; distribution keeps the first and last
+  positions and spaces the others evenly.
+- Dragging one of the selected components moves the whole selection; resize
+  handles appear only for a single selection.
+
+### Undo, copy and z-order
+
+- **Undo** and **Redo** (toolbar buttons, `Ctrl+Z`, `Ctrl+Y` or
+  `Ctrl+Shift+Z`) keep up to 100 states of the current form. Each form keeps
+  its own history while it has unsaved changes; the history is also restored
+  when you switch back to that form.
+- The **Edit** menu in the canvas header and the keyboard shortcuts provide:
+  - `Ctrl+C` / `Ctrl+V`: copy and paste selected components. Paste uses the
+    selected container (or its parent); tab sheets are pasted into their page
+    control. Names are made unique and the copies are offset by 16 px.
+  - `Ctrl+D`: duplicate the selection.
+  - `Delete` / `Backspace`: delete the selection.
+  - **Bring to front**, **Send to back**, **Bring forward**, **Send backward**:
+    change the child order in the LFM.
+  - `Ctrl+Z` / `Ctrl+Y`: undo and redo.
+- Undoing back to the saved state clears the modified marker; any later
+  modification marks the form dirty again.
+
+The `.pas` synchronisation is add-only: deleting a component removes it from
+the LFM, but its field in the form class is left in place and can be removed by
+hand.
+
 ## Component previews
 
 The canvas draws a preview for the common controls instead of a plain box:
 buttons, edits, memos, combo boxes, list boxes, check boxes, radio buttons,
-progress bars, sliders, spin edits, colour pickers, images, string grids and
-pagination. The preview uses the LFM properties (`Caption`, `Text`,
-`Items.Strings`, `Min`/`Max`/`Value`, `Color`, ...) and does not run the
-runtime code.
+progress bars, sliders, spin edits, colour pickers, images, string grids,
+data grids and pagination. The preview uses the LFM properties (`Caption`,
+`Text`, `Items.Strings`, `Min`/`Max`/`Value`, `Color`, ...) and does not run
+the runtime code. Captions and text also use `Font.Name`, `Font.Height` /
+`Font.Size`, `Font.Style` and `Font.Color`; a control with `ParentFont = True`
+inherits the font of its parent. Editing a font property writes
+`ParentFont = False`, as the LCL object inspector does, so the value is not
+inherited at run time.
+
+`Color` and `ParentColor` paint the component background: a control with
+`ParentColor = True` inherits the parent colour, while `clDefault` and
+`clNone` leave the element transparent. Editing `Color` writes
+`ParentColor = False`. A `TWDataGrid` with columns also shows its visible
+column titles and applies the column `Font` / `TitleFont`, `Color`, width,
+alignment and `Visible`; `AlternateRowColor` paints the alternate rows and
+`ShowHeader` hides or shows the header line.
 
 ## Source view
 
@@ -369,6 +422,38 @@ events already stored in the LFM, so a new component can get a handler
 without adding the property first. The **Add property** box treats names
 starting with `On` as identifiers when the type is Auto.
 
+`ParentColor` and `ParentFont` are listed as common properties too, so the
+inherited colour or font can be restored after setting an explicit value.
+Editing `Color` or a `Font.*` property clears the corresponding parent flag
+and updates the visible `ParentColor`/`ParentFont` row.
+
+The editor is chosen from the property name:
+
+- known enumerations are dropdowns: `Align`, `Alignment` (left/right only for
+  check boxes and radio buttons), `BorderStyle` (the form border styles for a
+  form), `Style` on a combo box, `Shape`, `ModalResult`, `Cursor`,
+  `ViewStyle`, `SortIndicator`, `SortType`, `TabPosition`, `Orientation`,
+  `ResizeStyle`, `DragKind`/`DragMode`, `InputType` and
+  `Pen.Style`/`Brush.Style`. A value that is not in the list is kept and
+  offered as the first choice, so unusual LFM values are not lost;
+- `Font.Name` shows the common families and the WCL default stack in a
+  dropdown while still accepting any CSS font stack; the **Aa** sample next to
+  the field is drawn with the selected family and the canvas preview uses the
+  font immediately;
+- colour properties (`Color`, `Font.Color`, `Pen.Color`, `AlternateRowColor`,
+  ...) get a colour swatch plus the raw LFM text. The swatch writes a named
+  constant when one matches (`clRed`, `clBtnFace`, ...) and a numeric
+  `TColor` otherwise; the text accepts constants, `$00FF00`, decimal values
+  and `#rrggbb`. `clNone` and `clDefault` are shown as text only;
+- set properties are checkboxes: `Anchors`, `Font.Style`, the string grid
+  `Options` and any other known set;
+- dotted properties are grouped in collapsible sections: `Font`,
+  `BorderSpacing`, `Constraints`, `Pen`, `Brush`, `Margins` and any other
+  dotted prefix. A group with properties stored in the LFM starts open; a
+  group that only lists the defaults is collapsed and marked **not set**.
+  Editing a default row adds the property next to the existing properties of
+  the same group.
+
 String lists (`Items.Strings`, `Cells.Strings`) are edited as a list of rows
 with add and remove buttons, not as raw text.
 
@@ -407,6 +492,24 @@ instead). The designer decodes both formats:
 Both the LCL and the Delphi list formats are written back in the format they
 were read in. Tree nodes are always written in the current LCL format
 (`StreamVersion` 2), which the Lazarus IDE reads.
+
+## DataGrid and ListView columns
+
+`TWDataGrid` and `TWListView` store their columns in the `Columns`
+collection. The inspector replaces the raw collection with a **Columns**
+editor:
+
+- each column has a title (or caption), field name, width, alignment, format,
+  visibility and the other common published options;
+- DataGrid columns also have **Font** and **Title font** sections for family,
+  height, colour and style; when they are not set they inherit the font of the
+  grid, and the canvas uses them for the cells and the column titles. Each
+  section has a reset button that removes its properties and returns to the
+  inherited font;
+- columns can be added, duplicated, removed and moved up or down;
+- properties the editor does not expose are kept unchanged when the
+  collection is written back;
+- the `TWDataGrid` canvas preview draws the titles of the visible columns.
 
 ## `.pas` synchronisation
 

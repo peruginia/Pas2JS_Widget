@@ -218,6 +218,66 @@ export class LfmParser {
   }
 }
 
+class LfmCollectionParser extends LfmParser {
+  parseItems() {
+    const items = [];
+    let current = null;
+    this.skipWs();
+    while (!this.eof()) {
+      const word = this.peekWord();
+      if (word === 'item') {
+        this.readWord();
+        current = { properties: [] };
+        items.push(current);
+        this.skipWs();
+        continue;
+      }
+      if (word === 'end') {
+        this.readWord();
+        current = null;
+        this.skipWs();
+        continue;
+      }
+      if (!current) throw this.error('Property outside a collection item');
+      current.properties.push(this.parseProperty());
+      this.skipWs();
+    }
+    return items;
+  }
+}
+
+// A collection value such as `Columns = < item ... end>`.  The main parser
+// keeps the collection as raw text; this turns it into items so the designer
+// can edit collections without losing properties it does not know.
+export function parseCollection(raw) {
+  const text = String(raw ?? '').trim();
+  if (text === '') return [];
+  if (!text.startsWith('<')) return null;
+  const outer = new LfmParser(text);
+  outer.skipWs();
+  if (outer.text[outer.pos] !== '<') return null;
+  const balanced = outer.readBalanced('<', '>');
+  return new LfmCollectionParser(balanced.slice(1, -1)).parseItems();
+}
+
+export function writeCollection(items, indent = '') {
+  if (!Array.isArray(items) || items.length === 0) return '<>';
+  const lines = ['<'];
+  for (const item of items) {
+    lines.push(`${indent}  item`);
+    for (const prop of item.properties || []) {
+      const raw = String(prop.raw ?? '').trim();
+      if (!prop.name || raw === '') continue;
+      const rawLines = raw.split(/\r?\n/);
+      lines.push(`${indent}    ${prop.name} = ${rawLines[0]}`);
+      for (const line of rawLines.slice(1)) lines.push(`${indent}    ${line}`);
+    }
+    lines.push(`${indent}  end`);
+  }
+  lines[lines.length - 1] += '>';
+  return lines.join('\n');
+}
+
 export function decodeLfmString(raw) {
   let result = '';
   let i = 0;

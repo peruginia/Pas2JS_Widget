@@ -1,6 +1,8 @@
 import {
   parseLfm,
   writeLfm,
+  parseCollection,
+  writeCollection,
   getProperty,
   getPropertyValue,
   setPropertyValue,
@@ -40,6 +42,11 @@ const state = {
   dirty: false,
   formCache: new Map(),
   unitCache: new Map(),
+  selection: [],
+  clipboard: [],
+  history: [],
+  historyIndex: -1,
+  savedLfm: '',
 };
 
 const els = {
@@ -72,6 +79,12 @@ const els = {
   canvas: document.getElementById('canvas'),
   inspector: document.getElementById('inspector'),
   formTitle: document.getElementById('formTitle'),
+  undoBtn: document.getElementById('undoBtn'),
+  redoBtn: document.getElementById('redoBtn'),
+  editMenuBtn: document.getElementById('editMenuBtn'),
+  editMenu: document.getElementById('editMenu'),
+  multiTools: document.getElementById('multiTools'),
+  multiCount: document.getElementById('multiCount'),
   designTab: document.getElementById('designTab'),
   sourceTab: document.getElementById('sourceTab'),
   sourceView: document.getElementById('sourceView'),
@@ -215,16 +228,128 @@ function updateSaveIndicator() {
 
 function markDirty() {
   state.dirty = true;
+  commitHistory();
+  state.dirty = writeLfm(state.roots) !== state.savedLfm;
   updateSaveIndicator();
-  setStatus('Modified');
+  setStatus(state.dirty ? 'Modified' : 'No changes');
+}
+
+function cloneProp(prop) {
+  const copy = {};
+  for (const [key, value] of Object.entries(prop)) {
+    if (key === '__items') continue;
+    copy[key] = value instanceof Uint8Array ? new Uint8Array(value) : value;
+  }
+  return copy;
+}
+
+function cloneNodeTree(node) {
+  const copy = {
+    ...node,
+    properties: node.properties.map(cloneProp),
+    children: node.children.map(cloneNodeTree),
+  };
+  delete copy.__parent;
+  delete copy.__id;
+  return copy;
+}
+
+function cloneRoots(roots = state.roots) {
+  return roots.map(cloneNodeTree);
+}
+
+function nodePath(node) {
+  const path = [];
+  let current = node;
+  while (current) {
+    const parent = current.__parent;
+    const siblings = parent ? parent.children : state.roots;
+    const index = siblings.indexOf(current);
+    if (index < 0) return [];
+    path.unshift(index);
+    current = parent;
+  }
+  return path;
+}
+
+function nodeAtPath(path) {
+  let list = state.roots;
+  let node = null;
+  for (const index of path) {
+    node = list[index];
+    if (!node) return null;
+    list = node.children;
+  }
+  return node;
+}
+
+function updateUndoButtons() {
+  if (!els.undoBtn || !els.redoBtn) return;
+  const active = !!state.currentForm && state.view === 'design';
+  els.undoBtn.disabled = !active || state.historyIndex <= 0;
+  els.redoBtn.disabled = !active || state.historyIndex >= state.history.length - 1;
+}
+
+function commitHistory() {
+  if (!state.currentForm || state.roots.length === 0) return;
+  const lfm = writeLfm(state.roots);
+  const current = state.history[state.historyIndex];
+  if (current && current.lfm === lfm) return;
+  if (state.historyIndex < state.history.length - 1) {
+    state.history.splice(state.historyIndex + 1);
+  }
+  state.history.push({
+    lfm,
+    roots: cloneRoots(),
+    selectedPath: nodePath(state.selected),
+  });
+  if (state.history.length > 100) {
+    state.history.shift();
+  }
+  state.historyIndex = state.history.length - 1;
+  updateUndoButtons();
+}
+
+function restoreHistory(index) {
+  const entry = state.history[index];
+  if (!entry) return;
+  state.historyIndex = index;
+  state.roots = entry.roots.map(cloneNodeTree);
+  assignIds(state.roots);
+  state.selected = nodeAtPath(entry.selectedPath) || state.roots[0] || null;
+  state.selection = state.selected ? [state.selected] : [];
+  state.activeTabs.clear();
+  renderTree();
+  renderCanvas();
+  renderInspector();
+  const lfm = writeLfm(state.roots);
+  setDirty(lfm !== state.savedLfm);
+  updateUndoButtons();
+  updateMultiTools();
+  if (state.view === 'source' && (!state.currentForm || state.currentUnit === state.currentForm.unit)) {
+    applySourceNavigation();
+  }
+  setStatus(index === 0 ? 'Undo' : `History ${index + 1}/${state.history.length}`);
+}
+
+function undo() {
+  if (state.historyIndex > 0) restoreHistory(state.historyIndex - 1);
+}
+
+function redo() {
+  if (state.historyIndex < state.history.length - 1) restoreHistory(state.historyIndex + 1);
 }
 
 function stashCurrentForm() {
   if (!state.currentForm) return;
   if (state.dirty) {
+    commitHistory();
     state.formCache.set(state.currentForm.form, {
       roots: state.roots,
       activeTabs: new Map(state.activeTabs),
+      history: state.history,
+      historyIndex: state.historyIndex,
+      savedLfm: state.savedLfm,
     });
   } else {
     state.formCache.delete(state.currentForm.form);
@@ -250,9 +375,15 @@ function stashCurrentUnit() {
 function discardAllChanges() {
   state.formCache.clear();
   state.unitCache.clear();
+  state.history = [];
+  state.historyIndex = -1;
+  state.savedLfm = '';
+  state.selection = [];
   state.dirty = false;
   state.sourceDirty = false;
   updateSaveIndicator();
+  updateUndoButtons();
+  updateMultiTools();
 }
 
 function escapeRegExp(text) {
@@ -325,6 +456,9 @@ function setView(view) {
       focusSourceEditor({ restore: true });
     }
   }
+  closeEditMenu();
+  updateUndoButtons();
+  updateMultiTools();
 }
 
 function currentUnitName() {
@@ -513,6 +647,9 @@ async function saveAll() {
         components,
       });
       state.formCache.delete(formFile);
+      if (state.currentForm && state.currentForm.form === formFile) {
+        state.savedLfm = lfm;
+      }
       if (result.warnings && result.warnings.length > 0) {
         warnings.push(...result.warnings);
       }
@@ -827,7 +964,8 @@ function renderTree() {
       const row = document.createElement('div');
       row.className = 'tree-row';
       if (!isVisual(node, node === state.roots[0])) row.classList.add('nonvisual');
-      if (state.selected === node) row.classList.add('selected');
+      if (state.selection.includes(node)) row.classList.add('selected');
+      if (state.selected === node) row.classList.add('primary');
       row.dataset.id = node.__id;
       const name = document.createElement('span');
       name.className = 'tree-name';
@@ -838,7 +976,14 @@ function renderTree() {
       row.append(name, cls);
       row.addEventListener('click', (event) => {
         event.stopPropagation();
-        selectNode(node);
+        const additive = event.ctrlKey || event.metaKey || event.shiftKey;
+        if (additive) {
+          selectNode(node, true);
+        } else if (state.selection.includes(node) && state.selection.length > 1) {
+          selectPrimarySelection(node);
+        } else {
+          selectNode(node);
+        }
       });
       li.appendChild(row);
       if (node.children.length > 0) {
@@ -1020,9 +1165,11 @@ function addComponent(className, parentNode, left, top) {
   parentNode.children.push(node);
   assignIds(state.roots);
   state.selected = node;
+  state.selection = [node];
   renderTree();
   renderCanvas();
   renderInspector();
+  updateMultiTools();
   markDirty();
   setStatus(`Added ${node.name} (${className})`);
   return node;
@@ -1116,9 +1263,11 @@ function addTabSheet(pageControl) {
   if (activeProp) setPropertyValue(activeProp, sheet.name, 'identifier');
   else pageControl.properties.push(makeProp('ActivePage', sheet.name));
   state.selected = sheet;
+  state.selection = [sheet];
   renderTree();
   renderCanvas();
   renderInspector();
+  updateMultiTools();
   markDirty();
   setStatus(`Added ${sheet.name} (TTabSheet)`);
   return sheet;
@@ -1133,6 +1282,7 @@ const drag = {
   handle: null,
   node: null,
   el: null,
+  group: null,
   startX: 0,
   startY: 0,
   left: 0,
@@ -1154,6 +1304,7 @@ function setNumberProp(node, name, value) {
 
 function startDrag(event, node, handle) {
   if (event.button !== 0) return;
+  if (event.ctrlKey || event.metaKey || event.shiftKey) return;
   if (alignOf(node) !== 'alNone') {
     event.preventDefault();
     event.stopPropagation();
@@ -1162,15 +1313,39 @@ function startDrag(event, node, handle) {
   }
   event.preventDefault();
   event.stopPropagation();
-  selectNode(node);
+  if (!state.selection.includes(node)) {
+    selectNode(node);
+  } else {
+    selectPrimarySelection(node);
+  }
   const el = els.canvas.querySelector(`[data-id="${node.__id}"]`);
   if (!el) return;
+
+  const groupMode = handle === 'move' && state.selection.length > 1;
+  let group = null;
+  if (groupMode) {
+    const selected = topLevelSelection().filter((item) => isVisual(item));
+    if (selected.some((item) => alignOf(item) !== 'alNone')) {
+      setStatus('Some selected components are aligned; set Align = alNone to move them.');
+      return;
+    }
+    group = selected.map((item) => ({
+      node: item,
+      el: els.canvas.querySelector(`[data-id="${item.__id}"]`),
+      startLeft: propNumber(item, 'Left', 0),
+      startTop: propNumber(item, 'Top', 0),
+      left: propNumber(item, 'Left', 0),
+      top: propNumber(item, 'Top', 0),
+    })).filter((item) => item.el);
+    if (group.length < 2) group = null;
+  }
 
   drag.active = true;
   drag.mode = handle === 'move' ? 'move' : 'resize';
   drag.handle = handle;
   drag.node = node;
   drag.el = el;
+  drag.group = group;
   drag.startX = event.clientX;
   drag.startY = event.clientY;
   drag.left = propNumber(node, 'Left', 0);
@@ -1193,6 +1368,18 @@ function onDragMove(event) {
     : (value) => Math.round(value / GRID) * GRID;
   const dx = event.clientX - drag.startX;
   const dy = event.clientY - drag.startY;
+
+  if (drag.group && drag.mode === 'move') {
+    for (const item of drag.group) {
+      item.left = Math.max(0, snapValue(item.startLeft + dx));
+      item.top = Math.max(0, snapValue(item.startTop + dy));
+      item.el.style.left = `${item.left}px`;
+      item.el.style.top = `${item.top}px`;
+    }
+    const primary = drag.group.find((item) => item.node === drag.node) || drag.group[0];
+    setStatus(`${drag.group.length} selected · ${primary.node.name}: ${primary.left}, ${primary.top}`);
+    return;
+  }
 
   let left = drag.left;
   let top = drag.top;
@@ -1226,12 +1413,31 @@ function onDragMove(event) {
 
 function endDrag() {
   if (!drag.active) return;
-  const { node, current } = drag;
+  const { node, current, group } = drag;
   drag.active = false;
   window.removeEventListener('pointermove', onDragMove);
   window.removeEventListener('pointerup', endDrag);
   window.removeEventListener('pointercancel', endDrag);
   document.body.classList.remove('dragging');
+
+  if (group && group.length > 0) {
+    const changed = group.some((item) => item.left !== item.startLeft || item.top !== item.startTop);
+    if (changed) {
+      for (const item of group) {
+        setNumberProp(item.node, 'Left', item.left);
+        setNumberProp(item.node, 'Top', item.top);
+      }
+      markDirty();
+      renderCanvas();
+      renderInspector();
+      setStatus(`${group.length} components updated`);
+    }
+    drag.group = null;
+    drag.node = null;
+    drag.el = null;
+    drag.current = null;
+    return;
+  }
 
   if (node && current) {
     const changed = current.left !== drag.left || current.top !== drag.top
@@ -1250,6 +1456,7 @@ function endDrag() {
 
   drag.node = null;
   drag.el = null;
+  drag.group = null;
   drag.current = null;
 }
 
@@ -1274,8 +1481,11 @@ function renderCanvas() {
   });
 
   const frames = layoutFrames(root, formWidth, formHeight);
+  const rootFont = resolveNodeFont(root);
+  const rootColor = resolveNodeColor(root);
+  if (rootColor) form.style.backgroundColor = rootColor;
   for (const child of root.children) {
-    renderCanvasNode(child, form, frames.get(child) || null);
+    renderCanvasNode(child, form, frames.get(child) || null, rootFont, rootColor);
   }
   els.canvas.appendChild(form);
   els.formTitle.textContent = `${root.name || root.className} · ${root.className}`;
@@ -1333,14 +1543,189 @@ const DELPHI_COLORS = {
   clFuchsia: '#ff00ff',
   clAqua: '#00ffff',
   clWhite: '#ffffff',
-  clBtnFace: '#f0f0f0',
-  clBtnText: '#000000',
+  clMoneyGreen: '#c0c0dc',
+  clSkyBlue: '#a6caf0',
+  clCream: '#fffbf0',
+  clMedGray: '#a0a0a4',
+  clScrollBar: '#c0c0c0',
+  clBackground: '#3a6ea5',
+  clActiveCaption: '#99b4d1',
+  clInactiveCaption: '#bfcddb',
+  clMenu: '#f0f0f0',
+  clMenuText: '#000000',
   clWindow: '#ffffff',
+  clWindowFrame: '#646464',
   clWindowText: '#000000',
+  clCaptionText: '#000000',
+  clActiveBorder: '#b4b4b4',
+  clInactiveBorder: '#f4f7fc',
+  clAppWorkspace: '#ababab',
+  clHighlight: '#0078d7',
+  clHighlightText: '#ffffff',
+  clBtnFace: '#f0f0f0',
+  clBtnShadow: '#a0a0a0',
+  clGrayText: '#6d6d6d',
+  clBtnText: '#000000',
+  clInactiveCaptionText: '#000000',
+  clBtnHighlight: '#ffffff',
+  cl3DDkShadow: '#696969',
+  cl3DLight: '#e3e3e3',
+  clInfoText: '#000000',
+  clInfoBk: '#ffffe1',
+  clLtGray: '#c0c0c0',
+  clDkGray: '#808080',
+};
+
+const ENUM_OPTIONS = {
+  Align: ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient', 'alCustom'],
+  Alignment: ['taLeftJustify', 'taRightJustify', 'taCenter'],
+  BevelOuter: ['bvNone', 'bvLowered', 'bvRaised', 'bvSpace'],
+  BevelInner: ['bvNone', 'bvLowered', 'bvRaised', 'bvSpace'],
+  BorderStyle: ['bsNone', 'bsSingle'],
+  ScrollBars: ['ssNone', 'ssHorizontal', 'ssVertical', 'ssBoth', 'ssAutoHorizontal', 'ssAutoVertical', 'ssAutoBoth'],
+  Shape: ['stRectangle', 'stSquare', 'stRoundRect', 'stRoundSquare', 'stCircle', 'stEllipse', 'stSquaredTriangle', 'stTriangle'],
+  Orientation: ['trHorizontal', 'trVertical'],
+  Kind: ['sbHorizontal', 'sbVertical'],
+  ViewStyle: ['vsIcon', 'vsSmallIcon', 'vsList', 'vsReport'],
+  SortDirection: ['sdAscending', 'sdDescending'],
+  ModalResult: [
+    'mrNone', 'mrOk', 'mrCancel', 'mrAbort', 'mrRetry', 'mrIgnore',
+    'mrYes', 'mrNo', 'mrAll', 'mrNoToAll', 'mrYesToAll', 'mrClose',
+  ],
+  InputType: ['itText', 'itEmail', 'itTel', 'itUrl', 'itSearch'],
+  Cursor: [
+    'crDefault', 'crNone', 'crArrow', 'crCross', 'crIBeam', 'crSizeAll',
+    'crSizeNESW', 'crSizeNS', 'crSizeNWSE', 'crSizeWE', 'crSizeNW', 'crSizeN',
+    'crSizeNE', 'crSizeW', 'crSizeE', 'crSizeSW', 'crSizeS', 'crSizeSE',
+    'crUpArrow', 'crHourGlass', 'crDrag', 'crNoDrop', 'crHSplit', 'crVSplit',
+    'crMultiDrag', 'crSQLWait', 'crNo', 'crAppStart', 'crHelp', 'crHandPoint',
+    'crMove',
+  ],
+  CharCase: ['ecNormal', 'ecUppercase', 'ecLowerCase'],
+  State: ['cbUnchecked', 'cbChecked'],
+  Layout: ['tlTop', 'tlCenter', 'tlBottom'],
+  TextLayout: ['tlTop', 'tlCenter', 'tlBottom'],
+  DragKind: ['dkDrag', 'dkDock'],
+  DragMode: ['dmManual', 'dmAutomatic'],
+  FormType: ['ftModalForm', 'ftWindow'],
+  SortIndicator: ['siNone', 'siAscending', 'siDescending'],
+  SortType: ['stNone', 'stData', 'stText', 'stBoth'],
+  TabPosition: ['tpTop', 'tpBottom', 'tpLeft', 'tpRight'],
+  ResizeStyle: ['rsNone', 'rsLine', 'rsUpdate', 'rsPattern'],
+  'Pen.Style': ['psSolid', 'psDash', 'psDot', 'psDashDot', 'psDashDotDot', 'psInsideFrame', 'psPattern', 'psClear'],
+  'Brush.Style': ['bsSolid', 'bsClear', 'bsHorizontal', 'bsVertical', 'bsFDiagonal', 'bsBDiagonal', 'bsCross', 'bsDiagCross', 'bsImage', 'bsPattern'],
+};
+
+const COMBO_STYLE_OPTIONS = ['csDropDown', 'csDropDownList', 'csOwnerDrawFixed', 'csOwnerDrawVariable', 'csSimple'];
+const FORM_BORDER_OPTIONS = ['bsNone', 'bsSingle', 'bsSizeable', 'bsDialog', 'bsToolWindow', 'bsSizeToolWin'];
+const WCL_DEFAULT_FONT = '"Arial Narrow", Arial, "Helvetica Condensed", Helvetica, sans-serif';
+const FONT_FAMILIES = [
+  'Arial', 'Arial Narrow', 'Calibri', 'Cambria', 'Candara', 'Consolas',
+  'Courier New', 'Garamond', 'Georgia', 'Lucida Console', 'Palatino Linotype',
+  'Segoe UI', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana',
+  'system-ui', 'sans-serif', 'serif', 'monospace',
+];
+const CHECKBOX_ALIGNMENT_OPTIONS = ['taLeftJustify', 'taRightJustify'];
+const ANCHOR_OPTIONS = ['akTop', 'akLeft', 'akRight', 'akBottom'];
+const FONT_STYLE_OPTIONS = ['fsBold', 'fsItalic', 'fsUnderline', 'fsStrikeOut'];
+const GRID_OPTIONS = [
+  'goFixedVertLine', 'goFixedHorzLine', 'goVertLine', 'goHorzLine', 'goRangeSelect',
+  'goDrawFocusSelected', 'goRowSizing', 'goColSizing', 'goRowMoving', 'goColMoving',
+  'goEditing', 'goTabs', 'goRowSelect', 'goAlwaysShowEditor', 'goThumbTracking',
+  'goColSpanning', 'goRelaxedRowSelect', 'goDblClickAutoSize', 'goSmoothScroll',
+];
+
+const NESTED_GROUP_LABELS = {
+  Font: 'Font',
+  BorderSpacing: 'Border spacing',
+  Constraints: 'Constraints',
+  Pen: 'Pen',
+  Brush: 'Brush',
+  Margins: 'Margins',
+};
+
+const NESTED_GROUP_DEFAULTS = {
+  Font: [
+    { name: 'Font.Name', kind: 'string', value: '' },
+    { name: 'Font.Height', kind: 'integer', value: '-13' },
+    { name: 'Font.Color', kind: 'identifier', value: 'clBlack' },
+    { name: 'Font.Style', kind: 'set', value: '[]' },
+  ],
+  BorderSpacing: [
+    { name: 'BorderSpacing.Around', kind: 'integer', value: '0' },
+    { name: 'BorderSpacing.Left', kind: 'integer', value: '0' },
+    { name: 'BorderSpacing.Top', kind: 'integer', value: '0' },
+    { name: 'BorderSpacing.Right', kind: 'integer', value: '0' },
+    { name: 'BorderSpacing.Bottom', kind: 'integer', value: '0' },
+  ],
+  Constraints: [
+    { name: 'Constraints.MinWidth', kind: 'integer', value: '0' },
+    { name: 'Constraints.MinHeight', kind: 'integer', value: '0' },
+    { name: 'Constraints.MaxWidth', kind: 'integer', value: '0' },
+    { name: 'Constraints.MaxHeight', kind: 'integer', value: '0' },
+  ],
+};
+
+const DATA_GRID_COLUMN_FIELDS = [
+  { name: 'Title', kind: 'string', primary: true, label: 'Title', placeholder: 'Title' },
+  { name: 'Name', kind: 'string', label: 'Field', placeholder: 'Field name' },
+  { name: 'Width', kind: 'integer', label: 'Width', placeholder: 'auto' },
+  { name: 'Alignment', kind: 'enum', label: 'Align', options: ENUM_OPTIONS.Alignment, default: 'taLeftJustify' },
+  {
+    name: 'Format',
+    kind: 'enum',
+    label: 'Format',
+    options: ['cfBoolean', 'cfDataTime', 'cfNumber', 'cfCurrency', 'cfString'],
+    default: 'cfString',
+  },
+  { name: 'DisplayMask', kind: 'string', label: 'Mask', placeholder: 'Display mask' },
+  { name: 'Visible', kind: 'boolean', label: 'Visible', default: true },
+  { name: 'Hint', kind: 'string', label: 'Hint', placeholder: 'Hint' },
+  { name: 'Color', kind: 'color', label: 'Color', default: 'clWhite', wide: true },
+  { name: 'ValueChecked', kind: 'string', label: 'Checked', placeholder: 'True' },
+  { name: 'ValueUnchecked', kind: 'string', label: 'Unchecked', placeholder: 'False' },
+];
+
+const LIST_VIEW_COLUMN_FIELDS = [
+  { name: 'Caption', kind: 'string', primary: true, label: 'Caption', placeholder: 'Caption' },
+  { name: 'Width', kind: 'integer', label: 'Width', placeholder: '100' },
+  { name: 'Alignment', kind: 'enum', label: 'Align', options: ENUM_OPTIONS.Alignment, default: 'taLeftJustify' },
+  { name: 'AutoSize', kind: 'boolean', label: 'Auto', default: false },
+  { name: 'Visible', kind: 'boolean', label: 'Visible', default: true },
+  { name: 'MinWidth', kind: 'integer', label: 'Min', placeholder: '0' },
+  { name: 'MaxWidth', kind: 'integer', label: 'Max', placeholder: '0' },
+  {
+    name: 'SortIndicator',
+    kind: 'enum',
+    label: 'Sort',
+    options: ENUM_OPTIONS.SortIndicator,
+    default: 'siNone',
+  },
+];
+
+const COLLECTION_EDITORS = {
+  TWDataGrid: {
+    property: 'Columns',
+    title: 'Columns',
+    unit: 'columns',
+    fields: DATA_GRID_COLUMN_FIELDS,
+    fonts: ['TitleFont', 'Font'],
+  },
+  TWListView: {
+    property: 'Columns',
+    title: 'Columns',
+    unit: 'columns',
+    fields: LIST_VIEW_COLUMN_FIELDS,
+  },
 };
 
 const COMMON_PROPERTIES = [
   { name: 'Align', kind: 'identifier', value: 'alNone' },
+  { name: 'Anchors', kind: 'set', value: '[akLeft, akTop]' },
+  { name: 'Color', kind: 'identifier', value: 'clDefault' },
+  { name: 'ParentColor', kind: 'boolean', value: 'False' },
+  { name: 'ParentFont', kind: 'boolean', value: 'True' },
+  { name: 'Cursor', kind: 'identifier', value: 'crDefault' },
   { name: 'Enabled', kind: 'boolean', value: 'True' },
   { name: 'Visible', kind: 'boolean', value: 'True' },
   { name: 'Hint', kind: 'string', value: '' },
@@ -1575,7 +1960,8 @@ function classPropertySpecs(node) {
 function missingProperties(node) {
   const present = new Set(node.properties.map((prop) => prop.name));
   const seen = new Set();
-  return classPropertySpecs(node).filter((spec) => {
+  const specs = [...classPropertySpecs(node), ...nestedDefaultSpecs(node)];
+  return specs.filter((spec) => {
     if (present.has(spec.name) || seen.has(spec.name)) return false;
     seen.add(spec.name);
     return true;
@@ -1586,7 +1972,17 @@ function ensureProperty(node, spec) {
   const existing = getProperty(node, spec.name);
   if (existing) return existing;
   const prop = makeProp(spec.name, spec.raw ?? rawForKind(spec.kind, spec.value));
-  node.properties.push(prop);
+  let index = node.properties.length;
+  if (spec.name.includes('.')) {
+    const prefix = spec.name.slice(0, spec.name.indexOf('.') + 1);
+    for (let i = node.properties.length - 1; i >= 0; i -= 1) {
+      if (node.properties[i].name.startsWith(prefix)) {
+        index = i + 1;
+        break;
+      }
+    }
+  }
+  node.properties.splice(index, 0, prop);
   return prop;
 }
 
@@ -1594,16 +1990,86 @@ function componentKind(node) {
   return COMPONENT_KINDS[canonicalClassName(node.className)] || '';
 }
 
-function colorValue(raw) {
+function bgrToHex(value) {
+  const number = value >>> 0;
+  const red = number & 0xff;
+  const green = (number >>> 8) & 0xff;
+  const blue = (number >>> 16) & 0xff;
+  return `#${[red, green, blue].map((part) => part.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function colorHex(raw) {
   const text = String(raw ?? '').trim();
-  if (!text) return '#f0f0f0';
+  if (!text || text === 'clNone' || text === 'clDefault') return null;
   if (DELPHI_COLORS[text]) return DELPHI_COLORS[text];
-  const match = /^\$([0-9A-Fa-f]{1,8})$/.exec(text);
-  if (match) {
-    const value = parseInt(match[1], 16);
-    return `rgb(${value & 0xff}, ${(value >> 8) & 0xff}, ${(value >> 16) & 0xff})`;
+  if (/^#[0-9A-Fa-f]{6}$/.test(text)) return text.toLowerCase();
+  if (/^\$[0-9A-Fa-f]{1,8}$/.test(text)) {
+    const value = parseInt(text.slice(1), 16);
+    return value >= 0 && value <= 0xffffff ? bgrToHex(value) : null;
   }
-  return '#f0f0f0';
+  if (/^-?\d+$/.test(text)) {
+    const value = Number(text);
+    return value >= 0 && value <= 0xffffff ? bgrToHex(value) : null;
+  }
+  return null;
+}
+
+function colorValue(raw) {
+  return colorHex(raw) || '#f0f0f0';
+}
+
+function colorRawFromHex(hex) {
+  const normalized = String(hex || '').toLowerCase();
+  for (const [name, value] of Object.entries(DELPHI_COLORS)) {
+    if (value.toLowerCase() === normalized) return name;
+  }
+  const red = parseInt(normalized.slice(1, 3), 16) || 0;
+  const green = parseInt(normalized.slice(3, 5), 16) || 0;
+  const blue = parseInt(normalized.slice(5, 7), 16) || 0;
+  return String((blue << 16) | (green << 8) | red);
+}
+
+function isColorProperty(name) {
+  if (/^On[A-Z]/.test(name)) return false;
+  if (name === 'ParentColor' || name === 'ShowColor') return false;
+  return name === 'Color' || /(?:^|\.)[A-Za-z]*Color$/.test(name);
+}
+
+function enumOptionsFor(name, node) {
+  if (/^On[A-Z]/.test(name)) return null;
+  const className = canonicalClassName(node.className);
+  if (name === 'Style') {
+    return className === 'TWComboBox' ? COMBO_STYLE_OPTIONS : null;
+  }
+  if (name === 'Alignment' && (className === 'TWCheckbox' || className === 'TWRadioButton')) {
+    return CHECKBOX_ALIGNMENT_OPTIONS;
+  }
+  if (name === 'BorderStyle' && (node === state.roots[0] || className === 'TWForm')) {
+    return FORM_BORDER_OPTIONS;
+  }
+  if (name === 'Orientation' && className === 'TWUpDown') {
+    return ['udHorizontal', 'udVertical'];
+  }
+  return ENUM_OPTIONS[name] || null;
+}
+
+function setOptionsFor(name, node) {
+  if (name === 'Anchors') return ANCHOR_OPTIONS;
+  if (name === 'Font.Style') return FONT_STYLE_OPTIONS;
+  if (name === 'Options' && canonicalClassName(node.className) === 'TWStringGrid') return GRID_OPTIONS;
+  return null;
+}
+
+function nestedDefaultSpecs(node) {
+  if (!isVisual(node, node === state.roots[0])) return [];
+  return Object.values(NESTED_GROUP_DEFAULTS).flat();
+}
+
+function propertyGroupPrefix(name) {
+  if (!name.includes('.')) return '';
+  const prefix = name.slice(0, name.indexOf('.'));
+  if (['Items', 'Cells', 'Lines', 'Columns'].includes(prefix)) return '';
+  return prefix;
 }
 
 // Parse the `( 'a' 'b' )` form used by Items.Strings and Cells.Strings.
@@ -1668,7 +2134,170 @@ function skinElement(tag, className, text) {
   return el;
 }
 
-function renderComponentSkin(node) {
+// Resolve the font a control would use at run time. ParentFont keeps the
+// inherited font; otherwise the Font.* properties of the node override it.
+// Font.Height is the negative pixel height used by the LFM, while Font.Size is
+// expressed in points and converted for the CSS preview.
+function resolveNodeFont(node, inherited = null) {
+  const parentFont = getPropertyValue(node, 'ParentFont', true) !== false;
+  if (parentFont && inherited) return inherited;
+  const font = {};
+  const family = propText(node, 'Font.Name').trim();
+  if (family) font.family = family;
+  const height = propNumber(node, 'Font.Height', 0);
+  if (height !== 0) {
+    font.size = `${Math.abs(height)}px`;
+  } else {
+    const size = propNumber(node, 'Font.Size', 0);
+    if (size > 0) font.size = `${Math.max(1, Math.round((size * 96) / 72))}px`;
+  }
+  const color = getProperty(node, 'Font.Color');
+  if (color) {
+    const hex = colorHex(color.raw);
+    if (hex) font.color = hex;
+  }
+  const style = getProperty(node, 'Font.Style');
+  if (style) {
+    const values = new Set(parseSet(style.raw));
+    font.bold = values.has('fsBold');
+    font.italic = values.has('fsItalic');
+    font.underline = values.has('fsUnderline');
+    font.strike = values.has('fsStrikeOut');
+  }
+  return font;
+}
+
+function applyNodeFont(element, font) {
+  if (!element || !font) return;
+  if (font.family) element.style.fontFamily = font.family;
+  if (font.size) element.style.fontSize = font.size;
+  if (font.color) element.style.color = font.color;
+  if (font.bold === true) element.style.fontWeight = '700';
+  else if (font.bold === false) element.style.fontWeight = 'normal';
+  else element.style.fontWeight = '';
+  if (font.italic === true) element.style.fontStyle = 'italic';
+  else if (font.italic === false) element.style.fontStyle = 'normal';
+  else element.style.fontStyle = '';
+  if (font.underline !== undefined || font.strike !== undefined) {
+    const decoration = [];
+    if (font.underline) decoration.push('underline');
+    if (font.strike) decoration.push('line-through');
+    element.style.textDecoration = decoration.join(' ') || 'none';
+  } else {
+    element.style.textDecoration = '';
+  }
+}
+
+// Keep the visible ParentFont/ParentColor default rows in sync when a font or
+// colour edit clears inheritance without rebuilding the whole inspector.
+function syncParentToggle(node, name, value) {
+  if (state.selected !== node) return;
+  const row = [...document.querySelectorAll('#inspector > .property-list > .property-row')]
+    .find((entry) => entry.querySelector('label')?.textContent === name);
+  if (!row) return;
+  const input = row.querySelector('input[type="checkbox"]');
+  if (!input) return;
+  input.checked = value;
+  row.classList.remove('default');
+  const label = row.querySelector('label');
+  if (label) label.title = `${name} (boolean)`;
+}
+
+// LCL clears ParentFont as soon as one of the font properties is edited, so
+// the new value is not inherited again by the control.
+function ensureOwnFont(node) {
+  if (!node || node === state.roots[0]) return;
+  const prop = getProperty(node, 'ParentFont');
+  if (!prop) {
+    node.properties.push(makeProp('ParentFont', 'False'));
+  } else if (prop.value !== false) {
+    setPropertyValue(prop, false, 'boolean');
+  }
+  syncParentToggle(node, 'ParentFont', false);
+}
+
+// The control background follows Color / ParentColor.  clDefault and clNone
+// leave the element transparent, as the runtime does.
+function resolveNodeColor(node, inherited = null) {
+  if (getPropertyValue(node, 'ParentColor', false) === true && inherited) {
+    return inherited;
+  }
+  const prop = getProperty(node, 'Color');
+  if (!prop) return null;
+  return colorHex(prop.raw);
+}
+
+function ensureOwnColor(node) {
+  if (!node || node === state.roots[0]) return;
+  const prop = getProperty(node, 'ParentColor');
+  if (!prop) {
+    node.properties.push(makeProp('ParentColor', 'False'));
+  } else if (prop.value !== false) {
+    setPropertyValue(prop, false, 'boolean');
+  }
+  syncParentToggle(node, 'ParentColor', false);
+}
+
+// Merge `<prefix>.Name/Height/Size/Color/Style` of a collection item over a
+// base font.  A missing TitleFont/Font inherits the font of the grid.
+function collectionFont(item, prefix, base = {}) {
+  const font = { ...base };
+  const prop = (name) => item.properties.find((entry) => entry.name === `${prefix}.${name}`);
+  const name = prop('Name');
+  if (name && String(name.value ?? '').trim() !== '') {
+    font.family = String(name.value).trim();
+  }
+  const height = prop('Height');
+  if (height) {
+    const value = Number(height.value);
+    if (Number.isFinite(value) && value !== 0) font.size = `${Math.abs(value)}px`;
+  } else {
+    const size = prop('Size');
+    if (size) {
+      const value = Number(size.value);
+      if (Number.isFinite(value) && value > 0) {
+        font.size = `${Math.max(1, Math.round((value * 96) / 72))}px`;
+      }
+    }
+  }
+  const color = prop('Color');
+  if (color) {
+    const hex = colorHex(color.raw);
+    if (hex) font.color = hex;
+  }
+  const style = prop('Style');
+  if (style) {
+    const values = new Set(parseSet(style.raw));
+    font.bold = values.has('fsBold');
+    font.italic = values.has('fsItalic');
+    font.underline = values.has('fsUnderline');
+    font.strike = values.has('fsStrikeOut');
+  }
+  return font;
+}
+
+function fontSetRaw(font) {
+  const values = [];
+  if (font.bold) values.push('fsBold');
+  if (font.italic) values.push('fsItalic');
+  if (font.underline) values.push('fsUnderline');
+  if (font.strike) values.push('fsStrikeOut');
+  return `[${values.join(', ')}]`;
+}
+
+// Resolve a node font with the same ParentFont rules used by the canvas, so
+// the column editors can show the font a TitleFont/Font would inherit.
+function resolvedNodeFont(node) {
+  const chain = [];
+  for (let current = node; current; current = current.__parent) chain.push(current);
+  let font = null;
+  for (let index = chain.length - 1; index >= 0; index -= 1) {
+    font = resolveNodeFont(chain[index], font);
+  }
+  return font || {};
+}
+
+function renderComponentSkin(node, font = {}) {
   const className = canonicalClassName(node.className);
   const caption = propText(node, 'Caption');
   const text = propText(node, 'Text');
@@ -1778,6 +2407,67 @@ function renderComponentSkin(node) {
       return table;
     }
 
+    case 'TWDataGrid': {
+      const info = readCollectionProperty(node, 'Columns');
+      if (!info.valid || info.items.length === 0) return null;
+      const columns = info.items.filter((item) => {
+        const visible = collectionFieldValue(item, { name: 'Visible', kind: 'boolean', default: true });
+        return visible !== false;
+      }).slice(0, 8);
+      if (columns.length === 0) return null;
+      const table = document.createElement('table');
+      table.className = 'preview-grid preview-datagrid';
+
+      const widths = columns.map((item) => {
+        const value = Number(collectionFieldValue(item, { name: 'Width', kind: 'integer' }));
+        return Number.isFinite(value) && value > 0 ? value : 0;
+      });
+      if (widths.some((width) => width > 0)) {
+        const colgroup = document.createElement('colgroup');
+        for (const width of widths) {
+          const col = document.createElement('col');
+          if (width > 0) col.style.width = `${width}px`;
+          colgroup.appendChild(col);
+        }
+        table.appendChild(colgroup);
+      }
+
+      if (getPropertyValue(node, 'ShowHeader', true) !== false) {
+        const header = document.createElement('tr');
+        for (const item of columns) {
+          const cell = document.createElement('th');
+          cell.textContent = String(
+            collectionFieldValue(item, { name: 'Title', kind: 'string' })
+            || collectionFieldValue(item, { name: 'Name', kind: 'string' })
+            || '',
+          );
+          applyNodeFont(cell, collectionFont(item, 'TitleFont', font));
+          header.appendChild(cell);
+        }
+        table.appendChild(header);
+      }
+
+      const alternate = colorHex(String(getPropertyValue(node, 'AlternateRowColor', '15921906') ?? ''));
+      for (let row = 0; row < 3; row++) {
+        const tr = document.createElement('tr');
+        for (const item of columns) {
+          const cell = document.createElement('td');
+          applyNodeFont(cell, collectionFont(item, 'Font', font));
+          const columnColor = colorHex(String(
+            collectionFieldValue(item, { name: 'Color', kind: 'color' }) || 'clWhite',
+          ));
+          const background = alternate && row % 2 === 0 ? alternate : columnColor;
+          if (background) cell.style.backgroundColor = background;
+          const alignment = String(collectionFieldValue(item, { name: 'Alignment', kind: 'enum' }) || '');
+          if (alignment === 'taCenter') cell.style.textAlign = 'center';
+          else if (alignment === 'taRightJustify') cell.style.textAlign = 'right';
+          tr.appendChild(cell);
+        }
+        table.appendChild(tr);
+      }
+      return table;
+    }
+
     case 'TWPagination': {
       const current = propNumber(node, 'CurrentPage', 1);
       const count = Math.max(1, propNumber(node, 'PageCount', 5));
@@ -1806,10 +2496,10 @@ function renderComponentSkin(node) {
   }
 }
 
-function renderPageControl(node, el, geometry) {
+function renderPageControl(node, el, geometry, inheritedFont = null, inheritedColor = null) {
   const sheets = pageControlSheets(node);
   if (sheets.length === 0) {
-    for (const child of node.children) renderCanvasNode(child, el);
+    for (const child of node.children) renderCanvasNode(child, el, null, inheritedFont, inheritedColor);
     return;
   }
 
@@ -1818,6 +2508,7 @@ function renderPageControl(node, el, geometry) {
   if (stripHeight > 0) {
     const strip = document.createElement('div');
     strip.className = 'page-tabs';
+    applyNodeFont(strip, inheritedFont);
     for (const sheet of sheets) {
       const tab = document.createElement('button');
       tab.type = 'button';
@@ -1845,15 +2536,17 @@ function renderPageControl(node, el, geometry) {
     width,
     height: Math.max(1, height - stripHeight),
     chrome: false,
-  });
+  }, inheritedFont, inheritedColor);
 }
 
-function renderCanvasNode(node, parent, frame = null) {
+function renderCanvasNode(node, parent, frame = null, inheritedFont = null, inheritedColor = null) {
   if (!isVisual(node)) return;
   const el = document.createElement('div');
   el.className = 'designer-component';
   el.dataset.id = node.__id;
   el.title = nodeTitle(node);
+  const font = resolveNodeFont(node, inheritedFont);
+  const color = resolveNodeColor(node, inheritedColor);
 
   const geometry = frame || {
     left: propNumber(node, 'Left', 0),
@@ -1868,7 +2561,8 @@ function renderCanvasNode(node, parent, frame = null) {
   if (getPropertyValue(node, 'Visible', true) === false) {
     el.classList.add('hidden');
   }
-  if (state.selected === node) el.classList.add('selected');
+  if (state.selection.includes(node)) el.classList.add('selected');
+  if (state.selected === node) el.classList.add('primary');
 
   const chrome = !frame || frame.chrome !== false;
   const aligned = !!(frame && frame.aligned);
@@ -1881,15 +2575,19 @@ function renderCanvasNode(node, parent, frame = null) {
   const isPageControl = canonicalClassName(node.className) === 'TWPageControl';
 
   if (chrome) {
-    const skin = renderComponentSkin(node);
+    const skin = renderComponentSkin(node, font);
     if (skin) {
+      applyNodeFont(skin, font);
+      if (color) skin.style.backgroundColor = color;
       el.appendChild(skin);
     } else if (!isPageControl) {
       const text = document.createElement('span');
       text.className = 'component-text';
       text.textContent = displayText(node);
+      applyNodeFont(text, font);
       el.appendChild(text);
     }
+    if (!skin && color) el.style.backgroundColor = color;
 
     if (!isPageControl) {
       const badge = document.createElement('span');
@@ -1899,9 +2597,12 @@ function renderCanvasNode(node, parent, frame = null) {
     }
 
     const preview = renderItemPreview(node);
-    if (preview) el.appendChild(preview);
+    if (preview) {
+      applyNodeFont(preview, font);
+      el.appendChild(preview);
+    }
 
-    if (!aligned && state.selected === node) {
+    if (!aligned && state.selection.length === 1 && state.selected === node) {
       for (const handle of RESIZE_HANDLES) {
         const grip = document.createElement('span');
         grip.className = `resize-handle handle-${handle}`;
@@ -1913,13 +2614,20 @@ function renderCanvasNode(node, parent, frame = null) {
 
     el.addEventListener('click', (event) => {
       event.stopPropagation();
-      selectNode(node);
+      const additive = event.ctrlKey || event.metaKey || event.shiftKey;
+      if (additive) {
+        event.preventDefault();
+        selectNode(node, true);
+      } else if (!state.selection.includes(node)) {
+        selectNode(node);
+      } else {
+        selectPrimarySelection(node);
+      }
     });
 
     if (aligned) {
       el.addEventListener('pointerdown', (event) => {
         event.stopPropagation();
-        selectNode(node);
         setStatus(`${node.name} is aligned (${alignOf(node)}); set Align = alNone to move it.`);
       });
     } else {
@@ -1930,12 +2638,14 @@ function renderCanvasNode(node, parent, frame = null) {
     }
   }
 
+  if (!chrome && color) el.style.backgroundColor = color;
+
   if (isPageControl) {
-    renderPageControl(node, el, geometry);
+    renderPageControl(node, el, geometry, font, color);
   } else {
     const frames = layoutFrames(node, geometry.width, geometry.height);
     for (const child of node.children) {
-      renderCanvasNode(child, el, frames.get(child) || null);
+      renderCanvasNode(child, el, frames.get(child) || null, font, color);
     }
   }
   parent.appendChild(el);
@@ -1970,6 +2680,31 @@ function renderItemPreview(node) {
   return box.children.length > 0 ? box : null;
 }
 
+function renderExistingPropertyRow(node, prop, labelText) {
+  const row = propertyRow(prop.name, prop.kind, false, labelText);
+  const editor = propertyEditor(node, prop);
+  if (isEventProperty(prop)) {
+    const wrap = document.createElement('div');
+    wrap.className = 'property-editor-with-action';
+    wrap.append(editor, eventButton(prop));
+    if (NOTIFY_EVENTS.has(prop.name)) {
+      wrap.append(eventCreateButton(node, prop));
+    }
+    row.appendChild(wrap);
+  } else {
+    row.appendChild(editor);
+  }
+  return row;
+}
+
+function renderDefaultPropertyRow(node, spec, labelText) {
+  const row = propertyRow(spec.name, spec.kind, true, labelText);
+  row.appendChild(isEventProperty(spec)
+    ? defaultEventEditor(node, spec, row)
+    : defaultPropertyEditor(node, spec, row));
+  return row;
+}
+
 function renderInspector() {
   els.inspector.innerHTML = '';
   const node = state.selected;
@@ -1989,45 +2724,92 @@ function renderInspector() {
   const table = document.createElement('div');
   table.className = 'property-list';
   const items = componentItems(node);
+  const collectionConfig = collectionConfigFor(node);
+  const collectionInfo = collectionConfig
+    ? readCollectionProperty(node, collectionConfig.property)
+    : null;
+  const entries = [];
+  const groups = new Map();
+  const addEntry = (name, entry) => {
+    const prefix = propertyGroupPrefix(name);
+    if (!prefix) {
+      entries.push({ type: 'row', name, ...entry });
+      return;
+    }
+    let group = groups.get(prefix);
+    if (!group) {
+      group = {
+        type: 'group',
+        prefix,
+        label: NESTED_GROUP_LABELS[prefix] || prefix,
+        rows: [],
+        hasExisting: false,
+      };
+      groups.set(prefix, group);
+      entries.push(group);
+    }
+    if (entry.prop) group.hasExisting = true;
+    group.rows.push({ name, label: name.slice(prefix.length + 1), ...entry });
+  };
+
   for (const prop of node.properties) {
     if (items && prop === items.prop) continue;
-    const row = propertyRow(prop.name, prop.kind);
-    const editor = propertyEditor(node, prop);
-    if (isEventProperty(prop)) {
-      const wrap = document.createElement('div');
-      wrap.className = 'property-editor-with-action';
-      wrap.append(editor, eventButton(prop));
-      if (NOTIFY_EVENTS.has(prop.name)) {
-        wrap.append(eventCreateButton(node, prop));
-      }
-      row.appendChild(wrap);
-    } else {
-      row.appendChild(editor);
-    }
-    table.appendChild(row);
+    if (collectionInfo && collectionInfo.valid && prop === collectionInfo.prop) continue;
+    addEntry(prop.name, { prop, isDefault: false });
   }
   for (const spec of missingProperties(node)) {
-    const row = propertyRow(spec.name, spec.kind, true);
-    row.appendChild(isEventProperty(spec)
-      ? defaultEventEditor(node, spec, row)
-      : defaultPropertyEditor(node, spec, row));
-    table.appendChild(row);
+    addEntry(spec.name, { spec, isDefault: true });
+  }
+
+  for (const entry of entries) {
+    if (entry.type === 'group') {
+      const details = document.createElement('details');
+      details.className = 'property-group';
+      if (entry.hasExisting) details.open = true;
+      const summary = document.createElement('summary');
+      summary.append(document.createTextNode(entry.label));
+      if (!entry.hasExisting) {
+        const note = document.createElement('span');
+        note.className = 'property-group-note';
+        note.textContent = 'not set';
+        summary.appendChild(note);
+      }
+      details.appendChild(summary);
+      const body = document.createElement('div');
+      body.className = 'property-group-body';
+      for (const rowEntry of entry.rows) {
+        body.appendChild(rowEntry.prop
+          ? renderExistingPropertyRow(node, rowEntry.prop, rowEntry.label)
+          : renderDefaultPropertyRow(node, rowEntry.spec, rowEntry.label));
+      }
+      details.appendChild(body);
+      table.appendChild(details);
+    } else {
+      table.appendChild(entry.prop
+        ? renderExistingPropertyRow(node, entry.prop, entry.name)
+        : renderDefaultPropertyRow(node, entry.spec, entry.name));
+    }
   }
   els.inspector.appendChild(table);
   const editor = renderItemsEditor(node);
   if (editor) els.inspector.appendChild(editor);
+  if (collectionConfig && collectionInfo && collectionInfo.valid) {
+    els.inspector.appendChild(renderCollectionEditor(node, collectionConfig, collectionInfo));
+  }
   const pages = renderPagesEditor(node);
   if (pages) els.inspector.appendChild(pages);
   els.inspector.appendChild(renderAddProperty(node));
 }
 
-function propertyRow(name, kind, isDefault = false) {
+function propertyRow(name, kind, isDefault = false, labelText = name) {
   const row = document.createElement('div');
   row.className = 'property-row';
   if (isDefault) row.classList.add('default');
   const label = document.createElement('label');
-  label.textContent = name;
-  label.title = isDefault ? `${kind} · not set in the LFM` : kind;
+  label.textContent = labelText;
+  label.title = isDefault
+    ? `${name} (${kind}) · not set in the LFM`
+    : `${name} (${kind})`;
   row.appendChild(label);
   return row;
 }
@@ -2037,12 +2819,183 @@ function finishInput(input) {
   return input;
 }
 
+function enumEditor(initial, options, onChange) {
+  const current = String(initial ?? '').trim();
+  const values = [...options];
+  if (current === '') values.unshift('');
+  else if (!values.includes(current)) values.unshift(current);
+  const select = document.createElement('select');
+  select.className = 'property-input property-select';
+  for (const value of values) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value === '' ? '(not set)' : value;
+    select.appendChild(option);
+  }
+  select.value = current;
+  select.addEventListener('change', () => onChange(select.value));
+  return select;
+}
+
+let fontFamilyDatalist = null;
+
+function ensureFontFamilyDatalist() {
+  if (fontFamilyDatalist && fontFamilyDatalist.isConnected) return fontFamilyDatalist;
+  const list = document.createElement('datalist');
+  list.id = 'wcl-font-families';
+  const fallback = document.createElement('option');
+  fallback.value = WCL_DEFAULT_FONT;
+  fallback.label = 'WCL default';
+  list.appendChild(fallback);
+  for (const family of FONT_FAMILIES) {
+    const option = document.createElement('option');
+    option.value = family;
+    list.appendChild(option);
+  }
+  document.body.appendChild(list);
+  fontFamilyDatalist = list;
+  return list;
+}
+
+function fontNameEditor(initial, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'property-font';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'property-input property-font-input';
+  input.value = String(initial ?? '');
+  input.spellcheck = false;
+  input.title = 'Font family or CSS font stack';
+  input.setAttribute('list', ensureFontFamilyDatalist().id);
+  const sample = document.createElement('span');
+  sample.className = 'property-font-sample';
+  sample.textContent = 'Aa';
+  sample.title = 'Font preview';
+  sample.style.fontFamily = input.value.trim() || WCL_DEFAULT_FONT;
+  input.addEventListener('input', () => {
+    sample.style.fontFamily = input.value.trim() || WCL_DEFAULT_FONT;
+    onChange(input.value);
+  });
+  wrap.append(input, sample);
+  return wrap;
+}
+
+function colorEditor(initial, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'property-color';
+  const picker = document.createElement('input');
+  picker.type = 'color';
+  picker.className = 'property-color-input';
+  const text = document.createElement('input');
+  text.type = 'text';
+  text.className = 'property-input property-color-text';
+  let lastRaw = String(initial ?? '');
+  text.value = lastRaw;
+  picker.value = colorHex(initial) || '#f0f0f0';
+  const apply = (raw) => {
+    lastRaw = raw;
+    onChange(raw);
+  };
+  picker.addEventListener('input', () => {
+    const raw = colorRawFromHex(picker.value);
+    text.value = raw;
+    apply(raw);
+  });
+  const commitText = (final) => {
+    const value = text.value.trim();
+    if (value === '') return;
+    const hex = colorHex(value);
+    if (value.startsWith('#')) {
+      if (hex) {
+        picker.value = hex;
+        apply(colorRawFromHex(hex));
+        if (final) text.value = lastRaw;
+      } else if (final) {
+        text.value = lastRaw;
+      }
+      return;
+    }
+    if (hex) picker.value = hex;
+    apply(value);
+  };
+  text.addEventListener('input', () => commitText(false));
+  text.addEventListener('change', () => commitText(true));
+  wrap.append(picker, text);
+  return wrap;
+}
+
+function parseSet(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text || text === '[]') return [];
+  return text.replace(/^\[/, '').replace(/\]$/, '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function setEditor(initial, options, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'property-set';
+  const selected = new Set(parseSet(initial));
+  const all = [...options];
+  for (const value of selected) {
+    if (!all.includes(value)) all.push(value);
+  }
+  for (const value of all) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = selected.has(value);
+    input.addEventListener('change', () => {
+      if (input.checked) selected.add(value);
+      else selected.delete(value);
+      const values = all.filter((item) => selected.has(item));
+      onChange(`[${values.join(', ')}]`);
+    });
+    label.append(input, document.createTextNode(value));
+    wrap.appendChild(label);
+  }
+  return wrap;
+}
+
 function propertyEditor(node, prop) {
   const commit = () => {
+    if (prop.name.startsWith('Font.')) ensureOwnFont(node);
+    if (prop.name === 'Color') ensureOwnColor(node);
     markDirty();
     renderCanvas();
     renderTree();
   };
+
+  if (prop.name === 'Font.Name') {
+    return fontNameEditor(prop.value, (value) => {
+      setPropertyValue(prop, value, 'string');
+      commit();
+    });
+  }
+
+  const enumOptions = enumOptionsFor(prop.name, node);
+  if (enumOptions) {
+    return enumEditor(prop.raw, enumOptions, (value) => {
+      setPropertyValue(prop, value, 'raw');
+      commit();
+    });
+  }
+
+  if (isColorProperty(prop.name)) {
+    return colorEditor(prop.raw, (value) => {
+      setPropertyValue(prop, value, 'raw');
+      commit();
+    });
+  }
+
+  const setOptions = setOptionsFor(prop.name, node);
+  if (setOptions) {
+    return setEditor(prop.raw, setOptions, (value) => {
+      setPropertyValue(prop, value, 'raw');
+      commit();
+    });
+  }
 
   if (prop.kind === 'boolean') {
     const input = document.createElement('input');
@@ -2379,15 +3332,55 @@ function defaultPropertyEditor(node, spec, row) {
     const prop = ensureProperty(node, spec);
     if (!created) {
       created = true;
-      if (row) row.classList.remove('default');
+      if (row) {
+        row.classList.remove('default');
+        const group = row.closest('details.property-group');
+        if (group) {
+          group.open = true;
+          const note = group.querySelector('summary .property-group-note');
+          if (note) note.remove();
+        }
+      }
     }
     return prop;
   };
   const commit = () => {
+    if (spec.name.startsWith('Font.')) ensureOwnFont(node);
+    if (spec.name === 'Color') ensureOwnColor(node);
     markDirty();
     renderCanvas();
     renderTree();
   };
+
+  if (spec.name === 'Font.Name') {
+    return fontNameEditor(spec.value, (value) => {
+      setPropertyValue(ensure(), value, 'string');
+      commit();
+    });
+  }
+
+  const enumOptions = enumOptionsFor(spec.name, node);
+  if (enumOptions) {
+    return enumEditor(spec.value, enumOptions, (value) => {
+      setPropertyValue(ensure(), value, 'raw');
+      commit();
+    });
+  }
+
+  if (isColorProperty(spec.name)) {
+    return colorEditor(spec.value, (value) => {
+      setPropertyValue(ensure(), value, 'raw');
+      commit();
+    });
+  }
+
+  const setOptions = setOptionsFor(spec.name, node);
+  if (setOptions) {
+    return setEditor(spec.value, setOptions, (value) => {
+      setPropertyValue(ensure(), value, 'raw');
+      commit();
+    });
+  }
 
   if (spec.kind === 'boolean') {
     const input = document.createElement('input');
@@ -2438,6 +3431,7 @@ function defaultPropertyEditor(node, spec, row) {
 function propertySuggestions(node) {
   const className = canonicalClassName(node.className);
   const names = new Set(classPropertySpecs(node).map((spec) => spec.name));
+  for (const spec of nestedDefaultSpecs(node)) names.add(spec.name);
   const walk = (nodes) => {
     for (const item of nodes) {
       if (canonicalClassName(item.className) === className) {
@@ -2503,7 +3497,8 @@ function renderAddProperty(node) {
   add.textContent = 'Add';
 
   name.addEventListener('change', () => {
-    const spec = classPropertySpecs(node).find((item) => item.name === name.value.trim());
+    const spec = [...classPropertySpecs(node), ...nestedDefaultSpecs(node)]
+      .find((item) => item.name === name.value.trim());
     if (!spec) return;
     kind.value = spec.kind;
     value.value = spec.kind === 'string' ? '' : spec.value;
@@ -2528,6 +3523,8 @@ function renderAddProperty(node) {
       prop = makeProp(propertyName, raw);
       node.properties.push(prop);
     }
+    if (propertyName.startsWith('Font.')) ensureOwnFont(node);
+    if (propertyName === 'Color') ensureOwnColor(node);
     markDirty();
     renderInspector();
     renderCanvas();
@@ -2543,6 +3540,391 @@ function renderItemsEditor(node) {
   const items = componentItems(node);
   if (!items) return null;
   return items.kind === 'tree' ? treeItemsEditor(items) : listItemsEditor(items);
+}
+
+function collectionConfigFor(node) {
+  return COLLECTION_EDITORS[canonicalClassName(node.className)] || null;
+}
+
+function readCollectionProperty(node, name) {
+  const prop = getProperty(node, name);
+  if (!prop) return { prop: null, items: [], valid: true };
+  if (prop.kind !== 'collection') return { prop, items: [], valid: false };
+  try {
+    const items = parseCollection(prop.raw);
+    if (!items) return { prop, items: [], valid: false };
+    return { prop, items, valid: true };
+  } catch {
+    return { prop, items: [], valid: false };
+  }
+}
+
+function collectionFieldValue(item, field) {
+  const prop = item.properties.find((entry) => entry.name === field.name);
+  if (!prop) {
+    if (field.kind === 'boolean') return field.default === true;
+    if (field.kind === 'color') return field.default || '';
+    return '';
+  }
+  if (field.kind === 'color') return prop.raw;
+  return prop.value ?? '';
+}
+
+function setCollectionField(item, field, value) {
+  const index = item.properties.findIndex((entry) => entry.name === field.name);
+  const remove = () => {
+    if (index >= 0) item.properties.splice(index, 1);
+  };
+  let raw;
+  if (field.kind === 'boolean') {
+    if (value === (field.default === true)) {
+      remove();
+      return;
+    }
+    raw = value ? 'True' : 'False';
+  } else if (field.kind === 'integer') {
+    if (String(value ?? '').trim() === '') {
+      remove();
+      return;
+    }
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      remove();
+      return;
+    }
+    raw = String(Math.trunc(number));
+  } else if (field.kind === 'enum' || field.kind === 'color') {
+    if (value === '' || value === field.default) {
+      remove();
+      return;
+    }
+    raw = String(value);
+  } else if (field.kind === 'fontstyle') {
+    raw = String(value);
+  } else {
+    if (value === '') {
+      remove();
+      return;
+    }
+    raw = encodeLfmString(value);
+  }
+  if (index >= 0) {
+    const prop = item.properties[index];
+    prop.raw = raw;
+    delete prop.__items;
+    Object.assign(prop, decodeValue(raw));
+  } else {
+    item.properties.push(makeProp(field.name, raw));
+  }
+}
+
+function newCollectionItem(config, number) {
+  const primary = config.fields.find((field) => field.primary) || config.fields[0];
+  return {
+    properties: [makeProp(primary.name, encodeLfmString(`Column ${number}`))],
+  };
+}
+
+function storeCollection(node, config, items) {
+  let prop = getProperty(node, config.property);
+  if (!prop) {
+    prop = makeProp(config.property, '<>');
+    node.properties.push(prop);
+  }
+  const indent = ' '.repeat(nodeDepth(node) * 2 + 2);
+  setPropertyValue(prop, writeCollection(items, indent), 'raw');
+  markDirty();
+  renderCanvas();
+  renderTree();
+  return prop;
+}
+
+function renderCollectionEditor(node, config, info) {
+  const { wrap, rows, actions } = editorShell(
+    config.title,
+    `${info.items.length} ${config.unit}`,
+  );
+  wrap.classList.add('collection-editor');
+  const primary = config.fields.find((field) => field.primary) || config.fields[0];
+  const fields = config.fields.filter((field) => field !== primary);
+  const baseFont = resolvedNodeFont(node);
+  const store = () => storeCollection(node, config, info.items);
+  const rebuild = () => {
+    store();
+    renderInspector();
+  };
+
+  info.items.forEach((item, index) => {
+    const card = document.createElement('div');
+    card.className = 'collection-card';
+
+    const head = document.createElement('div');
+    head.className = 'collection-head';
+    const badge = document.createElement('span');
+    badge.className = 'collection-index';
+    badge.textContent = String(index + 1);
+    const titleLabel = document.createElement('span');
+    titleLabel.className = 'collection-title-label';
+    titleLabel.textContent = primary.label || primary.name;
+    const input = document.createElement('input');
+    input.className = 'item-text';
+    input.value = String(collectionFieldValue(item, primary) ?? '');
+    input.placeholder = primary.placeholder || primary.name;
+    input.addEventListener('input', () => {
+      setCollectionField(item, primary, input.value);
+      store();
+    });
+
+    const up = smallButton('↑', 'Move up');
+    up.disabled = index === 0;
+    up.addEventListener('click', () => {
+      if (index === 0) return;
+      [info.items[index - 1], info.items[index]] = [info.items[index], info.items[index - 1]];
+      rebuild();
+    });
+    const down = smallButton('↓', 'Move down');
+    down.disabled = index === info.items.length - 1;
+    down.addEventListener('click', () => {
+      if (index === info.items.length - 1) return;
+      [info.items[index + 1], info.items[index]] = [info.items[index], info.items[index + 1]];
+      rebuild();
+    });
+    const duplicate = smallButton('⧉', 'Duplicate column');
+    duplicate.addEventListener('click', () => {
+      const copy = {
+        properties: item.properties.map((prop) => {
+          const clone = { name: prop.name, raw: prop.raw, ...decodeValue(prop.raw) };
+          if (clone.bytes instanceof Uint8Array) clone.bytes = new Uint8Array(clone.bytes);
+          return clone;
+        }),
+      };
+      const primaryProp = copy.properties.find((prop) => prop.name === primary.name);
+      if (primaryProp && primaryProp.kind === 'string' && primaryProp.value) {
+        setCollectionField(copy, primary, `${primaryProp.value} copy`);
+      }
+      info.items.splice(index + 1, 0, copy);
+      rebuild();
+    });
+    const remove = smallButton('✕', 'Delete column');
+    remove.addEventListener('click', () => {
+      info.items.splice(index, 1);
+      rebuild();
+    });
+    head.append(badge, titleLabel, input, up, down, duplicate, remove);
+    card.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'collection-fields';
+    for (const field of fields) {
+      const cell = document.createElement('div');
+      cell.className = 'collection-field';
+      if (field.wide) cell.classList.add('wide');
+      const label = document.createElement('span');
+      label.textContent = field.label || field.name;
+
+      if (field.kind === 'boolean') {
+        const check = document.createElement('label');
+        check.className = 'collection-check';
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.checked = collectionFieldValue(item, field) === true;
+        box.addEventListener('change', () => {
+          setCollectionField(item, field, box.checked);
+          store();
+        });
+        check.append(box, document.createTextNode(field.label || field.name));
+        cell.appendChild(check);
+      } else {
+        cell.appendChild(label);
+        if (field.kind === 'enum') {
+          const select = document.createElement('select');
+          select.className = 'property-input';
+          const current = String(collectionFieldValue(item, field) ?? '');
+          const options = [...field.options];
+          if (current && !options.includes(current)) options.unshift(current);
+          const empty = document.createElement('option');
+          empty.value = '';
+          empty.textContent = '(default)';
+          select.appendChild(empty);
+          for (const option of options) {
+            const element = document.createElement('option');
+            element.value = option;
+            element.textContent = option;
+            select.appendChild(element);
+          }
+          select.value = current;
+          select.addEventListener('change', () => {
+            setCollectionField(item, field, select.value);
+            store();
+          });
+          cell.appendChild(select);
+        } else if (field.kind === 'color') {
+          const raw = String(collectionFieldValue(item, field) ?? field.default ?? '');
+          cell.appendChild(colorEditor(raw, (value) => {
+            setCollectionField(item, field, value);
+            store();
+          }));
+        } else {
+          const box = document.createElement('input');
+          box.type = field.kind === 'integer' ? 'number' : 'text';
+          box.className = 'property-input';
+          if (field.kind === 'integer') box.min = '0';
+          box.value = String(collectionFieldValue(item, field) ?? '');
+          box.placeholder = field.placeholder || '';
+          box.addEventListener('input', () => {
+            setCollectionField(item, field, box.value);
+            store();
+          });
+          cell.appendChild(box);
+        }
+      }
+      body.appendChild(cell);
+    }
+    card.appendChild(body);
+    if (config.fonts) {
+      for (const prefix of config.fonts) {
+        card.appendChild(renderCollectionFontSection(
+          item,
+          prefix,
+          prefix === 'TitleFont' ? 'Title font' : 'Font',
+          baseFont,
+          store,
+        ));
+      }
+    }
+    rows.appendChild(card);
+  });
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'item-add';
+  add.textContent = 'Add column';
+  add.addEventListener('click', () => {
+    info.items.push(newCollectionItem(config, info.items.length + 1));
+    rebuild();
+  });
+  actions.appendChild(add);
+  return wrap;
+}
+
+function renderCollectionFontSection(item, prefix, label, baseFont, store) {
+  const details = document.createElement('details');
+  details.className = 'collection-font';
+  const hasFont = item.properties.some((prop) => prop.name.startsWith(`${prefix}.`));
+  details.open = hasFont;
+
+  const summary = document.createElement('summary');
+  const title = document.createElement('span');
+  title.textContent = label;
+  const note = document.createElement('span');
+  note.className = 'collection-font-note';
+  const sample = document.createElement('span');
+  sample.className = 'collection-font-sample';
+  sample.textContent = 'Aa';
+  const reset = smallButton('↺', 'Reset to inherited font');
+  reset.disabled = !hasFont;
+  reset.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    item.properties = item.properties.filter((prop) => !prop.name.startsWith(`${prefix}.`));
+    store();
+    renderInspector();
+  });
+  summary.append(title, note, reset, sample);
+  details.appendChild(summary);
+
+  const body = document.createElement('div');
+  body.className = 'collection-font-body';
+
+  const refresh = () => {
+    const sampleFont = collectionFont(item, prefix, baseFont);
+    delete sampleFont.color;
+    applyNodeFont(sample, sampleFont);
+    const active = item.properties.some((prop) => prop.name.startsWith(`${prefix}.`));
+    note.textContent = active ? '' : 'inherits';
+  };
+  refresh();
+
+  const addCell = (text, wide = false) => {
+    const cell = document.createElement('div');
+    cell.className = 'collection-field';
+    if (wide) cell.classList.add('wide');
+    const caption = document.createElement('span');
+    caption.textContent = text;
+    cell.appendChild(caption);
+    body.appendChild(cell);
+    return cell;
+  };
+
+  const familyField = { name: `${prefix}.Name`, kind: 'font' };
+  const familyCell = addCell('Family', true);
+  const familyEditor = fontNameEditor(collectionFieldValue(item, familyField), (value) => {
+    setCollectionField(item, familyField, value);
+    store();
+    refresh();
+  });
+  familyEditor.querySelector('.property-font-sample')?.remove();
+  const familyInput = familyEditor.querySelector('.property-font-input');
+  if (familyInput) familyInput.placeholder = 'inherit';
+  familyCell.appendChild(familyEditor);
+
+  const heightField = { name: `${prefix}.Height`, kind: 'integer' };
+  const heightCell = addCell('Height');
+  const heightInput = document.createElement('input');
+  heightInput.type = 'number';
+  heightInput.className = 'property-input';
+  heightInput.placeholder = 'inherit';
+  heightInput.value = String(collectionFieldValue(item, heightField) ?? '');
+  heightInput.addEventListener('input', () => {
+    setCollectionField(item, heightField, heightInput.value);
+    store();
+    refresh();
+  });
+  heightCell.appendChild(heightInput);
+
+  const colorField = { name: `${prefix}.Color`, kind: 'color' };
+  const colorCell = addCell('Color');
+  const colorControl = colorEditor(
+    String(collectionFieldValue(item, colorField) ?? ''),
+    (value) => {
+      setCollectionField(item, colorField, value);
+      store();
+      refresh();
+    },
+  );
+  colorCell.appendChild(colorControl);
+
+  const styleField = { name: `${prefix}.Style`, kind: 'fontstyle' };
+  const styleCell = addCell('Style', true);
+  const styleWrap = document.createElement('div');
+  styleWrap.className = 'collection-font-styles';
+  const styleProp = item.properties.find((prop) => prop.name === styleField.name);
+  const selectedStyles = new Set(styleProp ? parseSet(styleProp.raw) : parseSet(fontSetRaw(baseFont)));
+  for (const [value, text] of [
+    ['fsBold', 'Bold'],
+    ['fsItalic', 'Italic'],
+    ['fsUnderline', 'Underline'],
+    ['fsStrikeOut', 'Strike'],
+  ]) {
+    const check = document.createElement('label');
+    check.className = 'collection-check';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = selectedStyles.has(value);
+    box.addEventListener('change', () => {
+      if (box.checked) selectedStyles.add(value);
+      else selectedStyles.delete(value);
+      setCollectionField(item, styleField, `[${[...selectedStyles].join(', ')}]`);
+      store();
+      refresh();
+    });
+    check.append(box, document.createTextNode(text));
+    styleWrap.appendChild(check);
+  }
+  styleCell.appendChild(styleWrap);
+
+  details.appendChild(body);
+  return details;
 }
 
 function editorShell(titleText, countText) {
@@ -2733,11 +4115,13 @@ function renderPagesEditor(node) {
       if (state.activeTabs.get(node) === sheet) state.activeTabs.delete(node);
       if (state.selected === sheet || findAncestor(state.selected, (parent) => parent === sheet)) {
         state.selected = node;
+        state.selection = [node];
       }
       assignIds(state.roots);
       renderTree();
       renderCanvas();
       renderInspector();
+      updateMultiTools();
       markDirty();
     });
 
@@ -2754,15 +4138,54 @@ function renderPagesEditor(node) {
   return wrap;
 }
 
-function selectNode(node) {
+function selectPrimarySelection(node) {
+  if (!node) return;
   state.sourceTarget = null;
   for (let current = node; current; current = current.__parent) {
     if (current.className === 'TTabSheet') activateTabSheet(current);
   }
   state.selected = node;
+  if (!state.selection.includes(node)) {
+    state.selection = [node];
+  }
   renderTree();
   renderCanvas();
   renderInspector();
+  updateMultiTools();
+  if (state.view === 'source' && (!state.currentForm || state.currentUnit === state.currentForm.unit)) {
+    applySourceNavigation();
+  }
+}
+
+function selectNode(node, additive = false) {
+  if (!node) return;
+  state.sourceTarget = null;
+  for (let current = node; current; current = current.__parent) {
+    if (current.className === 'TTabSheet') activateTabSheet(current);
+  }
+  if (additive) {
+    const index = state.selection.indexOf(node);
+    if (index >= 0) {
+      state.selection.splice(index, 1);
+      state.selected = state.selection[state.selection.length - 1] || state.roots[0] || null;
+    } else {
+      state.selection.push(node);
+      state.selected = node;
+    }
+  } else {
+    state.selection = [node];
+    state.selected = node;
+  }
+  if (state.selection.length === 0) {
+    state.selection = state.selected ? [state.selected] : [];
+  }
+  for (let current = state.selected; current; current = current.__parent) {
+    if (current.className === 'TTabSheet') activateTabSheet(current);
+  }
+  renderTree();
+  renderCanvas();
+  renderInspector();
+  updateMultiTools();
   if (state.view === 'source' && (!state.currentForm || state.currentUnit === state.currentForm.unit)) {
     applySourceNavigation();
   }
@@ -2770,13 +4193,350 @@ function selectNode(node) {
 
 function renderAll() {
   assignIds(state.roots);
-  if (!state.selected || !state.roots.includes(state.selected)) {
+  const validNode = (node) => !!node && (state.roots.includes(node)
+    || !!findAncestor(node, (parent) => state.roots.includes(parent)));
+  if (!validNode(state.selected)) {
     state.selected = state.roots[0] || null;
+  }
+  state.selection = state.selection.filter(validNode);
+  if (!state.selection.includes(state.selected)) {
+    state.selection = state.selected ? [state.selected] : [];
   }
   renderTree();
   renderCanvas();
   renderInspector();
+  updateMultiTools();
 }
+
+function updateMultiTools() {
+  if (!els.multiTools) return;
+  const nodes = state.selection.filter((node) => node && node !== state.roots[0] && isVisual(node));
+  const visible = state.view === 'design' && nodes.length > 1;
+  els.multiTools.classList.toggle('hidden-view', !visible);
+  if (els.multiCount) {
+    els.multiCount.textContent = visible ? `${nodes.length} selected` : '';
+  }
+  for (const button of els.multiTools.querySelectorAll('button[data-align]')) {
+    if (button.dataset.align === 'distribute-h' || button.dataset.align === 'distribute-v') {
+      button.disabled = nodes.length < 3;
+    }
+  }
+  updateEditMenu();
+}
+
+function updateEditMenu() {
+  if (els.undoBtn && els.redoBtn) {
+    const active = !!state.currentForm && state.view === 'design';
+    els.undoBtn.disabled = !active || state.historyIndex <= 0;
+    els.redoBtn.disabled = !active || state.historyIndex >= state.history.length - 1;
+  }
+  if (!els.editMenu) return;
+  if (els.editMenuBtn) els.editMenuBtn.disabled = state.view !== 'design';
+  const hasSelection = state.selection.some((node) => node && node !== state.roots[0]);
+  for (const button of els.editMenu.querySelectorAll('button[data-action]')) {
+    const action = button.dataset.action;
+    if (action === 'paste') {
+      button.disabled = state.clipboard.length === 0;
+    } else if (['copy', 'duplicate', 'delete', 'front', 'back', 'forward', 'backward'].includes(action)) {
+      button.disabled = !hasSelection;
+    }
+  }
+}
+
+function toggleEditMenu() {
+  if (!els.editMenu) return;
+  if (els.editMenu.classList.contains('hidden-view')) {
+    updateEditMenu();
+    els.editMenu.classList.remove('hidden-view');
+  } else {
+    closeEditMenu();
+  }
+}
+
+function closeEditMenu() {
+  if (els.editMenu) els.editMenu.classList.add('hidden-view');
+}
+
+function topLevelSelection() {
+  return state.selection.filter((node) => node && node !== state.roots[0]
+    && !findAncestor(node, (ancestor) => state.selection.includes(ancestor)));
+}
+
+function pasteParentFor(clones) {
+  const primary = state.selected;
+  if (!primary) return state.roots[0] || null;
+  if (clones.length > 0 && clones.every((clone) => canonicalClassName(clone.className) === 'TTabSheet')) {
+    if (canonicalClassName(primary.className) === 'TWPageControl') return primary;
+    const page = findAncestor(primary, (node) => canonicalClassName(node.className) === 'TWPageControl');
+    if (page) return page;
+  }
+  if (primary === state.roots[0]) return primary;
+  const canonical = canonicalClassName(primary.className);
+  if (canonical === 'TWPageControl') {
+    return activeTabSheet(primary);
+  }
+  if (containerClasses.has(canonical) || containerClasses.has(primary.className)) {
+    return primary;
+  }
+  return primary.__parent || state.roots[0] || null;
+}
+
+function nextCopyName(base, names) {
+  const stem = String(base || 'Component').replace(/\d+$/, '') || 'Component';
+  let index = 1;
+  while (names.has(`${stem}${index}`)) index++;
+  const name = `${stem}${index}`;
+  names.add(name);
+  return name;
+}
+
+function renameClipboardTree(node, names) {
+  node.name = nextCopyName(node.name || displayClassName(node.className), names);
+  for (const child of node.children) {
+    renameClipboardTree(child, names);
+  }
+}
+
+function insertClones(clones, parent, offset = 16) {
+  if (!parent || clones.length === 0) return [];
+  const names = collectNames(state.roots);
+  const created = clones.map((clone) => {
+    const copy = cloneNodeTree(clone);
+    renameClipboardTree(copy, names);
+    if (offset && isVisual(copy)) {
+      setNumberProp(copy, 'Left', propNumber(copy, 'Left', 0) + offset);
+      setNumberProp(copy, 'Top', propNumber(copy, 'Top', 0) + offset);
+    }
+    parent.children.push(copy);
+    return copy;
+  });
+  assignIds(state.roots);
+  state.selection = created;
+  state.selected = created[created.length - 1] || parent;
+  renderTree();
+  renderCanvas();
+  renderInspector();
+  updateMultiTools();
+  markDirty();
+  return created;
+}
+
+function copySelection() {
+  const nodes = topLevelSelection();
+  if (nodes.length === 0) {
+    setStatus('Select a component to copy.', true);
+    return;
+  }
+  state.clipboard = nodes.map(cloneNodeTree);
+  updateEditMenu();
+  setStatus(`Copied ${nodes.length} component${nodes.length === 1 ? '' : 's'}`);
+}
+
+function pasteSelection() {
+  if (state.clipboard.length === 0) {
+    setStatus('The clipboard is empty.', true);
+    return;
+  }
+  const parent = pasteParentFor(state.clipboard);
+  if (!parent) {
+    setStatus('Select a container (or add a tab sheet) before pasting.', true);
+    return;
+  }
+  const created = insertClones(state.clipboard, parent);
+  setStatus(`Pasted ${created.length} component${created.length === 1 ? '' : 's'}`);
+}
+
+function duplicateSelection() {
+  const nodes = topLevelSelection();
+  if (nodes.length === 0) {
+    setStatus('Select a component to duplicate.', true);
+    return;
+  }
+  const parent = pasteParentFor(nodes);
+  if (!parent) {
+    setStatus('Select a container before duplicating.', true);
+    return;
+  }
+  const created = insertClones(nodes, parent);
+  setStatus(`Duplicated ${created.length} component${created.length === 1 ? '' : 's'}`);
+}
+
+function deleteSelection() {
+  const nodes = topLevelSelection();
+  if (nodes.length === 0) {
+    setStatus('Select a component to delete.', true);
+    return;
+  }
+  const parent = nodes[0].__parent || state.roots[0];
+  for (const node of nodes) {
+    const owner = node.__parent;
+    if (!owner) continue;
+    const index = owner.children.indexOf(node);
+    if (index >= 0) owner.children.splice(index, 1);
+    for (const [pageControl, sheet] of state.activeTabs) {
+      if (sheet === node || findAncestor(sheet, (ancestor) => ancestor === node)) {
+        state.activeTabs.delete(pageControl);
+      }
+    }
+  }
+  assignIds(state.roots);
+  state.selected = parent;
+  state.selection = parent ? [parent] : [];
+  renderTree();
+  renderCanvas();
+  renderInspector();
+  updateMultiTools();
+  markDirty();
+  setStatus(`Deleted ${nodes.length} component${nodes.length === 1 ? '' : 's'}`);
+}
+
+function reorderSelection(mode) {
+  const nodes = topLevelSelection();
+  if (nodes.length === 0) {
+    setStatus('Select a component first.', true);
+    return;
+  }
+  if (mode === 'front' || mode === 'back') {
+    const parent = nodes[0].__parent;
+    if (!parent || !nodes.every((node) => node.__parent === parent)) {
+      setStatus('Select components with the same parent.', true);
+      return;
+    }
+    const selected = new Set(nodes);
+    const picked = parent.children.filter((node) => selected.has(node));
+    const rest = parent.children.filter((node) => !selected.has(node));
+    parent.children = mode === 'front' ? [...rest, ...picked] : [...picked, ...rest];
+  } else {
+    const node = state.selected && state.selected !== state.roots[0] ? state.selected : nodes[0];
+    const parent = node.__parent;
+    if (!parent) return;
+    const index = parent.children.indexOf(node);
+    if (mode === 'forward' && index >= 0 && index < parent.children.length - 1) {
+      parent.children.splice(index, 1);
+      parent.children.splice(index + 1, 0, node);
+    } else if (mode === 'backward' && index > 0) {
+      parent.children.splice(index, 1);
+      parent.children.splice(index - 1, 0, node);
+    } else {
+      setStatus('The component is already at the edge of the z-order.');
+      return;
+    }
+  }
+  assignIds(state.roots);
+  renderTree();
+  renderCanvas();
+  renderInspector();
+  updateMultiTools();
+  markDirty();
+  setStatus(`Z-order: ${mode}`);
+}
+
+function alignSelection(mode) {
+  const nodes = topLevelSelection().filter((node) => isVisual(node));
+  if (nodes.length < 2) {
+    setStatus('Select at least two visual components with Ctrl+click.', true);
+    return;
+  }
+  const parent = nodes[0].__parent;
+  if (!parent || !nodes.every((node) => node.__parent === parent)) {
+    setStatus('Select components with the same parent.', true);
+    return;
+  }
+  if (nodes.some((node) => alignOf(node) !== 'alNone')) {
+    setStatus('Some selected components are aligned; set Align = alNone first.', true);
+    return;
+  }
+  const boxes = nodes.map((node) => ({
+    node,
+    left: propNumber(node, 'Left', 0),
+    top: propNumber(node, 'Top', 0),
+    width: Math.max(1, propNumber(node, 'Width', 1)),
+    height: Math.max(1, propNumber(node, 'Height', 1)),
+  }));
+  const left = Math.min(...boxes.map((box) => box.left));
+  const right = Math.max(...boxes.map((box) => box.left + box.width));
+  const top = Math.min(...boxes.map((box) => box.top));
+  const bottom = Math.max(...boxes.map((box) => box.top + box.height));
+
+  if (mode === 'left') {
+    boxes.forEach((box) => setNumberProp(box.node, 'Left', left));
+  } else if (mode === 'center') {
+    const center = (left + right) / 2;
+    boxes.forEach((box) => setNumberProp(box.node, 'Left', Math.round(center - box.width / 2)));
+  } else if (mode === 'right') {
+    boxes.forEach((box) => setNumberProp(box.node, 'Left', right - box.width));
+  } else if (mode === 'top') {
+    boxes.forEach((box) => setNumberProp(box.node, 'Top', top));
+  } else if (mode === 'middle') {
+    const middle = (top + bottom) / 2;
+    boxes.forEach((box) => setNumberProp(box.node, 'Top', Math.round(middle - box.height / 2)));
+  } else if (mode === 'bottom') {
+    boxes.forEach((box) => setNumberProp(box.node, 'Top', bottom - box.height));
+  } else if (mode === 'distribute-h') {
+    if (boxes.length < 3) {
+      setStatus('Select at least three components to distribute.', true);
+      return;
+    }
+    const sorted = [...boxes].sort((a, b) => a.left - b.left);
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const total = sorted.reduce((sum, box) => sum + box.width, 0);
+    const gap = (last.left + last.width - first.left - total) / (sorted.length - 1);
+    let cursor = first.left;
+    for (const box of sorted) {
+      setNumberProp(box.node, 'Left', Math.round(cursor));
+      cursor += box.width + gap;
+    }
+  } else if (mode === 'distribute-v') {
+    if (boxes.length < 3) {
+      setStatus('Select at least three components to distribute.', true);
+      return;
+    }
+    const sorted = [...boxes].sort((a, b) => a.top - b.top);
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const total = sorted.reduce((sum, box) => sum + box.height, 0);
+    const gap = (last.top + last.height - first.top - total) / (sorted.length - 1);
+    let cursor = first.top;
+    for (const box of sorted) {
+      setNumberProp(box.node, 'Top', Math.round(cursor));
+      cursor += box.height + gap;
+    }
+  } else {
+    return;
+  }
+
+  renderCanvas();
+  renderInspector();
+  markDirty();
+  setStatus(`Aligned ${nodes.length} components`);
+}
+
+function runEditAction(action) {
+  if (action === 'undo') undo();
+  else if (action === 'redo') redo();
+  else if (action === 'copy') copySelection();
+  else if (action === 'paste') pasteSelection();
+  else if (action === 'duplicate') duplicateSelection();
+  else if (action === 'delete') deleteSelection();
+  else if (action === 'front' || action === 'back' || action === 'forward' || action === 'backward') {
+    reorderSelection(action);
+  }
+}
+
+function isEditableTarget(target) {
+  return target instanceof HTMLElement && (
+    target.tagName === 'INPUT'
+    || target.tagName === 'TEXTAREA'
+    || target.tagName === 'SELECT'
+    || target.isContentEditable
+  );
+}
+
+function hasOpenDialog() {
+  return !!document.querySelector('dialog[open]');
+}
+
 
 function clearProjectView() {
   state.project = null;
@@ -2785,11 +4545,16 @@ function clearProjectView() {
   state.currentUnit = '';
   state.roots = [];
   state.selected = null;
+  state.selection = [];
   state.activeTabs.clear();
   state.source = null;
   state.sourceTarget = null;
   state.sourceDirty = false;
   state.dirty = false;
+  state.history = [];
+  state.historyIndex = -1;
+  state.savedLfm = '';
+  state.clipboard = [];
   state.formCache.clear();
   state.unitCache.clear();
   els.project.value = '';
@@ -2801,6 +4566,8 @@ function clearProjectView() {
   els.sourceStatus.textContent = '';
   renderAll();
   setDirty(false);
+  updateUndoButtons();
+  updateMultiTools();
   els.canvas.textContent = 'No project selected.';
   els.formTitle.textContent = 'No form';
   els.tree.textContent = 'No project selected.';
@@ -3292,8 +5059,21 @@ async function loadProject(id, formName = '') {
       ? state.currentForm.unit
       : defaultProjectUnit(state.project);
     state.roots = roots;
-    state.selected = null;
+    assignIds(state.roots);
     state.activeTabs = cachedForm ? new Map(cachedForm.activeTabs) : new Map();
+    state.history = cachedForm ? (cachedForm.history || []) : [];
+    state.historyIndex = cachedForm && Number.isInteger(cachedForm.historyIndex)
+      ? cachedForm.historyIndex
+      : -1;
+    if (state.history.length > 0 && (state.historyIndex < 0 || state.historyIndex >= state.history.length)) {
+      state.historyIndex = state.history.length - 1;
+    }
+    state.savedLfm = cachedForm ? (cachedForm.savedLfm || '') : '';
+    const historyEntry = state.history[state.historyIndex];
+    state.selected = historyEntry
+      ? (nodeAtPath(historyEntry.selectedPath) || state.roots[0] || null)
+      : (state.roots[0] || null);
+    state.selection = state.selected ? [state.selected] : [];
     state.source = null;
     state.sourceTarget = null;
     state.sourceDirty = false;
@@ -3304,7 +5084,18 @@ async function loadProject(id, formName = '') {
     els.project.value = id;
     renderFormSelect();
     renderAll();
-    setDirty(cachedForm ? true : false);
+    if (!cachedForm || state.history.length === 0) {
+      state.savedLfm = writeLfm(state.roots);
+      state.history = [{
+        lfm: state.savedLfm,
+        roots: cloneRoots(),
+        selectedPath: nodePath(state.selected),
+      }];
+      state.historyIndex = 0;
+    }
+    setDirty(cachedForm ? writeLfm(state.roots) !== state.savedLfm : false);
+    updateUndoButtons();
+    updateMultiTools();
     setStatus(`${data.project.name} loaded`);
     if (!state.currentForm && state.currentUnit) {
       if (state.view === 'source') {
@@ -3359,6 +5150,7 @@ async function saveProject() {
       components,
     });
     state.formCache.delete(state.currentForm.form);
+    state.savedLfm = lfm;
     setDirty(false);
     if (state.currentUnit === formUnit) {
       // Saving the form synchronizes its unit on disk.
@@ -3550,6 +5342,28 @@ async function boot() {
   els.newUnitBtn.addEventListener('click', createUnit);
   els.designTab.addEventListener('click', () => setView('design'));
   els.sourceTab.addEventListener('click', () => setView('source'));
+  els.undoBtn.addEventListener('click', undo);
+  els.redoBtn.addEventListener('click', redo);
+  els.editMenuBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleEditMenu();
+  });
+  els.editMenu.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-action]');
+    if (!button) return;
+    event.preventDefault();
+    closeEditMenu();
+    runEditAction(button.dataset.action);
+  });
+  els.multiTools.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-align]');
+    if (button) alignSelection(button.dataset.align);
+  });
+  document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest('.design-tools')) {
+      closeEditMenu();
+    }
+  });
   els.sourceReload.addEventListener('click', () => {
     if (state.sourceDirty && !window.confirm('Discard the unsaved changes to the unit?')) return;
     loadSource(true);
@@ -3566,6 +5380,50 @@ async function boot() {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && event.target !== els.sourceEditor) {
       event.preventDefault();
       saveAll();
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeEditMenu();
+      return;
+    }
+    if (hasOpenDialog() || state.view !== 'design' || !state.currentForm) return;
+    if (isEditableTarget(event.target)) return;
+    const ctrl = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    if (ctrl && key === 'z' && event.shiftKey) {
+      event.preventDefault();
+      redo();
+      return;
+    }
+    if (ctrl && key === 'z') {
+      event.preventDefault();
+      undo();
+      return;
+    }
+    if (ctrl && key === 'y') {
+      event.preventDefault();
+      redo();
+      return;
+    }
+    if (ctrl && key === 'c') {
+      event.preventDefault();
+      copySelection();
+      return;
+    }
+    if (ctrl && key === 'v') {
+      event.preventDefault();
+      pasteSelection();
+      return;
+    }
+    if (ctrl && key === 'd') {
+      event.preventDefault();
+      duplicateSelection();
+      return;
+    }
+    if (!ctrl && (event.key === 'Delete' || event.key === 'Backspace')) {
+      event.preventDefault();
+      deleteSelection();
     }
   });
   window.addEventListener('beforeunload', (event) => {

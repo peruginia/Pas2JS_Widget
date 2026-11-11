@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { parseLfm, writeLfm } from '../assets/lfm.js';
+import { parseLfm, writeLfm, parseCollection, writeCollection } from '../assets/lfm.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
@@ -69,5 +69,25 @@ assert.equal(ast[0].properties.find((p) => p.name === 'Caption').value, "A 'quot
 assert.equal(ast[0].properties.find((p) => p.name === 'Data').kind, 'binary');
 assert.equal(ast[0].properties.find((p) => p.name === 'Columns').kind, 'collection');
 console.log('OK synthetic collections/binary/strings');
+
+const collectionRaw = `<
+  item
+    Title = 'Name'
+    Width = 120
+    Font.Style = [fsBold]
+  end
+  item
+    Title = 'Role'
+    Hint = 'a, b'
+  end>`;
+const collectionItems = parseCollection(collectionRaw);
+assert.equal(collectionItems.length, 2);
+assert.equal(collectionItems[0].properties.find((prop) => prop.name === 'Title').value, 'Name');
+assert.equal(collectionItems[0].properties.find((prop) => prop.name === 'Width').value, 120);
+assert.deepEqual(parseCollection(writeCollection(collectionItems)), collectionItems);
+assert.ok(writeCollection(collectionItems, '    ').includes('\n      item'));
+assert.deepEqual(parseCollection('<>'), []);
+assert.equal(writeCollection([]), '<>');
+console.log('OK collection parse/write');
 
 console.log('LFM round-trip tests passed.');
