@@ -51,6 +51,9 @@ const state = {
   inspectorFilter: '',
   leftTab: 'designer',
   projectFiles: [],
+  draftTimer: null,
+  draftQuotaWarned: false,
+  pendingDrafts: null,
 };
 
 const els = {
@@ -94,6 +97,12 @@ const els = {
   historyList: document.getElementById('historyList'),
   historyCloseBtn: document.getElementById('historyCloseBtn'),
   createSnapshotBtn: document.getElementById('createSnapshotBtn'),
+  draftDialog: document.getElementById('draftDialog'),
+  draftIntro: document.getElementById('draftIntro'),
+  draftList: document.getElementById('draftList'),
+  draftCloseBtn: document.getElementById('draftCloseBtn'),
+  draftDiscardBtn: document.getElementById('draftDiscardBtn'),
+  draftRestoreBtn: document.getElementById('draftRestoreBtn'),
   canvas: document.getElementById('canvas'),
   inspectorHeader: document.getElementById('inspectorHeader'),
   inspectorTabs: document.getElementById('inspectorTabs'),
@@ -372,6 +381,7 @@ function setStatus(message, error = false) {
 function setDirty(value) {
   state.dirty = value;
   updateSaveIndicator();
+  if (value) scheduleDraftSave();
 }
 
 function hasUnsavedChanges() {
@@ -390,6 +400,7 @@ function markDirty() {
   state.dirty = writeLfm(state.roots) !== state.savedLfm;
   updateSaveIndicator();
   setStatus(state.dirty ? 'Modified' : 'No changes');
+  scheduleDraftSave();
 }
 
 function cloneProp(prop) {
@@ -481,7 +492,9 @@ function restoreHistory(index) {
   renderCanvas();
   renderInspector();
   const lfm = writeLfm(state.roots);
-  setDirty(lfm !== state.savedLfm);
+  const dirty = lfm !== state.savedLfm;
+  setDirty(dirty);
+  if (!dirty) persistDraftsNow();
   updateUndoButtons();
   updateMultiTools();
   if (state.view === 'source' && (!state.currentForm || state.currentUnit === state.currentForm.unit)) {
@@ -512,6 +525,7 @@ function stashCurrentForm() {
   } else {
     state.formCache.delete(state.currentForm.form);
   }
+  scheduleDraftSave();
 }
 
 function stashCurrentUnit() {
@@ -528,6 +542,7 @@ function stashCurrentUnit() {
   } else {
     state.unitCache.delete(state.currentUnit);
   }
+  scheduleDraftSave();
 }
 
 function discardAllChanges() {
@@ -539,6 +554,11 @@ function discardAllChanges() {
   state.selection = [];
   state.dirty = false;
   state.sourceDirty = false;
+  state.pendingDrafts = null;
+  if (state.draftTimer) {
+    clearTimeout(state.draftTimer);
+    state.draftTimer = null;
+  }
   updateSaveIndicator();
   updateUndoButtons();
   updateMultiTools();
@@ -698,6 +718,7 @@ function onSourceInput() {
   state.sourceDirty = sourceText() !== state.source;
   updateSourceStatus();
   updateSaveIndicator();
+  scheduleDraftSave();
 }
 
 async function saveSource({ saveForm = false } = {}) {
@@ -724,6 +745,7 @@ async function saveSource({ saveForm = false } = {}) {
     updateSaveIndicator();
     setStatus(`Source saved (${result.bytes} bytes)`);
     void loadProjectFiles();
+    persistDraftsNow(true);
     if (saveForm && state.dirty) {
       // The form may hold the event association that was just generated;
       // saving the unit alone would leave the LFM without it.
@@ -831,6 +853,7 @@ async function saveAll() {
     }
     setStatus(message, warnings.length > 0);
     void loadProjectFiles();
+    persistDraftsNow(true);
     return true;
   } catch (error) {
     updateSaveIndicator();
@@ -4784,6 +4807,7 @@ function hasOpenDialog() {
 
 
 function clearProjectView() {
+  const previousProject = state.project?.id || '';
   state.project = null;
   state.forms = [];
   state.currentForm = null;
@@ -4816,6 +4840,7 @@ function clearProjectView() {
   els.canvas.textContent = 'No project selected.';
   els.formTitle.textContent = 'No form';
   els.tree.textContent = 'No project selected.';
+  if (previousProject) clearDrafts(previousProject);
   renderFileExplorer();
 }
 
@@ -4835,7 +4860,7 @@ async function loadProjects(loadFirst = true) {
     return;
   }
   if (loadFirst) {
-    await loadProject(state.projects[0].id);
+    await loadProject(state.projects[0].id, '', true);
   }
 }
 
@@ -5490,6 +5515,7 @@ async function restoreProjectSnapshot(snapshot) {
   try {
     await api('restoreSnapshot', {}, { project, snapshot });
     closeDialog(els.historyDialog);
+    clearDrafts(project);
     discardAllChanges();
     state.projectFiles = [];
     await loadProject(project);
@@ -5536,6 +5562,258 @@ async function uploadProjectAsset(file) {
   } catch (error) {
     setStatus(error.message, true);
   }
+}
+
+const DRAFT_KEY_PREFIX = 'wcl.drafts.v1.';
+
+function draftStorageKey(projectId) {
+  return `${DRAFT_KEY_PREFIX}${projectId}`;
+}
+
+function scheduleDraftSave() {
+  if (!state.project || state.draftTimer) return;
+  state.draftTimer = window.setTimeout(() => {
+    state.draftTimer = null;
+    persistDraftsNow();
+  }, 1500);
+}
+
+function collectDrafts() {
+  if (!state.project) return null;
+  const project = state.project.id;
+  const files = {};
+  const stamp = Date.now();
+  const currentForm = state.currentForm;
+
+  if (currentForm && state.dirty) {
+    const lfm = writeLfm(state.roots);
+    if (lfm !== state.savedLfm) {
+      files[currentForm.form] = {
+        kind: 'form',
+        lfm,
+        base: state.savedLfm || '',
+        savedAt: stamp,
+      };
+    }
+  }
+  for (const [formFile, cache] of state.formCache) {
+    if (currentForm && formFile === currentForm.form) continue;
+    const lfm = writeLfm(cache.roots);
+    const base = cache.savedLfm || '';
+    if (lfm !== base) {
+      files[formFile] = {
+        kind: 'form',
+        lfm,
+        base,
+        savedAt: stamp,
+      };
+    }
+  }
+
+  if (state.currentUnit && state.sourceDirty && state.source !== null) {
+    const text = sourceText();
+    if (text !== state.source) {
+      files[state.currentUnit] = {
+        kind: 'source',
+        text,
+        base: state.source,
+        eol: state.sourceEol,
+        savedAt: stamp,
+      };
+    }
+  }
+  for (const [unit, cache] of state.unitCache) {
+    if (state.currentUnit === unit && state.sourceDirty) continue;
+    if (cache.text !== cache.baseline) {
+      files[unit] = {
+        kind: 'source',
+        text: cache.text,
+        base: cache.baseline,
+        eol: cache.eol,
+        savedAt: stamp,
+      };
+    }
+  }
+
+  if (Object.keys(files).length === 0) return null;
+  return {
+    version: 1,
+    project,
+    savedAt: stamp,
+    files,
+  };
+}
+
+function persistDraftsNow(force = false) {
+  if (state.draftTimer) {
+    clearTimeout(state.draftTimer);
+    state.draftTimer = null;
+  }
+  if (!state.project) return;
+  const key = draftStorageKey(state.project.id);
+  const drafts = collectDrafts();
+  if (!force && state.pendingDrafts) {
+    if (!drafts) return;
+    state.pendingDrafts = null;
+  }
+  if (force) state.pendingDrafts = null;
+  try {
+    if (drafts) localStorage.setItem(key, JSON.stringify(drafts));
+    else localStorage.removeItem(key);
+  } catch {
+    if (!state.draftQuotaWarned) {
+      state.draftQuotaWarned = true;
+      setStatus('Cannot autosave drafts: browser storage is full.', true);
+    }
+  }
+}
+
+function readDrafts(projectId) {
+  try {
+    const raw = localStorage.getItem(draftStorageKey(projectId));
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || data.version !== 1 || data.project !== projectId || !data.files) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function clearDrafts(projectId) {
+  if (!projectId) return;
+  try {
+    localStorage.removeItem(draftStorageKey(projectId));
+  } catch {
+    // Storage may be unavailable; nothing else to do.
+  }
+}
+
+function showDraftDialog(drafts) {
+  if (!drafts || !els.draftDialog) return;
+  state.pendingDrafts = drafts;
+  els.draftIntro.textContent = `Autosaved ${formatSnapshotDate(drafts.savedAt / 1000)}. Restore them or discard them before continuing.`;
+  els.draftList.innerHTML = '';
+  const files = Object.entries(drafts.files).sort(([a], [b]) => a.localeCompare(b));
+  for (const [file, data] of files) {
+    const item = document.createElement('li');
+    item.className = 'draft-item';
+    const badge = document.createElement('span');
+    badge.className = `file-badge kind-${data.kind === 'form' ? 'form' : 'source'}`;
+    badge.textContent = data.kind === 'form' ? 'LFM' : 'SRC';
+    const info = document.createElement('div');
+    info.className = 'history-info';
+    const name = document.createElement('strong');
+    name.textContent = file;
+    const meta = document.createElement('span');
+    const size = data.kind === 'form' ? String(data.lfm || '').length : String(data.text || '').length;
+    meta.textContent = `${data.kind === 'form' ? 'Form' : 'Source'} · ${formatFileSize(size)}`;
+    info.append(name, meta);
+    item.append(badge, info);
+    els.draftList.appendChild(item);
+  }
+  if (!els.draftDialog.open) openDialog(els.draftDialog);
+}
+
+async function restoreDrafts(drafts) {
+  if (!drafts) return;
+  closeDialog(els.draftDialog);
+  const project = state.project?.id;
+  if (!project || drafts.project !== project) return;
+
+  try {
+    let firstForm = '';
+    let firstSource = '';
+    for (const [file, data] of Object.entries(drafts.files)) {
+      if (data.kind === 'form') {
+        if (!state.forms.some((entry) => entry.form === file)) continue;
+        const roots = parseLfm(data.lfm);
+        if (state.currentForm && state.currentForm.form === file) {
+          state.formCache.delete(file);
+          state.roots = roots;
+          assignIds(state.roots);
+          state.savedLfm = data.base || '';
+          state.history = [{
+            lfm: data.lfm,
+            roots: state.roots.map(cloneNodeTree),
+            selectedPath: [],
+          }];
+          state.historyIndex = 0;
+          state.selected = state.roots[0] || null;
+          state.selection = state.selected ? [state.selected] : [];
+          setDirty(writeLfm(state.roots) !== state.savedLfm);
+          renderAll();
+          updateUndoButtons();
+        } else {
+          state.formCache.set(file, {
+            roots,
+            activeTabs: new Map(),
+            history: [{
+              lfm: data.lfm,
+              roots: roots.map(cloneNodeTree),
+              selectedPath: [],
+            }],
+            historyIndex: 0,
+            savedLfm: data.base || '',
+          });
+        }
+        if (!firstForm) firstForm = file;
+      } else {
+        if (state.currentUnit === file && state.source !== null) {
+          state.unitCache.delete(file);
+          state.source = data.base || '';
+          state.sourceDirty = true;
+          codeEditor.setValue(data.text || '');
+          updateSourceStatus();
+          updateSaveIndicator();
+        } else {
+          state.unitCache.set(file, {
+            text: data.text || '',
+            baseline: data.base || '',
+            eol: data.eol || '\n',
+            caret: { start: 0, end: 0 },
+            scrollTop: 0,
+          });
+        }
+        if (!firstSource) firstSource = file;
+      }
+    }
+
+    if (firstForm) {
+      if (!state.currentForm || state.currentForm.form !== firstForm) {
+        els.form.value = firstForm;
+        await loadForm(firstForm);
+      }
+      setView('design');
+    } else if (firstSource) {
+      if (state.currentUnit !== firstSource || state.source === null) {
+        await openUnit(firstSource);
+      } else {
+        setView('source');
+      }
+    }
+    updateSaveIndicator();
+    state.pendingDrafts = null;
+    persistDraftsNow(true);
+    setStatus('Unsaved changes restored. Save them or discard them with Reload.');
+  } catch (error) {
+    setStatus(`Cannot restore the local draft: ${error.message}`, true);
+  } finally {
+    state.pendingDrafts = null;
+  }
+}
+
+function discardDrafts(projectId) {
+  if (!projectId) return;
+  clearDrafts(projectId);
+  closeDialog(els.draftDialog);
+  state.pendingDrafts = null;
+  setStatus('Local drafts discarded');
+}
+
+function checkLocalDrafts(projectId) {
+  const drafts = readDrafts(projectId);
+  if (drafts) showDraftDialog(drafts);
 }
 
 async function createForm() {
@@ -5659,7 +5937,7 @@ function defaultProjectUnit(project) {
   return units[0];
 }
 
-async function loadProject(id, formName = '') {
+async function loadProject(id, formName = '', checkDrafts = false) {
   state.inspectorFilter = '';
   try {
     setStatus(`Loading ${id}...`);
@@ -5719,6 +5997,7 @@ async function loadProject(id, formName = '') {
     updateMultiTools();
     setStatus(`${data.project.name} loaded`);
     void loadProjectFiles();
+    if (checkDrafts) checkLocalDrafts(id);
     if (!state.currentForm && state.currentUnit) {
       if (state.view === 'source') {
         loadSource(true);
@@ -5783,6 +6062,8 @@ async function saveProject() {
       }
     }
     updateSaveIndicator();
+    void loadProjectFiles();
+    persistDraftsNow(true);
     const warnings = result.warnings || [];
     if (warnings.length > 0) {
       setStatus(`Saved ${result.bytes} bytes; ${warnings.join('; ')}`, true);
@@ -5891,11 +6172,12 @@ async function deleteProject() {
   try {
     await api('deleteProject', {}, { project: id });
     closeProjectDialog();
+    clearDrafts(id);
     discardAllChanges();
     await loadProjects(false);
     if (state.projects.length > 0) {
       els.project.value = state.projects[0].id;
-      await loadProject(state.projects[0].id);
+      await loadProject(state.projects[0].id, '', true);
     } else {
       clearProjectView();
     }
@@ -5926,9 +6208,12 @@ async function boot() {
   document.addEventListener('dragend', clearDropTargets);
   els.reload.addEventListener('click', () => {
     if (!state.project) return;
-    if (hasUnsavedChanges() && !window.confirm('Discard all unsaved changes?')) return;
+    const hadChanges = hasUnsavedChanges();
+    if (hadChanges && !window.confirm('Discard all unsaved changes?')) return;
+    const project = state.project.id;
     discardAllChanges();
-    loadProject(state.project.id, state.currentForm ? state.currentForm.form : '');
+    if (hadChanges) clearDrafts(project);
+    loadProject(project, state.currentForm ? state.currentForm.form : '');
   });
   els.save.addEventListener('click', saveAll);
   els.inspectorPropsTab.addEventListener('click', () => setInspectorTab('properties'));
@@ -6073,9 +6358,14 @@ async function boot() {
     }
   });
   window.addEventListener('beforeunload', (event) => {
+    persistDraftsNow();
     if (!hasUnsavedChanges()) return;
     event.preventDefault();
     event.returnValue = '';
+  });
+  window.addEventListener('pagehide', () => persistDraftsNow());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') persistDraftsNow();
   });
   els.designerPaneTab.addEventListener('click', () => setLeftTab('designer'));
   els.filesPaneTab.addEventListener('click', () => setLeftTab('files'));
@@ -6098,14 +6388,22 @@ async function boot() {
   });
   els.historyCloseBtn.addEventListener('click', () => closeDialog(els.historyDialog));
   els.createSnapshotBtn.addEventListener('click', createSnapshotManually);
+  els.draftCloseBtn.addEventListener('click', () => closeDialog(els.draftDialog));
+  els.draftDiscardBtn.addEventListener('click', () => {
+    discardDrafts(state.pendingDrafts?.project || state.project?.id);
+  });
+  els.draftRestoreBtn.addEventListener('click', () => restoreDrafts(state.pendingDrafts));
   els.project.addEventListener('change', () => {
     if (!els.project.value) return;
-    if (hasUnsavedChanges() && !window.confirm('Discard all unsaved changes in the current project?')) {
+    const hadChanges = hasUnsavedChanges();
+    if (hadChanges && !window.confirm('Discard all unsaved changes in the current project?')) {
       els.project.value = state.project ? state.project.id : els.project.value;
       return;
     }
+    const previous = state.project ? state.project.id : '';
     discardAllChanges();
-    loadProject(els.project.value);
+    if (hadChanges && previous) clearDrafts(previous);
+    loadProject(els.project.value, '', true);
   });
   els.form.addEventListener('change', () => loadForm(els.form.value));
   els.importBtn.addEventListener('click', openImportDialog);

@@ -80,6 +80,8 @@ Make sure `designer/projects` is writable by Apache.
   started from the same panel.
 - Saves automatic project snapshots before writes and restores them from
   **History…**.
+- Autosaves unsaved forms and sources as local drafts and offers to restore
+  them after a reload or crash.
 - Creates application, host application and module projects.
 - Builds the whole project (or the selected form) with pas2js and runs it in a
   preview dialog.
@@ -254,7 +256,18 @@ anything. Modified forms and source files stay in memory:
 - the browser warns before closing the page while something is unsaved.
 
 Changes live in the browser: a page reload without the prompt (for example a
-crash) loses them.
+crash) loses the in-memory state, but the designer also keeps **local drafts**
+of modified forms and sources in `localStorage`:
+
+- drafts are written at most every 1.5 seconds while editing and again when
+  the page is hidden or unloaded;
+- when a project is opened again in the same browser profile, a dialog lists
+  the autosaved files; **Restore all** puts them back in memory and opens the
+  first one, while **Discard all** removes them;
+- the drafts are removed automatically after a successful save or a discard;
+- drafts are per browser profile and are not shared between devices; clearing
+  the browser data also removes them. Server-side drafts would be the next
+  step for cross-device/team recovery, and need authentication.
 
 ## Importing a project
 

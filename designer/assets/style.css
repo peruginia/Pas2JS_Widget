@@ -501,6 +501,35 @@ body {
   font-style: italic;
 }
 
+.draft-list {
+  max-height: min(50vh, 420px);
+  overflow: auto;
+}
+
+.draft-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.draft-item .file-badge {
+  flex: none;
+}
+
+.draft-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.draft-dialog .dialog-hint {
+  margin-bottom: 8px;
+}
+
 .tree ul {
   list-style: none;
   margin: 0;

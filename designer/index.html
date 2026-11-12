@@ -317,6 +317,21 @@
     </div>
   </dialog>
 
+  <dialog id="draftDialog" class="project-dialog draft-dialog">
+    <div class="dialog-head">
+      <h2>Unsaved changes found</h2>
+      <button id="draftCloseBtn" type="button">Close</button>
+    </div>
+    <div class="dialog-section">
+      <p class="dialog-hint" id="draftIntro">These changes were autosaved locally.</p>
+      <ul id="draftList" class="dialog-list draft-list"></ul>
+    </div>
+    <div class="dialog-foot draft-foot">
+      <button id="draftDiscardBtn" type="button" class="dialog-danger">Discard all</button>
+      <button id="draftRestoreBtn" type="button" class="dialog-primary">Restore all</button>
+    </div>
+  </dialog>
+
   <script src="config.js"></script>
   <script src="assets/vendor/codemirror/codemirror.min.js"></script>
   <script src="assets/vendor/codemirror/addon/dialog/dialog.min.js"></script>
