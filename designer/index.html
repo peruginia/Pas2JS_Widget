@@ -20,7 +20,7 @@
     <div class="toolbar">
       <label for="projectSelect" class="sr-only">Project</label>
       <select id="projectSelect"></select>
-      <span id="currentFormLabel" class="current-form-label">No form</span>
+      <span id="activeFileLabel" class="active-file-label">No file</span>
       <button id="saveBtn" type="button" title="Save all unsaved forms and units">Save</button>
       <label for="previewMode" class="sr-only">Build target</label>
       <select id="previewMode" class="build-target" title="What Compile and Run build">
@@ -35,6 +35,7 @@
           <button id="newProjectBtn" type="button">New project…</button>
           <button id="importBtn" type="button">Import project…</button>
           <button id="projectBtn" type="button">Project settings…</button>
+          <button id="buildOptionsBtn" type="button">Build options…</button>
           <div class="menu-sep"></div>
           <button id="reloadBtn" type="button">Reload</button>
           <button id="saveAllMenuBtn" type="button">Save all</button>
@@ -254,6 +255,61 @@
     </div>
   </dialog>
 
+  <dialog id="buildOptionsDialog" class="project-dialog build-options-dialog">
+    <div class="dialog-head">
+      <h2>Build options</h2>
+      <button id="buildOptionsCloseBtn" type="button">Close</button>
+    </div>
+    <div class="dialog-section">
+      <div class="dialog-title">
+        <span>Compile and Run</span>
+        <span class="dialog-title-actions">
+          <button id="saveBuildOptionsBtn" type="button">Save</button>
+        </span>
+      </div>
+      <div class="dialog-form">
+        <label class="dialog-field">
+          <span>Optimization</span>
+          <select id="buildOptimize">
+            <option value="default">Compiler default</option>
+            <option value="none">None (-O-)</option>
+            <option value="1">Level 1 (-O1, debugger friendly)</option>
+            <option value="2">Level 2 (-O2, smaller output)</option>
+          </select>
+        </label>
+        <label class="dialog-field">
+          <span>JavaScript</span>
+          <select id="buildTarget">
+            <option value="default">Compiler default</option>
+            <option value="es5">ECMAScript 5</option>
+            <option value="es6">ECMAScript 6</option>
+          </select>
+        </label>
+        <label class="dialog-field">
+          <span>Defines</span>
+          <input id="buildDefines" type="text" placeholder="DEBUG, VERSION:=2">
+        </label>
+        <label class="dialog-check">
+          <input id="buildSourceMap" type="checkbox">
+          <span>Generate a source map (-Jm)</span>
+        </label>
+        <label class="dialog-check">
+          <input id="buildSourceMapSources" type="checkbox">
+          <span>Include Pascal sources in the map (-Jminclude)</span>
+        </label>
+        <label class="dialog-check">
+          <input id="buildAssertions" type="checkbox">
+          <span>Enable assertions (-Sa)</span>
+        </label>
+        <label class="dialog-check">
+          <input id="buildRebuild" type="checkbox">
+          <span>Rebuild every unit (-B)</span>
+        </label>
+        <p class="dialog-hint">The options are stored in project.json and apply to Compile and Run. Level 2 removes unused declarations and is not a whitespace minifier.</p>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="importDialog" class="project-dialog">
     <div class="dialog-head">
       <h2>Import project</h2>
@@ -308,6 +364,17 @@
       <button id="buildCloseBtn" type="button">Close</button>
     </div>
     <div id="buildOutput" class="build-output"></div>
+  </dialog>
+
+  <dialog id="outputDialog" class="build-dialog output-dialog">
+    <div class="dialog-head">
+      <h2 id="outputTitle">Build output</h2>
+      <div class="dialog-actions">
+        <button id="outputOpenBtn" type="button" class="hidden-view">Open page</button>
+        <button id="outputCloseBtn" type="button">Close</button>
+      </div>
+    </div>
+    <pre id="outputText" class="output-text"></pre>
   </dialog>
 
   <dialog id="historyDialog" class="project-dialog history-dialog">

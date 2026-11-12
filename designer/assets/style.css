@@ -126,8 +126,8 @@ body {
   color: #ff9b8f;
 }
 
-.current-form-label {
-  max-width: 220px;
+.active-file-label {
+  max-width: 240px;
   overflow: hidden;
   padding: 0 4px;
   color: #c9d2dc;
@@ -458,6 +458,25 @@ body {
 .file-row.active {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.file-row.generated .file-name {
+  color: #5b6b7b;
+}
+
+.file-row.generated .file-badge {
+  background: #eaf3ea;
+  color: #2f6b3a;
+}
+
+.build-output-dir {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+}
+
+.build-output-dir > summary {
+  color: var(--muted);
 }
 
 .file-badge {
@@ -2369,6 +2388,28 @@ textarea.property-input {
   font-size: 11px;
   line-height: 1.45;
   white-space: pre-wrap;
+}
+
+.output-dialog {
+  width: min(1000px, 94vw);
+}
+
+.output-text {
+  margin: 0;
+  padding: 12px 16px;
+  max-height: min(65vh, 640px);
+  overflow: auto;
+  background: #1f2d3d;
+  color: #e6edf3;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.build-options-dialog .dialog-check {
+  padding: 4px 0;
 }
 
 .build-line {

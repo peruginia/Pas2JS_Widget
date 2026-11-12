@@ -50,15 +50,18 @@ const state = {
   inspectorTab: 'properties',
   inspectorFilter: '',
   projectFiles: [],
+  buildFiles: [],
+  buildOutputOpen: false,
   draftTimer: null,
   draftQuotaWarned: false,
   pendingDrafts: null,
   lastBuildOutput: '',
+  outputUrl: '',
 };
 
 const els = {
   project: document.getElementById('projectSelect'),
-  currentFormLabel: document.getElementById('currentFormLabel'),
+  activeFileLabel: document.getElementById('activeFileLabel'),
   reload: document.getElementById('reloadBtn'),
   save: document.getElementById('saveBtn'),
   previewMode: document.getElementById('previewMode'),
@@ -84,6 +87,17 @@ const els = {
   importCreateBtn: document.getElementById('importCreateBtn'),
   importCloseBtn: document.getElementById('importCloseBtn'),
   projectBtn: document.getElementById('projectBtn'),
+  buildOptionsBtn: document.getElementById('buildOptionsBtn'),
+  buildOptionsDialog: document.getElementById('buildOptionsDialog'),
+  buildOptimize: document.getElementById('buildOptimize'),
+  buildTarget: document.getElementById('buildTarget'),
+  buildDefines: document.getElementById('buildDefines'),
+  buildSourceMap: document.getElementById('buildSourceMap'),
+  buildSourceMapSources: document.getElementById('buildSourceMapSources'),
+  buildAssertions: document.getElementById('buildAssertions'),
+  buildRebuild: document.getElementById('buildRebuild'),
+  saveBuildOptionsBtn: document.getElementById('saveBuildOptionsBtn'),
+  buildOptionsCloseBtn: document.getElementById('buildOptionsCloseBtn'),
   importBtn: document.getElementById('importBtn'),
   status: document.getElementById('status'),
   palette: document.getElementById('palette'),
@@ -140,6 +154,11 @@ const els = {
   buildDialog: document.getElementById('buildDialog'),
   buildOutput: document.getElementById('buildOutput'),
   buildCloseBtn: document.getElementById('buildCloseBtn'),
+  outputDialog: document.getElementById('outputDialog'),
+  outputTitle: document.getElementById('outputTitle'),
+  outputText: document.getElementById('outputText'),
+  outputOpenBtn: document.getElementById('outputOpenBtn'),
+  outputCloseBtn: document.getElementById('outputCloseBtn'),
   projectDialog: document.getElementById('projectDialog'),
   dialogForms: document.getElementById('dialogForms'),
   dialogUnits: document.getElementById('dialogUnits'),
@@ -630,6 +649,7 @@ function setView(view) {
   updateUndoButtons();
   updateMultiTools();
   renderFileExplorer();
+  renderActiveFile();
 }
 
 function currentUnitName() {
@@ -674,6 +694,7 @@ async function loadSource(force = false) {
     return;
   }
   const unitName = currentUnitName();
+  const projectId = state.project.id;
   const sourceFile = isProjectSourceFile(unitName);
   const cached = state.unitCache.get(unitName);
   if (cached) {
@@ -684,6 +705,7 @@ async function loadSource(force = false) {
     state.sourceCaret = cached.caret || { start: 0, end: 0 };
     state.sourceScrollTop = cached.scrollTop || 0;
     codeEditor.setValue(cached.text);
+    renderActiveFile();
     updateSourceStatus();
     updateSaveIndicator();
     const hadTarget = !!state.sourceTarget;
@@ -691,16 +713,20 @@ async function loadSource(force = false) {
     if (!hadTarget) focusSourceEditor({ restore: true });
     return;
   }
+  state.currentUnit = unitName;
+  renderActiveFile();
   els.sourceStatus.textContent = 'Loading...';
   try {
     const data = sourceFile
-      ? await api('unit', { project: state.project.id, unit: unitName })
-      : await api('readFile', { project: state.project.id, file: unitName });
+      ? await api('unit', { project: projectId, unit: unitName })
+      : await api('readFile', { project: projectId, file: unitName });
+    if (!state.project || state.project.id !== projectId || state.currentUnit !== unitName) return;
     state.sourceEol = data.source.includes('\r\n') ? '\r\n' : '\n';
     state.source = data.source.replace(/\r\n/g, '\n');
     state.sourceDirty = false;
     state.currentUnit = data.unit || data.file || unitName;
     els.sourceName.textContent = state.currentUnit;
+    renderActiveFile();
     codeEditor.setValue(state.source);
     updateSourceStatus();
     updateSaveIndicator();
@@ -709,6 +735,7 @@ async function loadSource(force = false) {
     if (!hadTarget) focusSourceEditor();
     renderFileExplorer();
   } catch (error) {
+    if (!state.project || state.project.id !== projectId || state.currentUnit !== unitName) return;
     state.source = null;
     state.sourceDirty = false;
     codeEditor.setValue('');
@@ -4841,6 +4868,7 @@ function clearProjectView() {
   state.formCache.clear();
   state.unitCache.clear();
   state.projectFiles = [];
+  state.buildFiles = [];
   els.project.value = '';
   codeEditor.setValue('');
   els.sourceName.textContent = 'No source';
@@ -4852,7 +4880,7 @@ function clearProjectView() {
   els.canvas.textContent = 'No project selected.';
   els.formTitle.textContent = 'No form';
   els.tree.textContent = 'No project selected.';
-  renderFormTitle();
+  renderActiveFile();
   if (previousProject) clearDrafts(previousProject);
   renderFileExplorer();
 }
@@ -4877,14 +4905,13 @@ async function loadProjects(loadFirst = true) {
   }
 }
 
-function renderFormTitle() {
-  if (!els.currentFormLabel) return;
-  els.currentFormLabel.textContent = state.currentForm
-    ? (state.currentForm.title || state.currentForm.form)
-    : 'No form';
-  els.currentFormLabel.title = state.currentForm
-    ? state.currentForm.form
-    : '';
+function renderActiveFile() {
+  if (!els.activeFileLabel) return;
+  const file = state.view === 'source'
+    ? (state.currentUnit || state.currentForm?.unit || '')
+    : (state.currentForm?.form || state.currentUnit || '');
+  els.activeFileLabel.textContent = file || 'No file';
+  els.activeFileLabel.title = file;
 }
 
 async function loadForm(formName) {
@@ -4893,6 +4920,58 @@ async function loadForm(formName) {
   stashCurrentForm();
   stashCurrentUnit();
   await loadProject(state.project.id, formName);
+}
+
+function normalizeProjectPath(path) {
+  return String(path || '').replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+}
+
+function formForUnit(unitName) {
+  const target = normalizeProjectPath(unitName);
+  if (!target) return null;
+  const baseName = (path) => path.split('/').pop();
+  return state.forms.find((form) => {
+    const candidate = normalizeProjectPath(form.unit);
+    if (!candidate) return false;
+    if (candidate === target) return true;
+    // A configured bare file name still matches the unit in a subfolder.
+    return !candidate.includes('/') && baseName(candidate) === baseName(target);
+  }) || null;
+}
+
+async function showSourceForForm() {
+  if (!state.project) return;
+  const unit = state.currentForm ? state.currentForm.unit : currentUnitName();
+  if (!unit) {
+    setStatus('This form has no unit.', true);
+    return;
+  }
+  if (state.currentUnit === unit && state.source !== null) {
+    setView('source');
+    return;
+  }
+  await openUnit(unit);
+}
+
+async function showDesignForSource() {
+  if (!state.project) return;
+  const unit = state.currentUnit || currentUnitName();
+  const form = formForUnit(unit);
+  if (!form) {
+    setStatus(unit ? `No form is linked to ${unit}.` : 'No form is linked to this source file.');
+    return;
+  }
+  if (state.currentForm && state.currentForm.form === form.form) {
+    setView('design');
+    return;
+  }
+  setView('design');
+  await loadForm(form.form);
+}
+
+async function toggleDesignSource() {
+  if (state.view === 'source') await showDesignForSource();
+  else await showSourceForForm();
 }
 
 function closeProjectDialog() {
@@ -4953,11 +5032,71 @@ async function saveProjectSettings() {
     state.forms = result.project.forms || [];
     const option = [...els.project.options].find((item) => item.value === state.project.id);
     if (option) option.textContent = state.project.name;
-    renderFormTitle();
+    renderActiveFile();
     renderProjectDialog();
     setStatus('Project settings saved');
   } catch (error) {
     setStatus(error.message, true);
+  }
+}
+
+function projectBuildOptions() {
+  const build = state.project?.build || {};
+  return {
+    optimize: build.optimize || 'default',
+    target: build.target || 'default',
+    defines: build.defines || '',
+    sourceMap: !!build.sourceMap,
+    sourceMapSources: !!build.sourceMapSources,
+    assertions: !!build.assertions,
+    rebuild: !!build.rebuild,
+  };
+}
+
+function updateBuildOptionsState() {
+  const sourceMap = els.buildSourceMap.checked;
+  els.buildSourceMapSources.disabled = !sourceMap;
+  if (!sourceMap) els.buildSourceMapSources.checked = false;
+}
+
+function openBuildOptionsDialog() {
+  if (!state.project) {
+    setStatus('No project selected.', true);
+    return;
+  }
+  const options = projectBuildOptions();
+  els.buildOptimize.value = options.optimize;
+  els.buildTarget.value = options.target;
+  els.buildDefines.value = options.defines;
+  els.buildSourceMap.checked = options.sourceMap;
+  els.buildSourceMapSources.checked = options.sourceMapSources;
+  els.buildAssertions.checked = options.assertions;
+  els.buildRebuild.checked = options.rebuild;
+  updateBuildOptionsState();
+  openDialog(els.buildOptionsDialog);
+}
+
+async function saveBuildOptions() {
+  if (!state.project) return;
+  const options = {
+    optimize: els.buildOptimize.value,
+    target: els.buildTarget.value,
+    defines: els.buildDefines.value.trim(),
+    sourceMap: els.buildSourceMap.checked,
+    sourceMapSources: els.buildSourceMapSources.checked,
+    assertions: els.buildAssertions.checked,
+    rebuild: els.buildRebuild.checked,
+  };
+  els.saveBuildOptionsBtn.disabled = true;
+  try {
+    const result = await api('saveBuildOptions', {}, { project: state.project.id, options });
+    if (state.project) state.project.build = result.build;
+    closeDialog(els.buildOptionsDialog);
+    setStatus('Build options saved');
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    els.saveBuildOptionsBtn.disabled = false;
   }
 }
 
@@ -5255,6 +5394,8 @@ async function buildOnly() {
   try {
     const result = await api('build', {}, body);
     state.lastBuildOutput = result.output || '';
+    if (result.ok) state.buildOutputOpen = true;
+    await loadProjectFiles();
     if (!result.ok) {
       renderBuildOutput(result.output || 'Build failed.');
       openDialog(els.buildDialog);
@@ -5302,6 +5443,8 @@ async function buildPreview() {
   try {
     const result = await api('build', {}, body);
     state.lastBuildOutput = result.output || '';
+    if (result.ok) state.buildOutputOpen = true;
+    await loadProjectFiles();
     if (!result.ok) {
       renderBuildOutput(result.output || 'Build failed.');
       openDialog(els.buildDialog);
@@ -5357,6 +5500,7 @@ function isProjectSourceFile(file) {
 async function loadProjectFiles() {
   if (!state.project) {
     state.projectFiles = [];
+    state.buildFiles = [];
     renderFileExplorer();
     return;
   }
@@ -5365,10 +5509,12 @@ async function loadProjectFiles() {
     const data = await api('files', { project });
     if (!state.project || state.project.id !== project) return;
     state.projectFiles = data.files || [];
+    state.buildFiles = data.build || [];
     renderFileExplorer();
   } catch (error) {
     if (!state.project || state.project.id !== project) return;
     state.projectFiles = [];
+    state.buildFiles = [];
     renderFileExplorer(error.message);
   }
 }
@@ -5382,6 +5528,7 @@ function formatFileSize(size) {
 
 function renderFileExplorer(error = '') {
   if (!els.fileExplorer) return;
+  const scrollTop = els.fileExplorer.scrollTop;
   els.fileExplorer.innerHTML = '';
   if (!state.project) {
     els.fileExplorer.textContent = 'No project selected.';
@@ -5394,7 +5541,7 @@ function renderFileExplorer(error = '') {
     els.fileExplorer.appendChild(message);
     return;
   }
-  if (state.projectFiles.length === 0) {
+  if (state.projectFiles.length === 0 && state.buildFiles.length === 0) {
     els.fileExplorer.textContent = 'No files.';
     return;
   }
@@ -5412,9 +5559,23 @@ function renderFileExplorer(error = '') {
     folder.files.push(file);
   }
 
+  const buildRoot = { dirs: new Map(), files: [] };
+  for (const file of state.buildFiles) {
+    const relative = file.path.replace(/^preview\//i, '');
+    const parts = relative.split('/');
+    let folder = buildRoot;
+    for (let index = 0; index < parts.length - 1; index += 1) {
+      if (!folder.dirs.has(parts[index])) {
+        folder.dirs.set(parts[index], { dirs: new Map(), files: [] });
+      }
+      folder = folder.dirs.get(parts[index]);
+    }
+    folder.files.push(file);
+  }
+
   const list = document.createElement('div');
   list.className = 'file-tree';
-  const renderFolder = (folder, container) => {
+  const renderFolder = (folder, container, generated = false) => {
     const directories = [...folder.dirs.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     for (const [name, child] of directories) {
       const details = document.createElement('details');
@@ -5425,7 +5586,7 @@ function renderFileExplorer(error = '') {
       details.appendChild(summary);
       const body = document.createElement('div');
       body.className = 'file-dir-body';
-      renderFolder(child, body);
+      renderFolder(child, body, generated);
       details.appendChild(body);
       container.appendChild(details);
     }
@@ -5434,6 +5595,7 @@ function renderFileExplorer(error = '') {
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'file-row';
+      if (generated) row.classList.add('generated');
       const active = file.kind === 'form'
         ? (state.currentForm?.form === file.path && state.view === 'design')
         : (state.currentUnit === file.path && state.view === 'source');
@@ -5451,12 +5613,52 @@ function renderFileExplorer(error = '') {
       size.className = 'file-size';
       size.textContent = formatFileSize(file.size);
       row.append(badge, name, size);
-      row.addEventListener('click', () => openExplorerFile(file));
+      row.addEventListener('click', () => (generated ? openBuildOutput(file) : openExplorerFile(file)));
       container.appendChild(row);
     }
   };
   renderFolder(root, list);
+
+  if (state.buildFiles.length > 0) {
+    const details = document.createElement('details');
+    details.className = 'file-dir build-output-dir';
+    details.open = state.buildOutputOpen;
+    details.addEventListener('toggle', () => {
+      state.buildOutputOpen = details.open;
+    });
+    const summary = document.createElement('summary');
+    summary.textContent = `Build output · ${state.buildFiles.length}`;
+    details.appendChild(summary);
+    const body = document.createElement('div');
+    body.className = 'file-dir-body';
+    renderFolder(buildRoot, body, true);
+    details.appendChild(body);
+    list.appendChild(details);
+  }
   els.fileExplorer.appendChild(list);
+  els.fileExplorer.scrollTop = scrollTop;
+}
+
+async function openBuildOutput(file) {
+  if (!state.project) return;
+  const extension = (file.path.split('.').pop() || '').toLowerCase();
+  const url = previewUrl(`projects/${state.project.id}/${file.path}`);
+  if (!['html', 'htm', 'css', 'js', 'json', 'txt', 'md', 'ini', 'xml', 'svg', 'yml', 'yaml', 'csv', 'map', 'lpr', 'inc', 'cfg', 'conf'].includes(extension)) {
+    window.open(url.href, '_blank', 'noopener');
+    return;
+  }
+  setStatus(`Loading ${file.path}...`);
+  try {
+    const data = await api('readOutput', { project: state.project.id, file: file.path });
+    els.outputTitle.textContent = file.path;
+    els.outputText.textContent = data.source;
+    state.outputUrl = extension === 'html' || extension === 'htm' ? url.href : '';
+    els.outputOpenBtn.classList.toggle('hidden-view', state.outputUrl === '');
+    openDialog(els.outputDialog);
+    setStatus(`Build output · ${file.path}`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
 }
 
 async function openExplorerFile(file) {
@@ -5920,7 +6122,7 @@ async function deleteForm(form) {
       state.sourceDirty = false;
       if (state.view === 'source') await loadSource(true);
     }
-    renderFormTitle();
+    renderActiveFile();
     renderProjectDialog();
     setStatus(`Removed ${label}`);
   } catch (error) {
@@ -5987,6 +6189,7 @@ async function loadProject(id, formName = '', checkDrafts = false) {
     state.project = data.project;
     state.forms = data.project.forms || [];
     state.projectFiles = [];
+    state.buildFiles = [];
     state.currentForm = data.form || state.forms[0] || null;
     state.currentUnit = state.currentForm
       ? state.currentForm.unit
@@ -6014,7 +6217,7 @@ async function loadProject(id, formName = '', checkDrafts = false) {
     state.sourceScrollTop = 0;
     codeEditor.setValue('');
     els.project.value = id;
-    renderFormTitle();
+    renderActiveFile();
     renderAll();
     if (!cachedForm || state.history.length === 0) {
       state.savedLfm = writeLfm(state.roots);
@@ -6041,7 +6244,7 @@ async function loadProject(id, formName = '', checkDrafts = false) {
       loadSource(true);
     }
   } catch (error) {
-    renderFormTitle();
+    renderActiveFile();
     if (state.project) els.project.value = state.project.id;
     setStatus(error.message, true);
   }
@@ -6291,11 +6494,19 @@ async function boot() {
   els.previewBtn.addEventListener('click', buildPreview);
   els.previewCloseBtn.addEventListener('click', () => closeDialog(els.previewDialog));
   els.buildCloseBtn.addEventListener('click', () => closeDialog(els.buildDialog));
+  els.outputCloseBtn.addEventListener('click', () => closeDialog(els.outputDialog));
+  els.outputOpenBtn.addEventListener('click', () => {
+    if (state.outputUrl) window.open(state.outputUrl, '_blank', 'noopener');
+  });
   els.previewDialog.addEventListener('close', () => {
     els.previewFrame.src = 'about:blank';
   });
   els.projectBtn.addEventListener('click', openProjectDialog);
   els.projectCloseBtn.addEventListener('click', closeProjectDialog);
+  els.buildOptionsBtn.addEventListener('click', openBuildOptionsDialog);
+  els.buildOptionsCloseBtn.addEventListener('click', () => closeDialog(els.buildOptionsDialog));
+  els.saveBuildOptionsBtn.addEventListener('click', saveBuildOptions);
+  els.buildSourceMap.addEventListener('change', updateBuildOptionsState);
   els.newProjectBtn.addEventListener('click', openNewProjectDialog);
   els.newProjectCloseBtn.addEventListener('click', () => closeDialog(els.newProjectDialog));
   els.newProjectCreateBtn.addEventListener('click', createNewProject);
@@ -6319,8 +6530,8 @@ async function boot() {
   els.settingKind.addEventListener('change', updateSettingsVisibility);
   els.newFormBtn.addEventListener('click', createForm);
   els.newUnitBtn.addEventListener('click', createUnit);
-  els.designTab.addEventListener('click', () => setView('design'));
-  els.sourceTab.addEventListener('click', () => setView('source'));
+  els.designTab.addEventListener('click', () => showDesignForSource());
+  els.sourceTab.addEventListener('click', () => showSourceForForm());
   els.undoBtn.addEventListener('click', undo);
   els.redoBtn.addEventListener('click', redo);
   els.editMenuBtn.addEventListener('click', (event) => {
@@ -6353,7 +6564,7 @@ async function boot() {
     const ctrlBackquote = (event.ctrlKey || event.metaKey) && event.code === 'Backquote';
     if (!f12 && !ctrlBackquote) return;
     event.preventDefault();
-    setView(state.view === 'source' ? 'design' : 'source');
+    toggleDesignSource();
   });
   document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && !isInCodeEditor(event.target)) {

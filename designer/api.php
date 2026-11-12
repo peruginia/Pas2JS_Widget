@@ -166,6 +166,59 @@ function projectFullPath(string $dir, string $relative): string
     return $full;
 }
 
+/** Normalize a generated build path: only files below preview/ are accepted. */
+function projectOutputPath(string $value): string
+{
+    $path = str_replace('\\', '/', trim($value));
+    if ($path === '' || strlen($path) > 512 || str_contains($path, "\0")
+        || preg_match('/[\x00-\x1F\x7F]/', $path)) {
+        fail('Invalid build output path.');
+    }
+    if (preg_match('#^(?:/|[A-Za-z]:)#', $path)) {
+        fail('Invalid build output path.');
+    }
+    $parts = explode('/', $path);
+    if (count($parts) < 2 || strcasecmp($parts[0], 'preview') !== 0) {
+        fail('Invalid build output path.');
+    }
+    foreach ($parts as $part) {
+        if ($part === '' || $part === '.' || $part === '..' || str_starts_with($part, '.')) {
+            fail('Invalid build output path.');
+        }
+    }
+    return implode('/', $parts);
+}
+
+function projectOutputFullPath(string $dir, string $relative): string
+{
+    $relative = projectOutputPath($relative);
+    $root = realpath($dir . DIRECTORY_SEPARATOR . 'preview');
+    if ($root === false) {
+        fail('Build output folder not found.', 404);
+    }
+    $full = $dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+    $parent = realpath(dirname($full));
+    $prefix = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if ($parent === false
+        || (strncasecmp($parent, $prefix, strlen($prefix)) !== 0 && strcasecmp($parent, $root) !== 0)) {
+        fail('Invalid build output path.');
+    }
+    $real = realpath($full);
+    if ($real === false) {
+        fail('Build output file not found.', 404);
+    }
+    if (strncasecmp($real, $prefix, strlen($prefix)) !== 0) {
+        fail('Invalid build output path.');
+    }
+    return $real;
+}
+
+function projectOutputTextFile(string $relative): bool
+{
+    $extension = strtolower((string) pathinfo($relative, PATHINFO_EXTENSION));
+    return $extension === 'lpr' || projectTextFile($relative);
+}
+
 function projectTextFile(string $relative): bool
 {
     $extension = strtolower((string) pathinfo($relative, PATHINFO_EXTENSION));
@@ -252,6 +305,53 @@ function listProjectFiles(string $dir): array
             if (count($files) >= 2000) {
                 return;
             }
+        }
+    };
+    $walk('');
+    usort($files, static fn(array $a, array $b): int => strnatcasecmp($a['path'], $b['path']));
+    return $files;
+}
+
+/** @return list<array{path:string,size:int,mtime:int,kind:string,editable:bool,generated:bool}> */
+function listBuildFiles(string $dir): array
+{
+    $root = $dir . DIRECTORY_SEPARATOR . 'preview';
+    if (!is_dir($root)) {
+        return [];
+    }
+    $files = [];
+    $walk = static function (string $relativeDir) use (&$walk, &$files, $root): void {
+        $fullDir = $relativeDir === ''
+            ? $root
+            : $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
+        foreach (scandir($fullDir) ?: [] as $entry) {
+            if (count($files) >= 500) {
+                return;
+            }
+            if ($entry === '.' || $entry === '..' || str_starts_with($entry, '.')) {
+                continue;
+            }
+            $relative = $relativeDir === '' ? $entry : $relativeDir . '/' . $entry;
+            $full = $fullDir . DIRECTORY_SEPARATOR . $entry;
+            if (is_dir($full)) {
+                $walk($relative);
+                if (count($files) >= 500) {
+                    return;
+                }
+                continue;
+            }
+            if (!is_file($full)) {
+                continue;
+            }
+            $path = 'preview/' . $relative;
+            $files[] = [
+                'path' => $path,
+                'size' => (int) filesize($full),
+                'mtime' => (int) filemtime($full),
+                'kind' => projectFileKind($path),
+                'editable' => false,
+                'generated' => true,
+            ];
         }
     };
     $walk('');
@@ -482,6 +582,115 @@ function findProjectForm(array $config, string $name): ?array
     return null;
 }
 
+function defaultBuildOptions(): array
+{
+    return [
+        'optimize' => 'default',
+        'target' => 'default',
+        'sourceMap' => false,
+        'sourceMapSources' => false,
+        'assertions' => false,
+        'rebuild' => false,
+        'defines' => '',
+    ];
+}
+
+/**
+ * Normalize the build options stored in project.json. Invalid values fall back
+ * to the defaults; the save action uses strict mode to reject them instead.
+ */
+function normalizeBuildOptions($value, bool $strict = false): array
+{
+    $options = defaultBuildOptions();
+    if (!is_array($value)) {
+        return $options;
+    }
+    $optimize = $value['optimize'] ?? 'default';
+    $optimize = is_string($optimize) ? $optimize : '';
+    if (in_array($optimize, ['default', 'none', '1', '2'], true)) {
+        $options['optimize'] = $optimize;
+    } elseif ($strict) {
+        fail('Invalid optimization level.');
+    }
+    $target = $value['target'] ?? 'default';
+    $target = is_string($target) ? $target : '';
+    if (in_array($target, ['default', 'es5', 'es6'], true)) {
+        $options['target'] = $target;
+    } elseif ($strict) {
+        fail('Invalid JavaScript target.');
+    }
+    foreach (['sourceMap', 'sourceMapSources', 'assertions', 'rebuild'] as $key) {
+        $options[$key] = !empty($value[$key]);
+    }
+    if (!$options['sourceMap']) {
+        $options['sourceMapSources'] = false;
+    }
+    $defines = $value['defines'] ?? '';
+    if (is_string($defines) && trim($defines) !== '') {
+        $parts = preg_split('/[\s,;]+/', trim($defines)) ?: [];
+        $clean = [];
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?::=.*)?$/', $part) || strlen($part) > 200) {
+                if ($strict) {
+                    fail('Invalid define: ' . $part);
+                }
+                continue;
+            }
+            $clean[] = $part;
+        }
+        $options['defines'] = implode(' ', array_values(array_unique($clean)));
+    } elseif ($strict && !is_string($defines)) {
+        fail('Invalid defines.');
+    }
+    return $options;
+}
+
+/** Compiler flags shared by Compile and Run for every build mode. */
+function buildOptionFlags(array $config): array
+{
+    $options = normalizeBuildOptions($config['build'] ?? []);
+    $flags = [];
+    switch ($options['optimize']) {
+        case 'none':
+            $flags[] = '-O-';
+            break;
+        case '1':
+            $flags[] = '-O1';
+            break;
+        case '2':
+            $flags[] = '-O2';
+            break;
+    }
+    if ($options['target'] === 'es5') {
+        $flags[] = '-Pecmascript5';
+    } elseif ($options['target'] === 'es6') {
+        $flags[] = '-Pecmascript6';
+    }
+    if ($options['sourceMap']) {
+        $flags[] = '-Jm';
+        if ($options['sourceMapSources']) {
+            $flags[] = '-Jminclude';
+        }
+    } else {
+        $flags[] = '-Jm-';
+    }
+    if ($options['assertions']) {
+        $flags[] = '-Sa';
+    }
+    if ($options['rebuild']) {
+        $flags[] = '-B';
+    }
+    foreach (explode(' ', $options['defines']) as $define) {
+        if ($define !== '') {
+            $flags[] = '-d' . $define;
+        }
+    }
+    return $flags;
+}
+
 function readProject(string $dir, string $id): array
 {
     $configFile = $dir . DIRECTORY_SEPARATOR . 'project.json';
@@ -589,6 +798,8 @@ function readProject(string $dir, string $id): array
         $units[] = $entry['unit'];
     }
     $config['units'] = array_values(array_unique($units));
+
+    $config['build'] = normalizeBuildOptions($config['build'] ?? []);
 
     return $config;
 }
@@ -793,6 +1004,11 @@ function writeProject(string $dir, array $config): void
     }
     if (($config['modules'] ?? []) !== []) {
         $data['modules'] = array_values($config['modules']);
+    }
+    $build = $config['build'] ?? [];
+    $build = is_array($build) ? $build : [];
+    if ($build !== [] && $build !== defaultBuildOptions()) {
+        $data['build'] = $build;
     }
 
     $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
@@ -1821,6 +2037,7 @@ try {
             }
             echo json_encode([
                 'files' => listProjectFiles($dir),
+                'build' => listBuildFiles($dir),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             break;
         }
@@ -1849,6 +2066,34 @@ try {
             echo json_encode([
                 'ok' => true,
                 'file' => $file,
+                'source' => $source,
+                'size' => strlen($source),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+            break;
+        }
+
+        case 'readOutput': {
+            $id = projectId((string) ($_GET['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $file = projectOutputPath((string) ($_GET['file'] ?? ''));
+            if (!projectOutputTextFile($file)) {
+                fail('File type is not readable.');
+            }
+            $full = projectOutputFullPath($dir, $file);
+            if (filesize($full) > 8 * 1024 * 1024) {
+                fail('File is too large.', 413);
+            }
+            $source = file_get_contents($full);
+            if ($source === false) {
+                fail('Cannot read the build output.', 500);
+            }
+            echo json_encode([
+                'ok' => true,
+                'file' => $file,
+                'generated' => true,
                 'source' => $source,
                 'size' => strlen($source),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -2426,6 +2671,31 @@ try {
             break;
         }
 
+        case 'saveBuildOptions': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $options = $data['options'] ?? null;
+            if (!is_array($options)) {
+                fail('Invalid build options.');
+            }
+            $config = readProject($dir, $id);
+            $config['build'] = normalizeBuildOptions($options, true);
+            projectSnapshot($dir, 'build options');
+            writeProject($dir, $config);
+            echo json_encode([
+                'ok' => true,
+                'build' => $config['build'],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
         case 'build': {
             if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
                 fail('POST required.', 405);
@@ -2439,6 +2709,7 @@ try {
             $config = readProject($dir, $id);
             $mode = (string) ($data['mode'] ?? 'project');
             $mode = $mode === 'form' ? 'form' : 'project';
+            $buildFlags = buildOptionFlags($config);
 
             $previewDir = $dir . DIRECTORY_SEPARATOR . 'preview';
             if (!is_dir($previewDir) && !mkdir($previewDir, 0775, true) && !is_dir($previewDir)) {
@@ -2498,6 +2769,7 @@ try {
                 $command = array_merge(
                     [$compiler],
                     pas2jsPaths($widgetsDir, $dir, $previewDir),
+                    $buildFlags,
                     ['-Jc', '-o' . $outputPath, $previewDir . DIRECTORY_SEPARATOR . 'preview.lpr'],
                 );
                 [$code, $output] = runProcess($command, $dir);
@@ -2566,6 +2838,7 @@ try {
                 $command = array_merge(
                     [$compiler],
                     pas2jsPaths($widgetsDir, $dir, $previewDir),
+                    $buildFlags,
                     ['-Jc-', '-FU' . $libDir, '-o' . $outputPath, $programPath],
                 );
                 [$code, $output] = runProcess($command, $dir);
@@ -2654,6 +2927,7 @@ try {
             $command = array_merge(
                 [$compiler],
                 pas2jsPaths($widgetsDir, $dir, $previewDir),
+                $buildFlags,
                 ['-Jc', '-o' . $outputPath, $programPath],
             );
             [$code, $output] = runProcess($command, $dir);
