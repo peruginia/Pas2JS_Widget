@@ -1,4 +1,7 @@
 projects/*
+!projects/.htaccess
 !projects/demo/
 !projects/demo/**
 projects/*/preview/
+projects/*/.snapshots/
+projects/demo/.snapshots/

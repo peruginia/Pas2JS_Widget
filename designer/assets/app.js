@@ -49,6 +49,8 @@ const state = {
   savedLfm: '',
   inspectorTab: 'properties',
   inspectorFilter: '',
+  leftTab: 'designer',
+  projectFiles: [],
 };
 
 const els = {
@@ -78,6 +80,20 @@ const els = {
   status: document.getElementById('status'),
   palette: document.getElementById('palette'),
   tree: document.getElementById('tree'),
+  designerPaneTab: document.getElementById('designerPaneTab'),
+  filesPaneTab: document.getElementById('filesPaneTab'),
+  designerPane: document.getElementById('designerPane'),
+  filesPane: document.getElementById('filesPane'),
+  fileExplorer: document.getElementById('fileExplorer'),
+  refreshFilesBtn: document.getElementById('refreshFilesBtn'),
+  explorerNewForm: document.getElementById('explorerNewForm'),
+  explorerNewUnit: document.getElementById('explorerNewUnit'),
+  explorerHistoryBtn: document.getElementById('explorerHistoryBtn'),
+  explorerUpload: document.getElementById('explorerUpload'),
+  historyDialog: document.getElementById('historyDialog'),
+  historyList: document.getElementById('historyList'),
+  historyCloseBtn: document.getElementById('historyCloseBtn'),
+  createSnapshotBtn: document.getElementById('createSnapshotBtn'),
   canvas: document.getElementById('canvas'),
   inspectorHeader: document.getElementById('inspectorHeader'),
   inspectorTabs: document.getElementById('inspectorTabs'),
@@ -103,7 +119,6 @@ const els = {
   sourceReload: document.getElementById('sourceReloadBtn'),
   sourceSave: document.getElementById('sourceSaveBtn'),
   sourceEditor: document.getElementById('sourceEditor'),
-  sourceGutter: document.getElementById('sourceGutter'),
   previewBtn: document.getElementById('previewBtn'),
   previewDialog: document.getElementById('previewDialog'),
   previewTitle: document.getElementById('previewTitle'),
@@ -132,6 +147,139 @@ const els = {
   projectCloseBtn: document.getElementById('projectCloseBtn'),
   deleteFilesCheck: document.getElementById('deleteFilesCheck'),
 };
+
+function createCodeEditor(textarea) {
+  if (!textarea || typeof window.CodeMirror === 'undefined') {
+    let changeHandler = null;
+    let keyHandler = null;
+    textarea.addEventListener('input', () => { if (changeHandler) changeHandler(); });
+    textarea.addEventListener('keydown', (event) => { if (keyHandler) keyHandler(event); });
+    return {
+      cm: null,
+      getValue: () => textarea.value,
+      setValue: (value) => { textarea.value = value ?? ''; },
+      focus: () => textarea.focus(),
+      getSelection: () => ({ start: textarea.selectionStart, end: textarea.selectionEnd }),
+      setSelection: (start, end) => textarea.setSelectionRange(start, end),
+      getScrollTop: () => textarea.scrollTop,
+      setScrollTop: (value) => { textarea.scrollTop = value; },
+      lineCount: () => textarea.value.split('\n').length,
+      scrollToLine: (line) => {
+        const lines = textarea.value.split('\n');
+        const index = Math.max(0, Math.min(line, lines.length - 1));
+        const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 18;
+        textarea.scrollTop = Math.max(0, index * lineHeight - textarea.clientHeight / 2 + lineHeight / 2);
+      },
+      selectLine: (line) => {
+        const lines = textarea.value.split('\n');
+        const index = Math.max(0, Math.min(line, lines.length - 1));
+        let offset = 0;
+        for (let current = 0; current < index; current += 1) offset += lines[current].length + 1;
+        textarea.focus();
+        textarea.setSelectionRange(offset, offset + (lines[index] || '').length);
+      },
+      navigateToLine: (line, column = 0) => {
+        const lines = textarea.value.split('\n');
+        const index = Math.max(0, Math.min(line, lines.length - 1));
+        let offset = 0;
+        for (let current = 0; current < index; current += 1) offset += lines[current].length + 1;
+        const position = offset + Math.max(0, Math.min((column || 1) - 1, (lines[index] || '').length));
+        textarea.focus();
+        textarea.setSelectionRange(position, position);
+        const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 18;
+        textarea.scrollTop = Math.max(0, index * lineHeight - textarea.clientHeight / 2);
+      },
+      markErrorLine: () => {},
+      clearErrorLine: () => {},
+      refresh: () => {},
+      onChange: (handler) => { changeHandler = handler; },
+      onKeyDown: (handler) => { keyHandler = handler; },
+    };
+  }
+
+  const cm = window.CodeMirror.fromTextArea(textarea, {
+    mode: 'text/x-pascal',
+    lineNumbers: true,
+    lineWrapping: false,
+    indentUnit: 2,
+    tabSize: 2,
+    indentWithTabs: false,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    styleActiveLine: true,
+    extraKeys: {
+      Tab: (instance) => instance.execCommand('indentMore'),
+      'Shift-Tab': (instance) => instance.execCommand('indentLess'),
+    },
+  });
+  cm.setSize('100%', '100%');
+  let changeHandler = null;
+  let keyHandler = null;
+  let errorLine = null;
+  cm.on('change', () => { if (changeHandler) changeHandler(); });
+  cm.on('keydown', (instance, event) => { if (keyHandler) keyHandler(event); });
+
+  const clearErrorLine = () => {
+    if (errorLine !== null) {
+      cm.removeLineClass(errorLine, 'background', 'cm-error-line');
+      errorLine = null;
+    }
+  };
+
+  return {
+    cm,
+    getValue: () => cm.getValue(),
+    setValue: (value) => {
+      clearErrorLine();
+      cm.setValue(value ?? '');
+    },
+    focus: () => cm.focus(),
+    getSelection: () => ({
+      start: cm.indexFromPos(cm.getCursor('from')),
+      end: cm.indexFromPos(cm.getCursor('to')),
+    }),
+    setSelection: (start, end) => {
+      cm.setSelection(cm.posFromIndex(Math.max(0, start)), cm.posFromIndex(Math.max(0, end)));
+    },
+    getScrollTop: () => cm.getScrollInfo().top,
+    setScrollTop: (value) => { cm.scrollTo(null, value); },
+    lineCount: () => cm.lineCount(),
+    scrollToLine: (line) => {
+      const index = Math.max(0, Math.min(line, cm.lineCount() - 1));
+      cm.scrollIntoView({ line: index, ch: 0 }, 100);
+    },
+    selectLine: (line) => {
+      const index = Math.max(0, Math.min(line, cm.lineCount() - 1));
+      cm.setSelection({ line: index, ch: 0 }, { line: index, ch: (cm.getLine(index) || '').length });
+    },
+    navigateToLine: (line, column = 0) => {
+      const index = Math.max(0, Math.min(line, cm.lineCount() - 1));
+      const ch = Math.max(0, Math.min((column || 1) - 1, (cm.getLine(index) || '').length));
+      cm.focus();
+      cm.setCursor({ line: index, ch });
+      cm.scrollIntoView({ line: index, ch: 0 }, 100);
+    },
+    markErrorLine: (line) => {
+      clearErrorLine();
+      if (line >= 0 && line < cm.lineCount()) {
+        errorLine = cm.addLineClass(line, 'background', 'cm-error-line');
+      }
+    },
+    clearErrorLine,
+    refresh: () => cm.refresh(),
+    onChange: (handler) => { changeHandler = handler; },
+    onKeyDown: (handler) => { keyHandler = handler; },
+  };
+}
+
+const codeEditor = createCodeEditor(els.sourceEditor);
+codeEditor.onChange(onSourceInput);
+codeEditor.onKeyDown((event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    saveSource({ saveForm: true });
+  }
+});
 
 const nonVisual = new Set();
 const containerClasses = new Set([
@@ -401,19 +549,7 @@ function escapeRegExp(text) {
 }
 
 function sourceText() {
-  return els.sourceEditor.value;
-}
-
-function syncSourceGutter() {
-  els.sourceGutter.scrollTop = els.sourceEditor.scrollTop;
-}
-
-function updateSourceGutter() {
-  const count = sourceText().split('\n').length;
-  const numbers = [];
-  for (let index = 1; index <= count; index++) numbers.push(index);
-  els.sourceGutter.textContent = numbers.join('\n');
-  syncSourceGutter();
+  return codeEditor.getValue();
 }
 
 function updateSourceStatus() {
@@ -421,28 +557,26 @@ function updateSourceStatus() {
     els.sourceStatus.textContent = '';
     return;
   }
-  const count = sourceText().split('\n').length;
+  const count = codeEditor.lineCount();
   els.sourceStatus.textContent = state.sourceDirty
     ? `Modified · ${count} lines`
     : `${count} lines`;
 }
 
 function rememberSourcePosition() {
-  const editor = els.sourceEditor;
-  if (!editor) return;
-  state.sourceCaret = { start: editor.selectionStart, end: editor.selectionEnd };
-  state.sourceScrollTop = editor.scrollTop;
+  if (!codeEditor) return;
+  state.sourceCaret = codeEditor.getSelection();
+  state.sourceScrollTop = codeEditor.getScrollTop();
 }
 
 function focusSourceEditor({ restore = false } = {}) {
-  const editor = els.sourceEditor;
-  if (!editor || state.source === null) return;
-  editor.focus({ preventScroll: true });
+  if (!codeEditor || state.source === null) return;
+  codeEditor.focus();
   if (restore) {
-    editor.setSelectionRange(state.sourceCaret.start, state.sourceCaret.end);
-    editor.scrollTop = state.sourceScrollTop;
+    codeEditor.setSelection(state.sourceCaret.start, state.sourceCaret.end);
+    codeEditor.setScrollTop(state.sourceScrollTop);
   }
-  syncSourceGutter();
+  codeEditor.refresh();
 }
 
 function setView(view) {
@@ -458,6 +592,8 @@ function setView(view) {
   els.canvas.classList.toggle('hidden-view', source);
   els.sourceView.classList.toggle('hidden-view', !source);
   if (source) {
+    codeEditor.refresh();
+    requestAnimationFrame(() => codeEditor.refresh());
     if (state.source === null) {
       loadSource();
     } else if (state.sourceTarget) {
@@ -469,6 +605,7 @@ function setView(view) {
   closeEditMenu();
   updateUndoButtons();
   updateMultiTools();
+  renderFileExplorer();
 }
 
 function currentUnitName() {
@@ -495,16 +632,14 @@ async function loadSource(force = false) {
   if (!state.project) {
     els.sourceName.textContent = 'No source';
     els.sourceStatus.textContent = 'Select a project.';
-    els.sourceEditor.value = '';
-    els.sourceGutter.textContent = '';
+    codeEditor.setValue('');
     state.source = null;
     return;
   }
   if (!currentUnitName()) {
     els.sourceName.textContent = 'No source';
     els.sourceStatus.textContent = 'The project has no source file.';
-    els.sourceEditor.value = '';
-    els.sourceGutter.textContent = '';
+    codeEditor.setValue('');
     state.source = null;
     state.sourceDirty = false;
     updateSaveIndicator();
@@ -515,6 +650,7 @@ async function loadSource(force = false) {
     return;
   }
   const unitName = currentUnitName();
+  const sourceFile = isProjectSourceFile(unitName);
   const cached = state.unitCache.get(unitName);
   if (cached) {
     state.unitCache.delete(unitName);
@@ -523,8 +659,7 @@ async function loadSource(force = false) {
     state.sourceDirty = true;
     state.sourceCaret = cached.caret || { start: 0, end: 0 };
     state.sourceScrollTop = cached.scrollTop || 0;
-    els.sourceEditor.value = cached.text;
-    updateSourceGutter();
+    codeEditor.setValue(cached.text);
     updateSourceStatus();
     updateSaveIndicator();
     const hadTarget = !!state.sourceTarget;
@@ -534,23 +669,25 @@ async function loadSource(force = false) {
   }
   els.sourceStatus.textContent = 'Loading...';
   try {
-    const data = await api('unit', { project: state.project.id, unit: currentUnitName() });
+    const data = sourceFile
+      ? await api('unit', { project: state.project.id, unit: unitName })
+      : await api('readFile', { project: state.project.id, file: unitName });
     state.sourceEol = data.source.includes('\r\n') ? '\r\n' : '\n';
     state.source = data.source.replace(/\r\n/g, '\n');
     state.sourceDirty = false;
-    els.sourceName.textContent = data.unit;
-    els.sourceEditor.value = state.source;
-    updateSourceGutter();
+    state.currentUnit = data.unit || data.file || unitName;
+    els.sourceName.textContent = state.currentUnit;
+    codeEditor.setValue(state.source);
     updateSourceStatus();
     updateSaveIndicator();
     const hadTarget = !!state.sourceTarget;
     applySourceNavigation({ focus: hadTarget });
     if (!hadTarget) focusSourceEditor();
+    renderFileExplorer();
   } catch (error) {
     state.source = null;
     state.sourceDirty = false;
-    els.sourceEditor.value = '';
-    els.sourceGutter.textContent = '';
+    codeEditor.setValue('');
     els.sourceStatus.textContent = error.message;
     updateSaveIndicator();
   }
@@ -559,7 +696,6 @@ async function loadSource(force = false) {
 function onSourceInput() {
   if (state.source === null) return;
   state.sourceDirty = sourceText() !== state.source;
-  updateSourceGutter();
   updateSourceStatus();
   updateSaveIndicator();
 }
@@ -577,13 +713,17 @@ async function saveSource({ saveForm = false } = {}) {
   const text = sourceText().split('\n').join(state.sourceEol || '\n');
   els.sourceStatus.textContent = 'Saving...';
   try {
-    const result = await api('saveUnit', {}, { project: state.project.id, unit: currentUnitName(), source: text });
+    const unit = currentUnitName();
+    const result = isProjectSourceFile(unit)
+      ? await api('saveUnit', {}, { project: state.project.id, unit, source: text })
+      : await api('writeFile', {}, { project: state.project.id, file: unit, source: text });
     state.source = sourceText();
     state.sourceDirty = false;
     state.unitCache.delete(currentUnitName());
     updateSourceStatus();
     updateSaveIndicator();
     setStatus(`Source saved (${result.bytes} bytes)`);
+    void loadProjectFiles();
     if (saveForm && state.dirty) {
       // The form may hold the event association that was just generated;
       // saving the unit alone would leave the LFM without it.
@@ -599,7 +739,9 @@ async function saveCachedUnit(unit) {
   const cache = state.unitCache.get(unit);
   if (!cache) return;
   const text = cache.text.split('\n').join(cache.eol || '\n');
-  const result = await api('saveUnit', {}, { project: state.project.id, unit, source: text });
+  const result = isProjectSourceFile(unit)
+    ? await api('saveUnit', {}, { project: state.project.id, unit, source: text })
+    : await api('writeFile', {}, { project: state.project.id, file: unit, source: text });
   state.unitCache.delete(unit);
   if (state.currentUnit === unit) {
     state.source = cache.text;
@@ -632,6 +774,9 @@ async function saveAll() {
     const sourceFiles = new Set(
       [...(state.project.units || []), state.project.program].filter(Boolean),
     );
+    for (const file of state.projectFiles || []) {
+      if (file.kind === 'text') sourceFiles.add(file.path);
+    }
     for (const unit of [...state.unitCache.keys()]) {
       if (!sourceFiles.has(unit)) {
         state.unitCache.delete(unit);
@@ -685,6 +830,7 @@ async function saveAll() {
       message += `; ${warnings.join('; ')}`;
     }
     setStatus(message, warnings.length > 0);
+    void loadProjectFiles();
     return true;
   } catch (error) {
     updateSaveIndicator();
@@ -735,6 +881,7 @@ function findMethodLine(lines, name) {
 
 function applySourceNavigation({ focus = false } = {}) {
   if (state.source === null) return;
+  if (!isProjectSourceFile(currentUnitName())) return;
   const lines = sourceText().split('\n');
   let line = -1;
 
@@ -755,19 +902,10 @@ function applySourceNavigation({ focus = false } = {}) {
 }
 
 function scrollSourceToLine(line, focus) {
-  const editor = els.sourceEditor;
-  const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 18;
-  const centered = line * lineHeight - editor.clientHeight / 2 + lineHeight / 2;
-  editor.scrollTop = Math.max(0, centered);
-  syncSourceGutter();
-
+  codeEditor.scrollToLine(line);
   if (!focus) return;
-  const lines = editor.value.split('\n');
-  let offset = 0;
-  for (let index = 0; index < line; index++) offset += lines[index].length + 1;
-  const end = offset + (lines[line] || '').length;
-  editor.focus();
-  editor.setSelectionRange(offset, end);
+  codeEditor.focus();
+  codeEditor.selectLine(line);
 }
 
 function nodeTitle(node) {
@@ -3305,7 +3443,7 @@ async function createHandler(node, prop) {
     renderInspector();
   }
 
-  els.sourceEditor.value = updated;
+  codeEditor.setValue(updated);
   onSourceInput();
   state.sourceTarget = { kind: 'method', name };
   if (state.view === 'source') applySourceNavigation({ focus: true });
@@ -4306,6 +4444,7 @@ function renderAll() {
   renderCanvas();
   renderInspector();
   updateMultiTools();
+  renderFileExplorer();
 }
 
 function updateMultiTools() {
@@ -4633,6 +4772,12 @@ function isEditableTarget(target) {
   );
 }
 
+function isInCodeEditor(target) {
+  if (!target) return false;
+  if (codeEditor.cm) return codeEditor.cm.getWrapperElement().contains(target);
+  return target === els.sourceEditor;
+}
+
 function hasOpenDialog() {
   return !!document.querySelector('dialog[open]');
 }
@@ -4657,11 +4802,11 @@ function clearProjectView() {
   state.clipboard = [];
   state.formCache.clear();
   state.unitCache.clear();
+  state.projectFiles = [];
   els.project.value = '';
   els.form.innerHTML = '';
   els.form.disabled = true;
-  els.sourceEditor.value = '';
-  els.sourceGutter.textContent = '';
+  codeEditor.setValue('');
   els.sourceName.textContent = 'No source';
   els.sourceStatus.textContent = '';
   renderAll();
@@ -4671,6 +4816,7 @@ function clearProjectView() {
   els.canvas.textContent = 'No project selected.';
   els.formTitle.textContent = 'No form';
   els.tree.textContent = 'No project selected.';
+  renderFileExplorer();
 }
 
 async function loadProjects(loadFirst = true) {
@@ -4950,6 +5096,113 @@ function closeDialog(dialog) {
   }
 }
 
+function buildBaseName(path) {
+  const normalized = String(path ?? '').replace(/\\/g, '/');
+  return normalized.split('/').filter(Boolean).pop() || String(path ?? '');
+}
+
+function projectSourceFiles() {
+  const files = new Set();
+  for (const form of state.forms || []) {
+    if (form.unit) files.add(form.unit);
+  }
+  for (const unit of state.project?.units || []) {
+    if (unit) files.add(unit);
+  }
+  if (state.project?.program) files.add(state.project.program);
+  return files;
+}
+
+function matchProjectSource(file) {
+  const lower = buildBaseName(file).toLowerCase();
+  for (const candidate of projectSourceFiles()) {
+    if (buildBaseName(candidate).toLowerCase() === lower) return candidate;
+  }
+  return null;
+}
+
+async function openBuildLocation(unit, line, column) {
+  closeDialog(els.buildDialog);
+  try {
+    if (state.currentUnit !== unit || state.source === null) {
+      stashCurrentUnit();
+      state.currentUnit = unit;
+      state.source = null;
+      state.sourceTarget = null;
+      state.sourceDirty = false;
+      state.sourceCaret = { start: 0, end: 0 };
+      state.sourceScrollTop = 0;
+      await loadSource(true);
+    }
+    if (state.source === null) {
+      setStatus(`Cannot open ${unit}.`, true);
+      return;
+    }
+    if (state.view !== 'source') setView('source');
+    codeEditor.refresh();
+    codeEditor.markErrorLine(line - 1);
+    codeEditor.navigateToLine(line - 1, column);
+    setStatus(`${buildBaseName(unit)}(${line}${column ? `,${column}` : ''})`, true);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+function renderBuildOutput(output) {
+  els.buildOutput.innerHTML = '';
+  const text = String(output ?? '').replace(/\r\n/g, '\n');
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const row = document.createElement('div');
+    row.className = 'build-line';
+    const match = /^(.*)\((\d+)(?:,(\d+))?\)\s*(Error|Fatal|Warning|Note):\s*(.*)$/.exec(line);
+    if (!match) {
+      row.textContent = line || ' ';
+      if (/^(Fatal|Error):/.test(line)) row.classList.add('error');
+      else if (/^Warning:/.test(line)) row.classList.add('warning');
+      els.buildOutput.appendChild(row);
+      continue;
+    }
+
+    const file = match[1].trim();
+    const lineNumber = Number(match[2]);
+    const column = Number(match[3] || 0);
+    const severity = match[4].toLowerCase();
+    const message = match[5];
+    row.classList.add(severity);
+
+    const unit = matchProjectSource(file);
+    const location = document.createElement(unit ? 'button' : 'span');
+    location.className = unit ? 'build-location' : 'build-location-static';
+    location.textContent = `${buildBaseName(file)}(${lineNumber}${column ? `,${column}` : ''})`;
+    if (unit) {
+      location.type = 'button';
+      location.title = `Open ${unit} at line ${lineNumber}`;
+      location.addEventListener('click', () => openBuildLocation(unit, lineNumber, column));
+    }
+    row.appendChild(location);
+    row.appendChild(document.createTextNode(' '));
+
+    const label = document.createElement('span');
+    label.className = `build-severity ${severity}`;
+    label.textContent = `${match[4]}:`;
+    row.append(label, document.createTextNode(` ${message}`));
+    els.buildOutput.appendChild(row);
+  }
+}
+
+function scrollBuildOutputToFirstError() {
+  requestAnimationFrame(() => {
+    const firstError = els.buildOutput.querySelector('.build-line.error');
+    if (!firstError) return;
+    const box = els.buildOutput.getBoundingClientRect();
+    const rect = firstError.getBoundingClientRect();
+    const target = els.buildOutput.scrollTop + (rect.top - box.top)
+      - Math.max(0, (els.buildOutput.clientHeight - rect.height) / 2);
+    els.buildOutput.scrollTop = Math.max(0, target);
+  });
+}
+
 async function buildPreview() {
   if (!state.project) {
     setStatus('No project selected.', true);
@@ -4972,8 +5225,9 @@ async function buildPreview() {
   try {
     const result = await api('build', {}, body);
     if (!result.ok) {
-      els.buildOutput.textContent = result.output || 'Build failed.';
+      renderBuildOutput(result.output || 'Build failed.');
       openDialog(els.buildDialog);
+      scrollBuildOutputToFirstError();
       setStatus('Build failed', true);
       return;
     }
@@ -4987,8 +5241,9 @@ async function buildPreview() {
     openDialog(els.previewDialog);
     setStatus(mode === 'form' ? `Preview built · ${result.unit}` : `Preview built · ${result.kind || state.project.kind}`);
   } catch (error) {
-    els.buildOutput.textContent = error.message;
+    renderBuildOutput(error.message);
     openDialog(els.buildDialog);
+    scrollBuildOutputToFirstError();
     setStatus(error.message, true);
   } finally {
     els.previewBtn.disabled = false;
@@ -5008,12 +5263,278 @@ async function openUnit(unit) {
   state.sourceDirty = false;
   state.sourceCaret = { start: 0, end: 0 };
   state.sourceScrollTop = 0;
-  els.sourceEditor.value = '';
-  els.sourceGutter.textContent = '';
+  codeEditor.setValue('');
   if (state.view === 'source') {
     await loadSource(true);
   } else {
     setView('source');
+  }
+}
+
+function isProjectSourceFile(file) {
+  return projectSourceFiles().has(file);
+}
+
+function setLeftTab(tab) {
+  if (tab !== 'designer' && tab !== 'files') return;
+  state.leftTab = tab;
+  const files = tab === 'files';
+  els.designerPane.classList.toggle('hidden-view', files);
+  els.filesPane.classList.toggle('hidden-view', !files);
+  els.designerPaneTab.classList.toggle('active', !files);
+  els.filesPaneTab.classList.toggle('active', files);
+  els.designerPaneTab.setAttribute('aria-selected', String(!files));
+  els.filesPaneTab.setAttribute('aria-selected', String(files));
+  if (files) {
+    if (state.projectFiles.length === 0) void loadProjectFiles();
+    else renderFileExplorer();
+  }
+}
+
+async function loadProjectFiles() {
+  if (!state.project) {
+    state.projectFiles = [];
+    renderFileExplorer();
+    return;
+  }
+  const project = state.project.id;
+  try {
+    const data = await api('files', { project });
+    if (!state.project || state.project.id !== project) return;
+    state.projectFiles = data.files || [];
+    renderFileExplorer();
+  } catch (error) {
+    if (!state.project || state.project.id !== project) return;
+    state.projectFiles = [];
+    renderFileExplorer(error.message);
+  }
+}
+
+function formatFileSize(size) {
+  const value = Number(size) || 0;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderFileExplorer(error = '') {
+  if (!els.fileExplorer) return;
+  els.fileExplorer.innerHTML = '';
+  if (!state.project) {
+    els.fileExplorer.textContent = 'No project selected.';
+    return;
+  }
+  if (error) {
+    const message = document.createElement('div');
+    message.className = 'file-empty error';
+    message.textContent = error;
+    els.fileExplorer.appendChild(message);
+    return;
+  }
+  if (state.projectFiles.length === 0) {
+    els.fileExplorer.textContent = 'No files.';
+    return;
+  }
+
+  const root = { dirs: new Map(), files: [] };
+  for (const file of state.projectFiles) {
+    const parts = file.path.split('/');
+    let folder = root;
+    for (let index = 0; index < parts.length - 1; index += 1) {
+      if (!folder.dirs.has(parts[index])) {
+        folder.dirs.set(parts[index], { dirs: new Map(), files: [] });
+      }
+      folder = folder.dirs.get(parts[index]);
+    }
+    folder.files.push(file);
+  }
+
+  const list = document.createElement('div');
+  list.className = 'file-tree';
+  const renderFolder = (folder, container) => {
+    const directories = [...folder.dirs.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    for (const [name, child] of directories) {
+      const details = document.createElement('details');
+      details.className = 'file-dir';
+      details.open = true;
+      const summary = document.createElement('summary');
+      summary.textContent = name;
+      details.appendChild(summary);
+      const body = document.createElement('div');
+      body.className = 'file-dir-body';
+      renderFolder(child, body);
+      details.appendChild(body);
+      container.appendChild(details);
+    }
+    const files = [...folder.files].sort((a, b) => a.path.localeCompare(b.path));
+    for (const file of files) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'file-row';
+      const active = file.kind === 'form'
+        ? (state.currentForm?.form === file.path && state.view === 'design')
+        : (state.currentUnit === file.path && state.view === 'source');
+      if (active) row.classList.add('active');
+      row.title = `${file.path} · ${formatFileSize(file.size)}`;
+      const badge = document.createElement('span');
+      badge.className = `file-badge kind-${file.kind}`;
+      badge.textContent = file.kind === 'settings'
+        ? 'CFG'
+        : (file.path.split('.').pop() || '?').toUpperCase().slice(0, 4);
+      const name = document.createElement('span');
+      name.className = 'file-name';
+      name.textContent = file.path.split('/').pop();
+      const size = document.createElement('span');
+      size.className = 'file-size';
+      size.textContent = formatFileSize(file.size);
+      row.append(badge, name, size);
+      row.addEventListener('click', () => openExplorerFile(file));
+      container.appendChild(row);
+    }
+  };
+  renderFolder(root, list);
+  els.fileExplorer.appendChild(list);
+}
+
+async function openExplorerFile(file) {
+  if (!state.project) return;
+  if (file.kind === 'settings') {
+    setStatus('Project settings are edited from Project…');
+    return;
+  }
+  if (file.kind === 'form') {
+    if (!state.forms.some((entry) => entry.form === file.path)) return;
+    els.form.value = file.path;
+    await loadForm(file.path);
+    setView('design');
+    setLeftTab('files');
+    renderFileExplorer();
+    return;
+  }
+  if (file.kind === 'source' || file.kind === 'text') {
+    await openExplorerSource(file.path);
+    return;
+  }
+  const url = previewUrl(`projects/${state.project.id}/${file.path}`);
+  window.open(url.href, '_blank', 'noopener');
+}
+
+async function openExplorerSource(file) {
+  if (!state.project) return;
+  if (state.currentUnit !== file || state.source === null) {
+    stashCurrentUnit();
+    state.currentUnit = file;
+    state.source = null;
+    state.sourceTarget = null;
+    state.sourceDirty = false;
+    state.sourceCaret = { start: 0, end: 0 };
+    state.sourceScrollTop = 0;
+    await loadSource(true);
+  }
+  setView('source');
+  setLeftTab('files');
+  renderFileExplorer();
+}
+
+function formatSnapshotDate(created) {
+  const date = new Date((Number(created) || 0) * 1000);
+  return date.toLocaleString();
+}
+
+function renderHistoryList(snapshots) {
+  els.historyList.innerHTML = '';
+  if (!snapshots || snapshots.length === 0) {
+    const item = document.createElement('li');
+    item.className = 'history-empty';
+    item.textContent = 'No snapshots yet.';
+    els.historyList.appendChild(item);
+    return;
+  }
+  for (const snapshot of snapshots) {
+    const item = document.createElement('li');
+    item.className = 'history-item';
+    const info = document.createElement('div');
+    info.className = 'history-info';
+    const title = document.createElement('strong');
+    title.textContent = formatSnapshotDate(snapshot.created);
+    const meta = document.createElement('span');
+    meta.textContent = `${snapshot.reason} · ${snapshot.files} files · ${formatFileSize(snapshot.bytes)}`;
+    info.append(title, meta);
+    const restore = document.createElement('button');
+    restore.type = 'button';
+    restore.className = 'dialog-btn';
+    restore.textContent = 'Restore';
+    restore.addEventListener('click', () => restoreProjectSnapshot(snapshot.id));
+    item.append(info, restore);
+    els.historyList.appendChild(item);
+  }
+}
+
+async function openHistoryDialog() {
+  if (!state.project) return;
+  if (!els.historyDialog.open) openDialog(els.historyDialog);
+  els.historyList.textContent = 'Loading...';
+  try {
+    const data = await api('snapshots', { project: state.project.id });
+    renderHistoryList(data.snapshots || []);
+  } catch (error) {
+    els.historyList.textContent = error.message;
+  }
+}
+
+async function restoreProjectSnapshot(snapshot) {
+  if (!state.project) return;
+  if (hasUnsavedChanges() && !window.confirm('Discard unsaved changes and restore this snapshot?')) return;
+  if (!window.confirm('Restore the project from this snapshot? A backup of the current files is created first.')) return;
+  const project = state.project.id;
+  try {
+    await api('restoreSnapshot', {}, { project, snapshot });
+    closeDialog(els.historyDialog);
+    discardAllChanges();
+    state.projectFiles = [];
+    await loadProject(project);
+    await loadProjectFiles();
+    setStatus('Snapshot restored');
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function createSnapshotManually() {
+  if (!state.project) return;
+  try {
+    await api('createSnapshot', {}, { project: state.project.id, reason: 'manual' });
+    await openHistoryDialog();
+    setStatus('Snapshot created');
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function uploadProjectAsset(file) {
+  if (!state.project || !file) return;
+  if (file.size > 4 * 1024 * 1024) {
+    setStatus('Asset is larger than 4 MB.', true);
+    return;
+  }
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Cannot read the selected file.'));
+      reader.readAsDataURL(file);
+    });
+    const base64 = dataUrl.split(',')[1] || '';
+    const result = await api('uploadFile', {}, {
+      project: state.project.id,
+      name: file.name,
+      data: base64,
+    });
+    await loadProjectFiles();
+    setLeftTab('files');
+    setStatus(`Uploaded ${result.file}`);
+  } catch (error) {
+    setStatus(error.message, true);
   }
 }
 
@@ -5154,6 +5675,7 @@ async function loadProject(id, formName = '') {
     }
     state.project = data.project;
     state.forms = data.project.forms || [];
+    state.projectFiles = [];
     state.currentForm = data.form || state.forms[0] || null;
     state.currentUnit = state.currentForm
       ? state.currentForm.unit
@@ -5179,8 +5701,7 @@ async function loadProject(id, formName = '') {
     state.sourceDirty = false;
     state.sourceCaret = { start: 0, end: 0 };
     state.sourceScrollTop = 0;
-    els.sourceEditor.value = '';
-    els.sourceGutter.textContent = '';
+    codeEditor.setValue('');
     els.project.value = id;
     renderFormSelect();
     renderAll();
@@ -5197,6 +5718,7 @@ async function loadProject(id, formName = '') {
     updateUndoButtons();
     updateMultiTools();
     setStatus(`${data.project.name} loaded`);
+    void loadProjectFiles();
     if (!state.currentForm && state.currentUnit) {
       if (state.view === 'source') {
         loadSource(true);
@@ -5494,7 +6016,7 @@ async function boot() {
     setView(state.view === 'source' ? 'design' : 'source');
   });
   document.addEventListener('keydown', (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && event.target !== els.sourceEditor) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && !isInCodeEditor(event.target)) {
       event.preventDefault();
       saveAll();
     }
@@ -5555,14 +6077,27 @@ async function boot() {
     event.preventDefault();
     event.returnValue = '';
   });
-  els.sourceEditor.addEventListener('input', onSourceInput);
-  els.sourceEditor.addEventListener('scroll', syncSourceGutter);
-  els.sourceEditor.addEventListener('keydown', (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-      event.preventDefault();
-      saveSource({ saveForm: true });
-    }
+  els.designerPaneTab.addEventListener('click', () => setLeftTab('designer'));
+  els.filesPaneTab.addEventListener('click', () => setLeftTab('files'));
+  els.refreshFilesBtn.addEventListener('click', () => loadProjectFiles());
+  els.explorerNewForm.addEventListener('click', async () => {
+    await createForm();
+    await loadProjectFiles();
+    setLeftTab('files');
   });
+  els.explorerNewUnit.addEventListener('click', async () => {
+    await createUnit();
+    await loadProjectFiles();
+    setLeftTab('files');
+  });
+  els.explorerHistoryBtn.addEventListener('click', openHistoryDialog);
+  els.explorerUpload.addEventListener('change', async () => {
+    const file = els.explorerUpload.files?.[0];
+    els.explorerUpload.value = '';
+    if (file) await uploadProjectAsset(file);
+  });
+  els.historyCloseBtn.addEventListener('click', () => closeDialog(els.historyDialog));
+  els.createSnapshotBtn.addEventListener('click', createSnapshotManually);
   els.project.addEventListener('change', () => {
     if (!els.project.value) return;
     if (hasUnsavedChanges() && !window.confirm('Discard all unsaved changes in the current project?')) {

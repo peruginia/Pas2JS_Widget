@@ -1,0 +1,11 @@
+# Internal project data: never serve hidden files or snapshot folders.
+# This is a second line of defence; the API and the designer only expose
+# project files through their own actions.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule (^|/)\. - [F,L]
+</IfModule>
+
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>

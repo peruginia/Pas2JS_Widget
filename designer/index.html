@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WCL Designer</title>
+  <link rel="stylesheet" href="assets/vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="assets/vendor/codemirror/addon/dialog/dialog.css">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -37,10 +39,32 @@
 
   <main class="workspace">
     <aside class="panel tree-panel">
-      <div class="panel-title">Palette</div>
-      <div id="palette" class="palette"></div>
-      <div class="panel-title components-title">Components</div>
-      <div id="tree" class="tree"></div>
+      <div class="tree-tabs" role="tablist">
+        <button id="designerPaneTab" type="button" class="tree-tab active" role="tab" aria-selected="true">Designer</button>
+        <button id="filesPaneTab" type="button" class="tree-tab" role="tab" aria-selected="false">Files</button>
+      </div>
+      <div id="designerPane" class="tree-pane">
+        <div class="panel-title">Palette</div>
+        <div id="palette" class="palette"></div>
+        <div class="panel-title components-title">Components</div>
+        <div id="tree" class="tree"></div>
+      </div>
+      <div id="filesPane" class="tree-pane hidden-view">
+        <div class="explorer-head">
+          <span class="explorer-title">Project files</span>
+          <button id="refreshFilesBtn" type="button" title="Refresh the file list">↻</button>
+        </div>
+        <div id="fileExplorer" class="file-explorer"></div>
+        <div class="explorer-actions">
+          <button id="explorerNewForm" type="button">New form</button>
+          <button id="explorerNewUnit" type="button">New unit</button>
+          <button id="explorerHistoryBtn" type="button">History…</button>
+          <label class="explorer-upload" title="Upload an image or font asset">
+            Upload
+            <input id="explorerUpload" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.ico,.bmp,.svg,.woff,.woff2,.ttf,.otf,.eot,.pdf" hidden>
+          </label>
+        </div>
+      </div>
     </aside>
 
     <section class="panel canvas-panel">
@@ -90,7 +114,6 @@
             <button id="sourceReloadBtn" type="button">Reload</button>
           </div>
           <div class="source-editor-wrap">
-            <div id="sourceGutter" class="source-gutter" aria-hidden="true"></div>
             <textarea id="sourceEditor" class="source-editor" spellcheck="false" wrap="off"></textarea>
           </div>
         </div>
@@ -277,10 +300,32 @@
       <h2>Build log</h2>
       <button id="buildCloseBtn" type="button">Close</button>
     </div>
-    <pre id="buildOutput" class="build-output"></pre>
+    <div id="buildOutput" class="build-output"></div>
+  </dialog>
+
+  <dialog id="historyDialog" class="project-dialog history-dialog">
+    <div class="dialog-head">
+      <h2>Project history</h2>
+      <button id="historyCloseBtn" type="button">Close</button>
+    </div>
+    <div class="dialog-section">
+      <div class="dialog-title">
+        <span>Snapshots</span>
+        <button id="createSnapshotBtn" type="button">Create snapshot</button>
+      </div>
+      <ul id="historyList" class="dialog-list history-list"></ul>
+    </div>
   </dialog>
 
   <script src="config.js"></script>
+  <script src="assets/vendor/codemirror/codemirror.min.js"></script>
+  <script src="assets/vendor/codemirror/addon/dialog/dialog.min.js"></script>
+  <script src="assets/vendor/codemirror/mode/pascal/pascal.min.js"></script>
+  <script src="assets/vendor/codemirror/addon/search/searchcursor.min.js"></script>
+  <script src="assets/vendor/codemirror/addon/search/search.min.js"></script>
+  <script src="assets/vendor/codemirror/addon/edit/matchbrackets.min.js"></script>
+  <script src="assets/vendor/codemirror/addon/edit/closebrackets.min.js"></script>
+  <script src="assets/vendor/codemirror/addon/selection/active-line.min.js"></script>
   <script type="module" src="assets/app.js"></script>
 </body>
 </html>

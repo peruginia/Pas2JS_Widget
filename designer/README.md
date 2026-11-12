@@ -19,6 +19,8 @@ drag & drop, moving/resizing on the canvas, tree/list item editing, the
   (the same Apache folder is fine; see
   [Frontend and API on different servers](#frontend-and-api-on-different-servers))
 - Optional: Node.js only for the LFM parser tests
+- No CDN is required at runtime: CodeMirror 5 (MIT) is vendored under
+  `designer/assets/vendor/codemirror`
 
 The current XAMPP setup exposes this folder as:
 
@@ -73,6 +75,11 @@ Make sure `designer/projects` is writable by Apache.
 - Shows and edits the project sources in a **Source** tab: the selected form's
   unit, extra units and the project program (`.lpr`); component fields and
   event handlers can be reached from the tree and the inspector.
+- Shows the project files in a **Files** tab: forms, units, the program,
+  text/configuration files and assets; new forms/units and asset uploads are
+  started from the same panel.
+- Saves automatic project snapshots before writes and restores them from
+  **History…**.
 - Creates application, host application and module projects.
 - Builds the whole project (or the selected form) with pas2js and runs it in a
   preview dialog.
@@ -200,6 +207,38 @@ The **Project…** button opens a dialog with:
     checked it also deletes the LFM/unit file. The last form cannot be removed;
   - form units are listed as `form` and are removed together with their form.
 
+## Project files and history
+
+The **Files** tab in the left panel lists the project files and assets:
+
+- **Forms** (`.lfm`) open in the designer;
+- Pascal units and the program (`.pas`, `.lpr`) open in the source editor and
+  are saved through `saveUnit`;
+- HTML, CSS, JS, JSON, Markdown, XML, SVG and other text files open in the
+  same editor and are saved through `writeFile`;
+- images and other assets open in a new browser tab.
+
+The buttons at the bottom create a new form or unit, upload an image/font
+asset (PNG, JPEG, GIF, WebP, ICO, SVG, WOFF/WOFF2, TTF/OTF, EOT or PDF, up
+to 4 MB) and open the project history. Text files are limited to 2 MB and to
+the extensions the API accepts. `project.json` is shown in the tree but is
+edited from **Project…**, not as a text file.
+
+**History** creates a snapshot automatically before every form, source, text
+file or asset write, and before forms/units/settings are removed. Snapshots
+contain the project files but not the generated `preview/` folder or the
+snapshot folder itself; the last 40 are kept. The history dialog lists them
+and can restore one. Restoring first creates a safety snapshot of the current
+files, then replaces the project contents. Restoring while there are unsaved
+changes asks for confirmation and discards them.
+
+Project paths are validated before any read or write: absolute paths, `..`,
+hidden entries and the `preview/` and `.snapshots/` folders are rejected. The
+`projects/.htaccess` file denies direct access to hidden paths on Apache when
+`AllowOverride` is enabled. Snapshots and project files still live under the
+web root: for a shared deployment, protect `designer/projects` with
+authentication as well.
+
 ## Unsaved changes
 
 Moving between forms, units and the Design/Source tabs never saves or discards
@@ -285,7 +324,9 @@ The build then:
   folder, because the preview page uses it as its base;
 - opens the result in a dialog on success; **Open in tab** opens the same page
   in a browser tab;
-- opens the compiler output in a **Build log** dialog on failure.
+- opens the compiler output in a **Build log** dialog on failure. Lines in the
+  form `unit.pas(line,column) Error: ...` are clickable: they open the unit in
+  the source view, scroll to the line and highlight it.
 
 Every build overwrites the generated files in `preview/`, which are not part of
 the project sources. The page requests the new script with a cache-busting
@@ -372,8 +413,9 @@ project: the selected form's `.pas` unit, an extra unit, or the program
 (`.lpr`) opened from the **Program** section of the Project dialog.
 
 - the source is loaded on demand with the `unit` API action (which also serves
-  the configured program) and rendered in a text editor with a line-number
-  gutter;
+  the configured program) and rendered with **CodeMirror**: Pascal syntax
+  highlighting, line numbers, bracket matching, auto-indent and the search
+  dialog (`Ctrl+F`);
 - selecting a component in the component tree scrolls to its field
   declaration when the form's unit is shown;
 - event properties (`OnClick`, `OnChange`, ...) have a **{ }** button that
@@ -588,6 +630,13 @@ headers; set `WCL_CORS_ORIGINS` on the server to restrict the allowed origins
 | `projects` | GET | - |
 | `load` | GET | `project=<id>` and optional `form=<lfm>` |
 | `unit` | GET | `project=<id>` and optional `unit=<pas>` |
+| `files` | GET | `project=<id>` |
+| `readFile` | GET | `project=<id>` and `file=<path>` |
+| `writeFile` | POST | JSON `{ "project": "<id>", "file": "<path>", "source": "..." }` |
+| `uploadFile` | POST | JSON `{ "project": "<id>", "name": "<asset>", "data": "<base64>" }` |
+| `snapshots` | GET | `project=<id>` |
+| `createSnapshot` | POST | JSON `{ "project": "<id>", "reason": "..." }` |
+| `restoreSnapshot` | POST | JSON `{ "project": "<id>", "snapshot": "<id>" }` |
 | `saveUnit` | POST | JSON `{ "project": "<id>", "unit": "<pas>", "source": "..." }` |
 | `save` | POST | JSON `{ "project": "<id>", "form": "<lfm>", "lfm": "...", "formClass": "TForm1", "components": [{ "name": "Button1", "className": "TWButton", "unit": "WebCtrls" }] }` |
 | `createForm` | POST | JSON `{ "project": "<id>", "title": "..." }` |
@@ -607,6 +656,16 @@ headers; set `WCL_CORS_ORIGINS` on the server to restrict the allowed origins
 `save` returns `ok`, `form`, `unit`, `bytes`, `pasChanged` and `warnings`. The
 `formClass` and `components` fields are optional; when they are omitted the
 `.pas` file is not touched.
+
+`files` returns the project tree without `preview/` and `.snapshots/`; each
+entry has `path`, `size`, `mtime`, `kind` (`form`, `source`, `text`, `image`,
+`asset` or `settings`) and `editable`. `readFile` and `writeFile` accept text
+files only, up to 2 MB. `uploadFile` accepts images and fonts up to 4 MB and
+refuses to overwrite an existing file. All paths are relative to the project
+folder; absolute paths, `..`, hidden entries and reserved folders are
+rejected. `snapshots` returns the project history; `createSnapshot` adds a
+manual entry, and `restoreSnapshot` first creates a safety snapshot and then
+replaces the project files.
 
 `build` returns `ok`, `url`, `kind`, `program` and `output`; a module build also
 returns `manifest`, and form mode returns `form`, `unit` and `formClass`. When

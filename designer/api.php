@@ -117,6 +117,328 @@ function projectDir(string $projectsDir, string $id): string
     return $projectsDir . DIRECTORY_SEPARATOR . $id;
 }
 
+/** Normalize a project-relative path and reject traversal and hidden entries. */
+function projectRelativePath(string $value): string
+{
+    $path = str_replace('\\', '/', trim($value));
+    if ($path === '' || strlen($path) > 512 || str_contains($path, "\0")
+        || preg_match('/[\x00-\x1F\x7F]/', $path)) {
+        fail('Invalid file path.');
+    }
+    if (preg_match('#^(?:/|[A-Za-z]:)#', $path)) {
+        fail('Invalid file path.');
+    }
+    $parts = explode('/', $path);
+    foreach ($parts as $part) {
+        if ($part === '' || $part === '.' || $part === '..' || str_starts_with($part, '.')) {
+            fail('Invalid file path.');
+        }
+    }
+    if (in_array(strtolower($parts[0]), ['preview', '.snapshots'], true)) {
+        fail('Reserved project folder.');
+    }
+    return implode('/', $parts);
+}
+
+function projectFullPath(string $dir, string $relative): string
+{
+    $relative = projectRelativePath($relative);
+    $root = realpath($dir);
+    if ($root === false) {
+        fail('Project folder not found.', 404);
+    }
+    $full = $dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+    $parent = realpath(dirname($full));
+    if ($parent === false) {
+        fail('File folder not found.', 404);
+    }
+    $prefix = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if (strncasecmp($parent, $prefix, strlen($prefix)) !== 0 && strcasecmp($parent, $root) !== 0) {
+        fail('Invalid file path.');
+    }
+    if (is_file($full)) {
+        $real = realpath($full);
+        if ($real === false || strncasecmp($real, $prefix, strlen($prefix)) !== 0) {
+            fail('Invalid file path.');
+        }
+        return $real;
+    }
+    return $full;
+}
+
+function projectTextFile(string $relative): bool
+{
+    $extension = strtolower((string) pathinfo($relative, PATHINFO_EXTENSION));
+    return in_array($extension, [
+        'html', 'htm', 'css', 'js', 'json', 'txt', 'md', 'ini', 'xml',
+        'svg', 'yml', 'yaml', 'csv', 'map', 'inc', 'cfg', 'conf',
+    ], true);
+}
+
+function projectImageFile(string $relative): bool
+{
+    $extension = strtolower((string) pathinfo($relative, PATHINFO_EXTENSION));
+    return in_array($extension, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'svg'], true);
+}
+
+function projectUploadFile(string $relative): bool
+{
+    $extension = strtolower((string) pathinfo($relative, PATHINFO_EXTENSION));
+    return in_array($extension, [
+        'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'svg',
+        'woff', 'woff2', 'ttf', 'otf', 'eot', 'pdf',
+    ], true);
+}
+
+function projectFileKind(string $relative): string
+{
+    $extension = strtolower((string) pathinfo($relative, PATHINFO_EXTENSION));
+    if (strcasecmp($relative, 'project.json') === 0) {
+        return 'settings';
+    }
+    if ($extension === 'lfm') {
+        return 'form';
+    }
+    if ($extension === 'pas' || $extension === 'lpr') {
+        return 'source';
+    }
+    if (projectImageFile($relative)) {
+        return 'image';
+    }
+    if (projectTextFile($relative)) {
+        return 'text';
+    }
+    return 'asset';
+}
+
+/** @return list<array{path:string,size:int,mtime:int,kind:string,editable:bool}> */
+function listProjectFiles(string $dir): array
+{
+    $files = [];
+    $walk = static function (string $relativeDir) use (&$walk, &$files, $dir): void {
+        $fullDir = $relativeDir === ''
+            ? $dir
+            : $dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
+        foreach (scandir($fullDir) ?: [] as $entry) {
+            if (count($files) >= 2000) {
+                return;
+            }
+            if ($entry === '.' || $entry === '..' || str_starts_with($entry, '.')) {
+                continue;
+            }
+            if ($relativeDir === '' && strcasecmp($entry, 'preview') === 0) {
+                continue;
+            }
+            $relative = $relativeDir === '' ? $entry : $relativeDir . '/' . $entry;
+            $full = $fullDir . DIRECTORY_SEPARATOR . $entry;
+            if (is_dir($full)) {
+                $walk($relative);
+                if (count($files) >= 2000) {
+                    return;
+                }
+                continue;
+            }
+            if (!is_file($full)) {
+                continue;
+            }
+            $kind = projectFileKind($relative);
+            $files[] = [
+                'path' => $relative,
+                'size' => (int) filesize($full),
+                'mtime' => (int) filemtime($full),
+                'kind' => $kind,
+                'editable' => ($kind === 'text' || $kind === 'form' || $kind === 'source'),
+            ];
+            if (count($files) >= 2000) {
+                return;
+            }
+        }
+    };
+    $walk('');
+    usort($files, static fn(array $a, array $b): int => strnatcasecmp($a['path'], $b['path']));
+    return $files;
+}
+
+function projectSnapshotRoot(string $dir): string
+{
+    return $dir . DIRECTORY_SEPARATOR . '.snapshots';
+}
+
+function projectSnapshotSkip(string $relative): bool
+{
+    $parts = explode('/', $relative);
+    if (in_array(strtolower($parts[0]), ['preview', '.snapshots'], true)) {
+        return true;
+    }
+    foreach ($parts as $part) {
+        if (str_starts_with($part, '.')) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function projectDeletePath(string $path): void
+{
+    if (is_link($path) || is_file($path)) {
+        @unlink($path);
+        return;
+    }
+    if (!is_dir($path)) {
+        return;
+    }
+    foreach (scandir($path) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        projectDeletePath($path . DIRECTORY_SEPARATOR . $entry);
+    }
+    @rmdir($path);
+}
+
+function projectCopyTree(string $source, string $target, ?callable $filter = null, ?array &$stats = null, string $prefix = ''): void
+{
+    $stats ??= ['files' => 0, 'bytes' => 0];
+    foreach (scandir($source) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $relative = $prefix === '' ? $entry : $prefix . '/' . $entry;
+        if ($filter !== null && !$filter($relative)) {
+            continue;
+        }
+        $from = $source . DIRECTORY_SEPARATOR . $entry;
+        $to = $target . DIRECTORY_SEPARATOR . $entry;
+        if (is_dir($from)) {
+            if (!is_dir($to) && !mkdir($to, 0775, true) && !is_dir($to)) {
+                fail('Cannot create a snapshot folder.', 500);
+            }
+            projectCopyTree($from, $to, $filter, $stats, $relative);
+            continue;
+        }
+        if (!is_file($from)) {
+            continue;
+        }
+        if (!copy($from, $to)) {
+            fail('Cannot copy a project file into the snapshot.', 500);
+        }
+        $stats['files']++;
+        $stats['bytes'] += (int) filesize($from);
+    }
+}
+
+function projectPruneSnapshots(string $dir): void
+{
+    $root = projectSnapshotRoot($dir);
+    $entries = glob($root . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR) ?: [];
+    usort($entries, static fn(string $a, string $b): int => strcmp(basename($b), basename($a)));
+    for ($index = 40; $index < count($entries); $index++) {
+        projectDeletePath($entries[$index]);
+    }
+}
+
+/** @return array{id:string,created:int,reason:string,files:int,bytes:int} */
+function projectSnapshot(string $dir, string $reason = 'automatic'): array
+{
+    $root = projectSnapshotRoot($dir);
+    if (!is_dir($root) && !mkdir($root, 0775, true) && !is_dir($root)) {
+        fail('Cannot create the snapshot folder.', 500);
+    }
+    $id = date('Ymd-His') . '-' . bin2hex(random_bytes(2));
+    $target = $root . DIRECTORY_SEPARATOR . $id;
+    if (!mkdir($target, 0775, true) && !is_dir($target)) {
+        fail('Cannot create the snapshot.', 500);
+    }
+    $stats = ['files' => 0, 'bytes' => 0];
+    projectCopyTree(
+        $dir,
+        $target,
+        static fn(string $relative): bool => !projectSnapshotSkip($relative),
+        $stats,
+    );
+    $meta = [
+        'id' => $id,
+        'created' => time(),
+        'reason' => $reason,
+        'files' => $stats['files'],
+        'bytes' => $stats['bytes'],
+    ];
+    $json = json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
+    if (file_put_contents($target . DIRECTORY_SEPARATOR . 'snapshot.json', $json) === false) {
+        fail('Cannot write the snapshot metadata.', 500);
+    }
+    projectPruneSnapshots($dir);
+    return $meta;
+}
+
+/** @return list<array{id:string,created:int,reason:string,files:int,bytes:int}> */
+function projectSnapshots(string $dir): array
+{
+    $root = projectSnapshotRoot($dir);
+    $snapshots = [];
+    foreach (glob($root . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR) ?: [] as $entry) {
+        $metaFile = $entry . DIRECTORY_SEPARATOR . 'snapshot.json';
+        $meta = is_file($metaFile)
+            ? json_decode((string) file_get_contents($metaFile), true)
+            : null;
+        if (!is_array($meta)) {
+            $meta = [
+                'id' => basename($entry),
+                'created' => (int) filemtime($entry),
+                'reason' => 'snapshot',
+                'files' => 0,
+                'bytes' => 0,
+            ];
+        }
+        $meta['id'] = (string) ($meta['id'] ?? basename($entry));
+        $meta['created'] = (int) ($meta['created'] ?? filemtime($entry));
+        $meta['reason'] = (string) ($meta['reason'] ?? 'snapshot');
+        $meta['files'] = (int) ($meta['files'] ?? 0);
+        $meta['bytes'] = (int) ($meta['bytes'] ?? 0);
+        $snapshots[] = $meta;
+    }
+    usort($snapshots, static fn(array $a, array $b): int => ($b['created'] <=> $a['created']) ?: strcmp($b['id'], $a['id']));
+    return $snapshots;
+}
+
+function projectRestoreSnapshot(string $dir, string $id): array
+{
+    if (!preg_match('/^[A-Za-z0-9._-]{1,100}$/', $id)) {
+        fail('Invalid snapshot id.');
+    }
+    $root = realpath(projectSnapshotRoot($dir));
+    $snapshot = realpath(projectSnapshotRoot($dir) . DIRECTORY_SEPARATOR . $id);
+    $prefix = $root === false ? '' : rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if ($root === false || $snapshot === false || strncasecmp($snapshot, $prefix, strlen($prefix)) !== 0) {
+        fail('Snapshot not found.', 404);
+    }
+    projectSnapshot($dir, 'before restore');
+    foreach (scandir($dir) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..' || $entry === '.snapshots' || $entry === 'preview') {
+            continue;
+        }
+        if (str_starts_with($entry, '.')) {
+            continue;
+        }
+        projectDeletePath($dir . DIRECTORY_SEPARATOR . $entry);
+    }
+    projectCopyTree(
+        $snapshot,
+        $dir,
+        static fn(string $relative): bool => $relative !== 'snapshot.json',
+    );
+    if (!is_file($dir . DIRECTORY_SEPARATOR . 'project.json')) {
+        fail('The snapshot does not contain project.json.', 500);
+    }
+    return projectSnapshots($dir)[0] ?? [
+        'id' => $id,
+        'created' => time(),
+        'reason' => 'restore',
+        'files' => 0,
+        'bytes' => 0,
+    ];
+}
+
 /**
  * Normalize one entry of the project "forms" list. A form entry is either a
  * file name ("unit1.lfm") or an object { form, unit, title }.
@@ -1491,6 +1813,184 @@ try {
             break;
         }
 
+        case 'files': {
+            $id = projectId((string) ($_GET['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            echo json_encode([
+                'files' => listProjectFiles($dir),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'readFile': {
+            $id = projectId((string) ($_GET['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $file = projectRelativePath((string) ($_GET['file'] ?? ''));
+            if (!projectTextFile($file) || strcasecmp($file, 'project.json') === 0) {
+                fail('File type is not editable.');
+            }
+            $full = projectFullPath($dir, $file);
+            if (!is_file($full)) {
+                fail('File not found.', 404);
+            }
+            if (filesize($full) > 2 * 1024 * 1024) {
+                fail('File is too large.', 413);
+            }
+            $source = file_get_contents($full);
+            if ($source === false) {
+                fail('Cannot read the file.', 500);
+            }
+            echo json_encode([
+                'ok' => true,
+                'file' => $file,
+                'source' => $source,
+                'size' => strlen($source),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+            break;
+        }
+
+        case 'writeFile': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $file = projectRelativePath((string) ($data['file'] ?? ''));
+            $source = $data['source'] ?? null;
+            if (!is_string($source)) {
+                fail('Missing file source.');
+            }
+            if (!projectTextFile($file) || strcasecmp($file, 'project.json') === 0) {
+                fail('File type is not editable.');
+            }
+            if (strlen($source) > 2 * 1024 * 1024) {
+                fail('File is too large.', 413);
+            }
+            $full = projectFullPath($dir, $file);
+            if (!is_file($full)) {
+                fail('File not found.', 404);
+            }
+            $current = file_get_contents($full);
+            if ($current === $source) {
+                echo json_encode(['ok' => true, 'file' => $file, 'bytes' => strlen($source)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                break;
+            }
+            projectSnapshot($dir, 'save ' . $file);
+            if (file_put_contents($full, $source) === false) {
+                fail('Cannot write the file.', 500);
+            }
+            echo json_encode([
+                'ok' => true,
+                'file' => $file,
+                'bytes' => strlen($source),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'uploadFile': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $name = basename(str_replace('\\', '/', trim((string) ($data['name'] ?? ''))));
+            if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._ -]{0,120}$/', $name) || !projectUploadFile($name)) {
+                fail('Invalid asset file name or type.');
+            }
+            $encoded = $data['data'] ?? null;
+            if (!is_string($encoded)) {
+                fail('Missing asset data.');
+            }
+            $binary = base64_decode($encoded, true);
+            if ($binary === false) {
+                fail('Invalid asset data.');
+            }
+            if (strlen($binary) > 4 * 1024 * 1024) {
+                fail('Asset is too large (maximum 4 MB).', 413);
+            }
+            $full = projectFullPath($dir, $name);
+            if (file_exists($full)) {
+                fail('File already exists.', 409);
+            }
+            projectSnapshot($dir, 'upload ' . $name);
+            if (file_put_contents($full, $binary) === false) {
+                fail('Cannot write the asset.', 500);
+            }
+            echo json_encode([
+                'ok' => true,
+                'file' => $name,
+                'size' => strlen($binary),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'snapshots': {
+            $id = projectId((string) ($_GET['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            echo json_encode([
+                'snapshots' => projectSnapshots($dir),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'createSnapshot': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $reason = trim((string) ($data['reason'] ?? 'manual'));
+            $snapshot = projectSnapshot($dir, $reason !== '' ? $reason : 'manual');
+            echo json_encode([
+                'ok' => true,
+                'snapshot' => $snapshot,
+                'snapshots' => projectSnapshots($dir),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'restoreSnapshot': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $snapshot = trim((string) ($data['snapshot'] ?? ''));
+            $safety = projectRestoreSnapshot($dir, $snapshot);
+            echo json_encode([
+                'ok' => true,
+                'project' => readProject($dir, $id),
+                'snapshot' => $safety,
+                'snapshots' => projectSnapshots($dir),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
         case 'saveUnit': {
             if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
                 fail('POST required.', 405);
@@ -1511,6 +2011,16 @@ try {
             if (!is_file($file)) {
                 fail('Source file not found.', 404);
             }
+            $current = file_get_contents($file);
+            if ($current === $source) {
+                echo json_encode([
+                    'ok' => true,
+                    'unit' => $selectedUnit,
+                    'bytes' => strlen($source),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                break;
+            }
+            projectSnapshot($dir, 'save ' . $selectedUnit);
             if (file_put_contents($file, $source) === false) {
                 fail('Cannot write the source file.', 500);
             }
@@ -1542,6 +2052,7 @@ try {
                 fail('Form not found in project.', 404);
             }
             $file = $dir . DIRECTORY_SEPARATOR . $formEntry['form'];
+            projectSnapshot($dir, 'save ' . $formEntry['form']);
             if (file_put_contents($file, $lfm) === false) {
                 fail('Cannot write form file.', 500);
             }
@@ -1604,6 +2115,7 @@ try {
                 . "  Left = 0\n  Top = 0\n  Width = 640\n  Height = 480\n"
                 . '  Caption = ' . lfmString($title) . "\nend\n";
             $source = newFormUnitSource($number);
+            projectSnapshot($dir, 'create ' . $form);
             if (file_put_contents($dir . DIRECTORY_SEPARATOR . $form, $lfm) === false
                 || file_put_contents($dir . DIRECTORY_SEPARATOR . $unit, $source) === false) {
                 fail('Cannot write the new form.', 500);
@@ -1643,6 +2155,7 @@ try {
                 fail('A project needs at least one form.');
             }
 
+            projectSnapshot($dir, 'delete ' . $formEntry['form']);
             $remaining = [];
             foreach ($config['forms'] as $entry) {
                 if ($entry['form'] !== $formEntry['form']) {
@@ -1706,6 +2219,7 @@ try {
             }
 
             $unitName = ucfirst((string) pathinfo($name, PATHINFO_FILENAME));
+            projectSnapshot($dir, 'create ' . $name);
             if (file_put_contents($dir . DIRECTORY_SEPARATOR . $name, newUnitSource($unitName)) === false) {
                 fail('Cannot write the unit.', 500);
             }
@@ -1743,6 +2257,7 @@ try {
                 fail('Unit not found in project.', 404);
             }
 
+            projectSnapshot($dir, 'delete ' . $unitName);
             $config['units'] = array_values(array_filter(
                 $config['units'],
                 static fn(string $unit): bool => $unit !== $unitName,
@@ -1901,6 +2416,7 @@ try {
                 $config['modules'] = array_values(array_unique($clean));
             }
 
+            projectSnapshot($dir, 'project settings');
             writeProject($dir, $config);
             $updated = readProject($dir, $id);
             echo json_encode([
