@@ -20,36 +20,34 @@
     <div class="toolbar">
       <label for="projectSelect" class="sr-only">Project</label>
       <select id="projectSelect"></select>
-      <button id="newProjectBtn" type="button" title="Create an application, host or module project">New project…</button>
-      <label for="formSelect" class="sr-only">Form</label>
-      <select id="formSelect"></select>
-      <button id="reloadBtn" type="button">Reload</button>
-      <button id="saveBtn" type="button" title="Save all unsaved forms and units">Save all</button>
-      <label for="previewMode" class="sr-only">Preview target</label>
-      <select id="previewMode" title="What Preview builds">
+      <span id="currentFormLabel" class="current-form-label">No form</span>
+      <button id="saveBtn" type="button" title="Save all unsaved forms and units">Save</button>
+      <label for="previewMode" class="sr-only">Build target</label>
+      <select id="previewMode" class="build-target" title="What Compile and Run build">
         <option value="project">Project</option>
         <option value="form">Current form</option>
       </select>
-      <button id="previewBtn" type="button" title="Build and run the project or the selected form">Preview</button>
-      <button id="projectBtn" type="button">Project…</button>
-      <button id="importBtn" type="button" title="Import a project from a ZIP archive">Import project…</button>
+      <button id="buildBtn" type="button" title="Compile without opening the preview">Compile</button>
+      <button id="previewBtn" type="button" title="Build and run the project or the selected form">Run</button>
+      <div class="top-menu-wrap">
+        <button id="mainMenuBtn" type="button" title="Project, file and build commands">☰</button>
+        <div id="mainMenu" class="top-menu hidden-view">
+          <button id="newProjectBtn" type="button">New project…</button>
+          <button id="importBtn" type="button">Import project…</button>
+          <button id="projectBtn" type="button">Project settings…</button>
+          <div class="menu-sep"></div>
+          <button id="reloadBtn" type="button">Reload</button>
+          <button id="saveAllMenuBtn" type="button">Save all</button>
+          <button id="buildLogBtn" type="button">Build log</button>
+        </div>
+      </div>
     </div>
     <div id="status" class="status">Starting...</div>
   </header>
 
   <main class="workspace">
     <aside class="panel tree-panel">
-      <div class="tree-tabs" role="tablist">
-        <button id="designerPaneTab" type="button" class="tree-tab active" role="tab" aria-selected="true">Designer</button>
-        <button id="filesPaneTab" type="button" class="tree-tab" role="tab" aria-selected="false">Files</button>
-      </div>
-      <div id="designerPane" class="tree-pane">
-        <div class="panel-title">Palette</div>
-        <div id="palette" class="palette"></div>
-        <div class="panel-title components-title">Components</div>
-        <div id="tree" class="tree"></div>
-      </div>
-      <div id="filesPane" class="tree-pane hidden-view">
+      <div id="filesPane" class="explorer-panel">
         <div class="explorer-head">
           <span class="explorer-title">Project files</span>
           <button id="refreshFilesBtn" type="button" title="Refresh the file list">↻</button>
@@ -64,6 +62,10 @@
             <input id="explorerUpload" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.ico,.bmp,.svg,.woff,.woff2,.ttf,.otf,.eot,.pdf" hidden>
           </label>
         </div>
+      </div>
+      <div class="components-panel">
+        <div class="panel-title components-title">Components</div>
+        <div id="tree" class="tree"></div>
       </div>
     </aside>
 
@@ -91,6 +93,11 @@
         </div>
         <span id="formTitle">No form</span>
         <span class="hint">Drag to move · handles to resize · Ctrl+click to multi-select</span>
+      </div>
+      <div id="paletteBar" class="palette-bar">
+        <span class="palette-title">Components</span>
+        <input id="paletteSearch" type="search" class="palette-search" placeholder="Find component…" aria-label="Find a component" autocomplete="off">
+        <div id="palette" class="palette"></div>
       </div>
       <div id="multiTools" class="multi-tools hidden-view">
         <span id="multiCount" class="multi-count"></span>

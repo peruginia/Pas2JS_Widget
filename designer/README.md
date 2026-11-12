@@ -43,13 +43,14 @@ Make sure `designer/projects` is writable by Apache.
 ## What it does
 
 - Lists the projects in `designer/projects/<id>/`.
-- Loads the project, lists its forms and opens the selected one.
-- The toolbar has a project selector and a form selector; each form has its
-  own LFM and unit.
+- Loads the project, lists its forms and opens the main one.
+- The toolbar has the project selector, the current form name and the
+  **Compile** / **Run** actions; **Files** in the left panel switches forms.
 - Parses LFM into a lossless AST in the browser.
 - Shows the component tree and a graphical preview.
-- Shows a palette of visual components; drag one onto the form or into a
-  container (panel, group box, tab sheet, page control) to add it.
+- Shows a palette of visual components above the canvas in Design mode; drag
+  one onto the form or into a container (panel, group box, tab sheet, page
+  control) to add it.
 - Draws a preview of the common controls and shows every tab of a page
   control, with the active tab selectable.
 - Moves and resizes components on the canvas; `Left`, `Top`, `Width` and
@@ -75,21 +76,35 @@ Make sure `designer/projects` is writable by Apache.
 - Shows and edits the project sources in a **Source** tab: the selected form's
   unit, extra units and the project program (`.lpr`); component fields and
   event handlers can be reached from the tree and the inspector.
-- Shows the project files in a **Files** tab: forms, units, the program,
-  text/configuration files and assets; new forms/units and asset uploads are
-  started from the same panel.
+- Shows the project files in the always-visible **Files** panel: forms, units,
+  the program, text/configuration files and assets; new forms/units and asset
+  uploads are started from the same panel.
 - Saves automatic project snapshots before writes and restores them from
   **History…**.
 - Autosaves unsaved forms and sources as local drafts and offers to restore
   them after a reload or crash.
 - Creates application, host application and module projects.
-- Builds the whole project (or the selected form) with pas2js and runs it in a
-  preview dialog.
+- Compiles the whole project (or the selected form) with pas2js, with a
+  separate **Compile** action, and runs it in a preview dialog with **Run**.
 - Imports a project from a ZIP archive (LFM, PAS, LPR, HTML and assets).
 
 Unknown properties, binary blobs and collections the designer does not decode
 are preserved as raw text, so saving a form does not drop data the designer
 does not understand yet.
+
+## Workspace layout
+
+- The top bar contains the project selector, the current form name, **Save**,
+  the build target (project or current form), **Compile**, **Run**, the main
+  menu and the status message. The menu holds new/import project, project
+  settings, reload, save all and the last build log.
+- The left panel always shows **Project files** on top and the **Components**
+  tree below. Both sections scroll independently; creating forms/units,
+  uploading assets and opening the project history are in the Files section.
+- In Design mode a compact component palette sits above the form, with a
+  search box and a horizontal list. It is hidden in Source mode.
+- The inspector remains on the right with its Properties/Events tabs and
+  filter.
 
 ## Frontend and API on different servers
 
@@ -149,16 +164,17 @@ A project is a folder in `designer/projects/<id>/` with a `project.json`:
 }
 ```
 
-- `kind` is `application`, `host` or `module` and decides how Preview builds
+- `kind` is `application`, `host` or `module` and decides how Compile/Run build
   the project. A missing value means `application`.
 - `forms` lists the forms; each entry has the LFM file, its unit and an
-  optional title shown in the form selector.
+  optional title shown in the Files panel and top bar.
 - `mainForm` is the form opened when the project is selected.
 - `units` lists additional units (without a form) that belong to the project.
 - `program` names the `.lpr` that starts an application or host; for a module
-  it is the `-Jc-` stub. When it is missing, Preview generates a fallback
+  it is the `-Jc-` stub. When it is missing, Compile/Run generate a fallback
   program in `preview/`.
-- `html` names the deployment page (Preview generates its own page).
+- `html` names the deployment page; the designer generates its own page for
+  the preview.
 - `output` overrides the JavaScript file name (default: program name + `.js`).
 - `manifest` (module) names the generated manifest (default `modules.json`).
 - `entry` (module) is the unit a host runs with `rtl.run(entry)`.
@@ -168,16 +184,16 @@ A project is a folder in `designer/projects/<id>/` with a `project.json`:
 - A single-form project written by the first designer version (`form`/`unit`)
   is accepted and normalized automatically.
 
-A project may have no forms (a module or a unit-only project): the form
-selector shows **No form** and the project opens directly in the Source tab, on
-the entry unit when one is configured (or the first unit).
+A project may have no forms (a module or a unit-only project): the top bar
+shows **No form** and the project opens directly in the Source tab, on the
+entry unit when one is configured (or the first unit).
 
 The built-in **demo** project is listed first and opened at startup; it
 contains the Components and Login forms.
 
-The toolbar shows the project selector and the form selector. The component
-tree, canvas and Source tab follow the selected form. Moving between forms and
-units keeps the changes in memory; **Save all** writes every modified LFM and
+The left **Files** panel and the top bar show the current form. The component
+tree, canvas and Source tab follow that form. Moving between forms and units
+keeps the changes in memory; **Save all** writes every modified LFM and
 unit. Unsaved changes are discarded only when you switch project or reload,
 after a confirmation.
 
@@ -305,8 +321,10 @@ required; only `zlib` is used for deflate entries.
 
 ## Build and preview
 
-The **Preview** button builds the project or the selected form and runs it in a
-dialog. The selector next to it chooses the target:
+**Compile** builds the project or the selected form without opening the
+preview; the result and warnings are available from **Build log** in the main
+menu. **Run** builds the same target and opens it in a dialog. The target
+selector next to them chooses the mode:
 
 - **Project** follows `kind`:
   - `application` compiles `program` with `-Jc`; when `program` is missing, a
@@ -321,6 +339,9 @@ dialog. The selector next to it chooses the target:
 - **Current form** compiles a small generated program for the selected form.
   It is the quick way to look at a form that is not the application entry
   point.
+
+**F9** runs the target and **Ctrl+F9** compiles it without opening the
+preview.
 
 The build then:
 
@@ -344,7 +365,7 @@ The build then:
 Every build overwrites the generated files in `preview/`, which are not part of
 the project sources. The page requests the new script with a cache-busting
 query, so the browser does not keep the previous build. Host module manifests
-are loaded as configured; building the module projects is a separate Preview
+are loaded as configured; building the module projects is a separate Run
 (there is no automatic dependency build yet).
 
 ## Canvas editing

@@ -49,19 +49,24 @@ const state = {
   savedLfm: '',
   inspectorTab: 'properties',
   inspectorFilter: '',
-  leftTab: 'designer',
   projectFiles: [],
   draftTimer: null,
   draftQuotaWarned: false,
   pendingDrafts: null,
+  lastBuildOutput: '',
 };
 
 const els = {
   project: document.getElementById('projectSelect'),
-  form: document.getElementById('formSelect'),
+  currentFormLabel: document.getElementById('currentFormLabel'),
   reload: document.getElementById('reloadBtn'),
   save: document.getElementById('saveBtn'),
   previewMode: document.getElementById('previewMode'),
+  buildBtn: document.getElementById('buildBtn'),
+  mainMenuBtn: document.getElementById('mainMenuBtn'),
+  mainMenu: document.getElementById('mainMenu'),
+  saveAllMenuBtn: document.getElementById('saveAllMenuBtn'),
+  buildLogBtn: document.getElementById('buildLogBtn'),
   newProjectBtn: document.getElementById('newProjectBtn'),
   newProjectDialog: document.getElementById('newProjectDialog'),
   newProjectName: document.getElementById('newProjectName'),
@@ -82,11 +87,9 @@ const els = {
   importBtn: document.getElementById('importBtn'),
   status: document.getElementById('status'),
   palette: document.getElementById('palette'),
+  paletteBar: document.getElementById('paletteBar'),
+  paletteSearch: document.getElementById('paletteSearch'),
   tree: document.getElementById('tree'),
-  designerPaneTab: document.getElementById('designerPaneTab'),
-  filesPaneTab: document.getElementById('filesPaneTab'),
-  designerPane: document.getElementById('designerPane'),
-  filesPane: document.getElementById('filesPane'),
   fileExplorer: document.getElementById('fileExplorer'),
   refreshFilesBtn: document.getElementById('refreshFilesBtn'),
   explorerNewForm: document.getElementById('explorerNewForm'),
@@ -611,6 +614,7 @@ function setView(view) {
   els.sourceTab.classList.toggle('active', source);
   els.canvas.classList.toggle('hidden-view', source);
   els.sourceView.classList.toggle('hidden-view', !source);
+  els.paletteBar.classList.toggle('hidden-view', source);
   if (source) {
     codeEditor.refresh();
     requestAnimationFrame(() => codeEditor.refresh());
@@ -1200,6 +1204,16 @@ function renderPalette() {
       clearDropTargets();
     });
     els.palette.appendChild(button);
+  }
+  filterPalette();
+}
+
+function filterPalette() {
+  if (!els.paletteSearch) return;
+  const query = els.paletteSearch.value.trim().toLowerCase();
+  for (const button of els.palette.querySelectorAll('.palette-item')) {
+    const text = button.textContent.toLowerCase();
+    button.classList.toggle('hidden-view', query !== '' && !text.includes(query));
   }
 }
 
@@ -4828,8 +4842,6 @@ function clearProjectView() {
   state.unitCache.clear();
   state.projectFiles = [];
   els.project.value = '';
-  els.form.innerHTML = '';
-  els.form.disabled = true;
   codeEditor.setValue('');
   els.sourceName.textContent = 'No source';
   els.sourceStatus.textContent = '';
@@ -4840,6 +4852,7 @@ function clearProjectView() {
   els.canvas.textContent = 'No project selected.';
   els.formTitle.textContent = 'No form';
   els.tree.textContent = 'No project selected.';
+  renderFormTitle();
   if (previousProject) clearDrafts(previousProject);
   renderFileExplorer();
 }
@@ -4864,24 +4877,14 @@ async function loadProjects(loadFirst = true) {
   }
 }
 
-function renderFormSelect() {
-  els.form.innerHTML = '';
-  if (state.forms.length === 0) {
-    const option = document.createElement('option');
-    option.value = '';
-    option.textContent = 'No form';
-    els.form.appendChild(option);
-  }
-  for (const form of state.forms) {
-    const option = document.createElement('option');
-    option.value = form.form;
-    option.textContent = form.title || form.form;
-    els.form.appendChild(option);
-  }
-  if (state.currentForm) {
-    els.form.value = state.currentForm.form;
-  }
-  els.form.disabled = state.forms.length <= 1;
+function renderFormTitle() {
+  if (!els.currentFormLabel) return;
+  els.currentFormLabel.textContent = state.currentForm
+    ? (state.currentForm.title || state.currentForm.form)
+    : 'No form';
+  els.currentFormLabel.title = state.currentForm
+    ? state.currentForm.form
+    : '';
 }
 
 async function loadForm(formName) {
@@ -4950,7 +4953,7 @@ async function saveProjectSettings() {
     state.forms = result.project.forms || [];
     const option = [...els.project.options].find((item) => item.value === state.project.id);
     if (option) option.textContent = state.project.name;
-    renderFormSelect();
+    renderFormTitle();
     renderProjectDialog();
     setStatus('Project settings saved');
   } catch (error) {
@@ -5228,15 +5231,64 @@ function scrollBuildOutputToFirstError() {
   });
 }
 
+function buildTargetMode() {
+  let mode = els.previewMode.value === 'form' ? 'form' : 'project';
+  if (mode === 'form' && !state.currentForm) mode = 'project';
+  return mode;
+}
+
+async function buildOnly() {
+  if (!state.project) {
+    setStatus('No project selected.', true);
+    return;
+  }
+  const mode = buildTargetMode();
+  if (hasUnsavedChanges()) {
+    const saved = await saveAll();
+    if (!saved) return;
+  }
+  const form = state.currentForm;
+  const body = { project: state.project.id, mode };
+  if (mode === 'form') body.form = form.form;
+  els.buildBtn.disabled = true;
+  setStatus(mode === 'form' ? `Compiling ${form.form}...` : `Compiling ${state.project.name}...`);
+  try {
+    const result = await api('build', {}, body);
+    state.lastBuildOutput = result.output || '';
+    if (!result.ok) {
+      renderBuildOutput(result.output || 'Build failed.');
+      openDialog(els.buildDialog);
+      scrollBuildOutputToFirstError();
+      setStatus('Compile failed', true);
+      return;
+    }
+    setStatus(mode === 'form' ? `Compiled ${result.unit}` : 'Compile succeeded');
+  } catch (error) {
+    state.lastBuildOutput = error.message;
+    renderBuildOutput(error.message);
+    openDialog(els.buildDialog);
+    scrollBuildOutputToFirstError();
+    setStatus(error.message, true);
+  } finally {
+    els.buildBtn.disabled = false;
+  }
+}
+
+function showBuildLog() {
+  if (!state.lastBuildOutput) {
+    setStatus('No build log yet.');
+    return;
+  }
+  renderBuildOutput(state.lastBuildOutput);
+  openDialog(els.buildDialog);
+}
+
 async function buildPreview() {
   if (!state.project) {
     setStatus('No project selected.', true);
     return;
   }
-  let mode = els.previewMode.value === 'form' ? 'form' : 'project';
-  if (mode === 'form' && !state.currentForm) {
-    mode = 'project';
-  }
+  const mode = buildTargetMode();
   if (hasUnsavedChanges()) {
     const saved = await saveAll();
     if (!saved) return;
@@ -5249,6 +5301,7 @@ async function buildPreview() {
   setStatus(mode === 'form' ? `Building ${form.form}...` : `Building ${state.project.name}...`);
   try {
     const result = await api('build', {}, body);
+    state.lastBuildOutput = result.output || '';
     if (!result.ok) {
       renderBuildOutput(result.output || 'Build failed.');
       openDialog(els.buildDialog);
@@ -5259,13 +5312,14 @@ async function buildPreview() {
     const url = previewUrl(result.url);
     url.searchParams.set('t', Date.now().toString());
     els.previewTitle.textContent = mode === 'form' && form
-      ? `Preview · ${form.title || form.form}`
-      : `Preview · ${state.project.name}`;
+      ? `Run · ${form.title || form.form}`
+      : `Run · ${state.project.name}`;
     els.previewOpenLink.href = url.href;
     els.previewFrame.src = url.href;
     openDialog(els.previewDialog);
-    setStatus(mode === 'form' ? `Preview built · ${result.unit}` : `Preview built · ${result.kind || state.project.kind}`);
+    setStatus(mode === 'form' ? `Run built · ${result.unit}` : `Run built · ${result.kind || state.project.kind}`);
   } catch (error) {
+    state.lastBuildOutput = error.message;
     renderBuildOutput(error.message);
     openDialog(els.buildDialog);
     scrollBuildOutputToFirstError();
@@ -5298,22 +5352,6 @@ async function openUnit(unit) {
 
 function isProjectSourceFile(file) {
   return projectSourceFiles().has(file);
-}
-
-function setLeftTab(tab) {
-  if (tab !== 'designer' && tab !== 'files') return;
-  state.leftTab = tab;
-  const files = tab === 'files';
-  els.designerPane.classList.toggle('hidden-view', files);
-  els.filesPane.classList.toggle('hidden-view', !files);
-  els.designerPaneTab.classList.toggle('active', !files);
-  els.filesPaneTab.classList.toggle('active', files);
-  els.designerPaneTab.setAttribute('aria-selected', String(!files));
-  els.filesPaneTab.setAttribute('aria-selected', String(files));
-  if (files) {
-    if (state.projectFiles.length === 0) void loadProjectFiles();
-    else renderFileExplorer();
-  }
 }
 
 async function loadProjectFiles() {
@@ -5429,10 +5467,8 @@ async function openExplorerFile(file) {
   }
   if (file.kind === 'form') {
     if (!state.forms.some((entry) => entry.form === file.path)) return;
-    els.form.value = file.path;
     await loadForm(file.path);
     setView('design');
-    setLeftTab('files');
     renderFileExplorer();
     return;
   }
@@ -5457,7 +5493,6 @@ async function openExplorerSource(file) {
     await loadSource(true);
   }
   setView('source');
-  setLeftTab('files');
   renderFileExplorer();
 }
 
@@ -5557,7 +5592,6 @@ async function uploadProjectAsset(file) {
       data: base64,
     });
     await loadProjectFiles();
-    setLeftTab('files');
     setStatus(`Uploaded ${result.file}`);
   } catch (error) {
     setStatus(error.message, true);
@@ -5781,7 +5815,6 @@ async function restoreDrafts(drafts) {
 
     if (firstForm) {
       if (!state.currentForm || state.currentForm.form !== firstForm) {
-        els.form.value = firstForm;
         await loadForm(firstForm);
       }
       setView('design');
@@ -5887,7 +5920,7 @@ async function deleteForm(form) {
       state.sourceDirty = false;
       if (state.view === 'source') await loadSource(true);
     }
-    renderFormSelect();
+    renderFormTitle();
     renderProjectDialog();
     setStatus(`Removed ${label}`);
   } catch (error) {
@@ -5981,7 +6014,7 @@ async function loadProject(id, formName = '', checkDrafts = false) {
     state.sourceScrollTop = 0;
     codeEditor.setValue('');
     els.project.value = id;
-    renderFormSelect();
+    renderFormTitle();
     renderAll();
     if (!cachedForm || state.history.length === 0) {
       state.savedLfm = writeLfm(state.roots);
@@ -6008,7 +6041,7 @@ async function loadProject(id, formName = '', checkDrafts = false) {
       loadSource(true);
     }
   } catch (error) {
-    if (state.currentForm) els.form.value = state.currentForm.form;
+    renderFormTitle();
     if (state.project) els.project.value = state.project.id;
     setStatus(error.message, true);
   }
@@ -6216,6 +6249,28 @@ async function boot() {
     loadProject(project, state.currentForm ? state.currentForm.form : '');
   });
   els.save.addEventListener('click', saveAll);
+  els.buildBtn.addEventListener('click', buildOnly);
+  els.saveAllMenuBtn.addEventListener('click', saveAll);
+  els.buildLogBtn.addEventListener('click', showBuildLog);
+  els.paletteSearch.addEventListener('input', filterPalette);
+  els.mainMenuBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    els.mainMenu.classList.toggle('hidden-view');
+  });
+  els.mainMenu.addEventListener('click', (event) => event.stopPropagation());
+  for (const button of els.mainMenu.querySelectorAll('button')) {
+    button.addEventListener('click', () => els.mainMenu.classList.add('hidden-view'));
+  }
+  document.addEventListener('click', () => els.mainMenu.classList.add('hidden-view'));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') els.mainMenu.classList.add('hidden-view');
+  });
+  document.addEventListener('keydown', (event) => {
+    if (hasOpenDialog() || event.key !== 'F9') return;
+    event.preventDefault();
+    if (event.ctrlKey || event.metaKey) buildOnly();
+    else buildPreview();
+  });
   els.inspectorPropsTab.addEventListener('click', () => setInspectorTab('properties'));
   els.inspectorEventsTab.addEventListener('click', () => setInspectorTab('events'));
   els.inspectorFilter.addEventListener('input', () => {
@@ -6367,18 +6422,14 @@ async function boot() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') persistDraftsNow();
   });
-  els.designerPaneTab.addEventListener('click', () => setLeftTab('designer'));
-  els.filesPaneTab.addEventListener('click', () => setLeftTab('files'));
   els.refreshFilesBtn.addEventListener('click', () => loadProjectFiles());
   els.explorerNewForm.addEventListener('click', async () => {
     await createForm();
     await loadProjectFiles();
-    setLeftTab('files');
   });
   els.explorerNewUnit.addEventListener('click', async () => {
     await createUnit();
     await loadProjectFiles();
-    setLeftTab('files');
   });
   els.explorerHistoryBtn.addEventListener('click', openHistoryDialog);
   els.explorerUpload.addEventListener('change', async () => {
@@ -6405,7 +6456,6 @@ async function boot() {
     if (hadChanges && previous) clearDrafts(previous);
     loadProject(els.project.value, '', true);
   });
-  els.form.addEventListener('change', () => loadForm(els.form.value));
   els.importBtn.addEventListener('click', openImportDialog);
   els.importCloseBtn.addEventListener('click', () => closeDialog(els.importDialog));
   els.importCreateBtn.addEventListener('click', importProjectArchive);
