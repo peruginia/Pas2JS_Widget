@@ -6,6 +6,7 @@
   <title>WCL Designer</title>
   <link rel="stylesheet" href="assets/vendor/codemirror/codemirror.min.css">
   <link rel="stylesheet" href="assets/vendor/codemirror/addon/dialog/dialog.css">
+  <link rel="stylesheet" href="assets/vendor/codemirror/addon/hint/show-hint.min.css">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -36,6 +37,7 @@
           <button id="importBtn" type="button">Import project…</button>
           <button id="projectBtn" type="button">Project settings…</button>
           <button id="buildOptionsBtn" type="button">Build options…</button>
+          <button id="exportProjectBtn" type="button">Export / Publish…</button>
           <div class="menu-sep"></div>
           <button id="reloadBtn" type="button">Reload</button>
           <button id="saveAllMenuBtn" type="button">Save all</button>
@@ -310,6 +312,28 @@
     </div>
   </dialog>
 
+  <dialog id="exportDialog" class="project-dialog export-dialog">
+    <div class="dialog-head">
+      <h2>Export / Publish</h2>
+      <button id="exportCloseBtn" type="button">Close</button>
+    </div>
+    <div class="dialog-section">
+      <div class="dialog-form">
+        <label class="dialog-field">
+          <span>Contents</span>
+          <select id="exportContents">
+            <option value="built">Built application (ZIP)</option>
+            <option value="sources">Project sources (ZIP)</option>
+          </select>
+        </label>
+        <p id="exportHint" class="dialog-hint"></p>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button id="exportConfirmBtn" type="button" class="dialog-primary">Export</button>
+    </div>
+  </dialog>
+
   <dialog id="importDialog" class="project-dialog">
     <div class="dialog-head">
       <h2>Import project</h2>
@@ -415,6 +439,7 @@
   <script src="assets/vendor/codemirror/addon/edit/matchbrackets.min.js"></script>
   <script src="assets/vendor/codemirror/addon/edit/closebrackets.min.js"></script>
   <script src="assets/vendor/codemirror/addon/selection/active-line.min.js"></script>
+  <script src="assets/vendor/codemirror/addon/hint/show-hint.min.js"></script>
   <script type="module" src="assets/app.js"></script>
 </body>
 </html>

@@ -24,6 +24,8 @@ import {
 
 const state = {
   manifest: { nonVisual: [], aliases: {}, classes: [], defaults: {} },
+  wclSymbols: { classes: {}, units: [] },
+  wclClassMap: new Map(),
   projects: [],
   project: null,
   forms: [],
@@ -52,6 +54,8 @@ const state = {
   projectFiles: [],
   buildFiles: [],
   buildOutputOpen: false,
+  projectSymbols: { units: [], uses: [], classes: [], symbols: [] },
+  symbolSignature: '',
   draftTimer: null,
   draftQuotaWarned: false,
   pendingDrafts: null,
@@ -98,6 +102,12 @@ const els = {
   buildRebuild: document.getElementById('buildRebuild'),
   saveBuildOptionsBtn: document.getElementById('saveBuildOptionsBtn'),
   buildOptionsCloseBtn: document.getElementById('buildOptionsCloseBtn'),
+  exportProjectBtn: document.getElementById('exportProjectBtn'),
+  exportDialog: document.getElementById('exportDialog'),
+  exportContents: document.getElementById('exportContents'),
+  exportHint: document.getElementById('exportHint'),
+  exportConfirmBtn: document.getElementById('exportConfirmBtn'),
+  exportCloseBtn: document.getElementById('exportCloseBtn'),
   importBtn: document.getElementById('importBtn'),
   status: document.getElementById('status'),
   palette: document.getElementById('palette'),
@@ -238,17 +248,50 @@ function createCodeEditor(textarea) {
     matchBrackets: true,
     autoCloseBrackets: true,
     styleActiveLine: true,
+    hintOptions: {
+      hint: pascalHint,
+      completeSingle: false,
+      alignWithWord: true,
+      closeOnUnfocus: true,
+      updateOnCursorActivity: true,
+    },
     extraKeys: {
       Tab: (instance) => instance.execCommand('indentMore'),
       'Shift-Tab': (instance) => instance.execCommand('indentLess'),
+      'Ctrl-Space': 'autocomplete',
     },
   });
   cm.setSize('100%', '100%');
   let changeHandler = null;
   let keyHandler = null;
   let errorLine = null;
+  let hintTimer = 0;
   cm.on('change', () => { if (changeHandler) changeHandler(); });
   cm.on('keydown', (instance, event) => { if (keyHandler) keyHandler(event); });
+  cm.on('keydown', (instance, event) => {
+    if (event.key === 'Escape' || event.key === 'Enter' || event.key === 'Tab') {
+      clearTimeout(hintTimer);
+    }
+  });
+  cm.on('inputRead', (instance, change) => {
+    clearTimeout(hintTimer);
+    const typed = change.text ? change.text[0] : '';
+    if (!typed) return;
+    const identifierChar = /[A-Za-z_]/.test(typed);
+    if (!identifierChar && typed !== '.') return;
+    const cursor = instance.getCursor();
+    const token = instance.getTokenAt(cursor);
+    if (token.type && /comment|string/.test(token.type)) return;
+    if (identifierChar) {
+      const line = instance.getLine(cursor.line).slice(0, cursor.ch);
+      const word = (line.match(/[A-Za-z_][A-Za-z0-9_]*$/) || [''])[0];
+      if (word.length < 2) return;
+    }
+    hintTimer = setTimeout(() => {
+      if (instance.state.completionActive) return;
+      instance.showHint();
+    }, typed === '.' ? 80 : 220);
+  });
 
   const clearErrorLine = () => {
     if (errorLine !== null) {
@@ -318,6 +361,354 @@ const containerClasses = new Set([
   'TWPageControl', 'TTabSheet',
 ]);
 
+const PASCAL_KEYWORDS = [
+  'and', 'array', 'as', 'asm', 'begin', 'case', 'class', 'const', 'constructor',
+  'destructor', 'div', 'do', 'downto', 'else', 'end', 'except', 'exports', 'file',
+  'finalization', 'finally', 'for', 'function', 'goto', 'if', 'implementation',
+  'in', 'inherited', 'initialization', 'inline', 'interface', 'is', 'label',
+  'library', 'mod', 'nil', 'not', 'object', 'of', 'on', 'operator', 'or', 'out',
+  'packed', 'private', 'procedure', 'program', 'property', 'protected', 'public',
+  'published', 'raise', 'record', 'repeat', 'resourcestring', 'set', 'shl', 'shr',
+  'string', 'then', 'threadvar', 'to', 'try', 'type', 'unit', 'until', 'uses',
+  'var', 'while', 'with', 'xor',
+];
+
+const PASCAL_TYPES = [
+  'Boolean', 'Byte', 'Cardinal', 'Char', 'Currency', 'Double', 'Extended',
+  'Integer', 'Int64', 'LongInt', 'LongWord', 'NativeInt', 'NativeUInt', 'PChar',
+  'Pointer', 'Real', 'ShortInt', 'Single', 'SmallInt', 'String', 'TObject',
+  'TComponent', 'TPersistent', 'TInterfacedObject', 'TStrings', 'TStringList',
+  'Variant', 'WideString', 'Word',
+];
+
+const PASCAL_ROUTINES = [
+  'Result', 'Self', 'True', 'False', 'Exit', 'Assigned', 'FreeAndNil', 'Length',
+  'High', 'Low', 'SetLength', 'Inc', 'Dec', 'New', 'Dispose', 'Format',
+  'IntToStr', 'StrToInt', 'FloatToStr', 'StrToFloat', 'Trim', 'UpperCase',
+  'LowerCase', 'Pos', 'Copy', 'Delete', 'Insert', 'Succ', 'Pred', 'Ord', 'Chr',
+];
+
+const COMMON_UNITS = [
+  'System', 'SysUtils', 'Classes', 'Types', 'JS', 'Web', 'Forms', 'Controls',
+  'Graphics', 'Dialogs', 'Menus', 'ActnList', 'ComCtrls', 'StdCtrls',
+  'ExtCtrls', 'WebCtrls', 'WebDB', 'WCLStrConsts',
+];
+
+const APPLICATION_MEMBERS = [
+  'Initialize', 'Run', 'Terminate', 'CreateForm', 'MainForm', 'ActiveForm',
+  'MessageBox', 'Title', 'Hint', 'ShowMessage',
+];
+
+let hintWordCache = { generation: -1, words: [] };
+
+function bufferHintWords(cm) {
+  const generation = typeof cm.changeGeneration === 'function' ? cm.changeGeneration() : -1;
+  if (hintWordCache.generation === generation) return hintWordCache.words;
+  const words = [];
+  const seen = new Set();
+  const pattern = /[A-Za-z_][A-Za-z0-9_]*/g;
+  let match;
+  const source = cm.getValue();
+  while ((match = pattern.exec(source))) {
+    const word = match[0];
+    if (word.length < 2 || seen.has(word.toLowerCase())) continue;
+    seen.add(word.toLowerCase());
+    words.push(word);
+  }
+  hintWordCache = { generation, words };
+  return words;
+}
+
+function addHintCandidate(map, text, kind, priority) {
+  if (!text || typeof text !== 'string') return;
+  const key = text.toLowerCase();
+  const current = map.get(key);
+  if (!current || priority > current.priority) {
+    map.set(key, { text, kind, priority });
+  }
+}
+
+function findFormNodeByName(name) {
+  const target = String(name || '').toLowerCase();
+  if (!target) return null;
+  const walk = (nodes) => {
+    for (const node of nodes) {
+      if ((node.name || '').toLowerCase() === target) return node;
+      const found = walk(node.children);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(state.roots);
+}
+
+function addUnitHintNames(map) {
+  const add = (value) => {
+    const base = String(value || '').split('/').pop().replace(/\.(pas|lpr)$/i, '');
+    if (!base) return;
+    addHintCandidate(map, base, 'unit', 35);
+    addHintCandidate(map, base.charAt(0).toUpperCase() + base.slice(1), 'unit', 34);
+  };
+  for (const form of state.forms || []) add(form.unit);
+  if (state.project) {
+    add(state.project.unit);
+    add(state.project.program);
+    for (const unit of state.project.units || []) add(unit);
+  }
+  for (const file of state.projectFiles || []) {
+    if (file.kind === 'source') add(file.path);
+  }
+  for (const unit of state.projectSymbols.units || []) {
+    addHintCandidate(map, unit.name, 'unit', 38);
+  }
+  for (const unit of state.projectSymbols.uses || []) {
+    addHintCandidate(map, unit, 'unit', 24);
+  }
+  for (const unit of COMMON_UNITS) addHintCandidate(map, unit, 'unit', 20);
+  for (const item of state.manifest.classes || []) {
+    if (item.unit) addHintCandidate(map, item.unit, 'unit', 18);
+  }
+}
+
+function addFormHintSymbols(map) {
+  const walk = (nodes) => {
+    for (const node of nodes) {
+      if (node.name) addHintCandidate(map, node.name, 'component', 50);
+      if (node.className) {
+        addHintCandidate(map, canonicalClassName(node.className), 'class', 40);
+      }
+      for (const prop of node.properties || []) {
+        if (/^On[A-Z]/.test(prop.name)) {
+          const handler = String(prop.value ?? prop.raw ?? '').trim();
+          if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(handler)) {
+            addHintCandidate(map, handler, 'event', 42);
+          }
+        }
+      }
+      walk(node.children);
+    }
+  };
+  walk(state.roots);
+}
+
+function projectClassByName(name) {
+  const target = String(name || '').toLowerCase();
+  if (!target) return null;
+  return (state.projectSymbols.classes || []).find((entry) => entry.name.toLowerCase() === target) || null;
+}
+
+function projectSymbolByName(name) {
+  const target = String(name || '').toLowerCase();
+  if (!target) return null;
+  return (state.projectSymbols.symbols || []).find((entry) => entry.name.toLowerCase() === target) || null;
+}
+
+function projectUnitByName(name) {
+  const target = String(name || '').toLowerCase();
+  if (!target) return null;
+  return (state.projectSymbols.units || []).find((entry) => entry.name.toLowerCase() === target) || null;
+}
+
+function typeNameFromDetail(detail) {
+  const match = String(detail || '').trim().match(/^([A-Za-z_][A-Za-z0-9_.]*)/);
+  return match ? match[1] : '';
+}
+
+function wclClassEntry(name) {
+  const target = String(name || '').toLowerCase();
+  return target ? (state.wclClassMap.get(target) || null) : null;
+}
+
+function wclMembersForClass(className) {
+  const seen = new Set();
+  let current = canonicalClassName(className);
+  while (current && !seen.has(current.toLowerCase())) {
+    seen.add(current.toLowerCase());
+    const wcl = wclClassEntry(current);
+    if (wcl) return wcl;
+    const project = projectClassByName(current);
+    if (!project) return null;
+    current = project.parent;
+  }
+  return null;
+}
+
+function addWclClassMembers(map, className) {
+  const entry = wclMembersForClass(className);
+  if (!entry) return;
+  for (const member of entry.members || []) {
+    const kind = member.kind === 'event'
+      ? 'event'
+      : (member.kind === 'method' ? 'method' : 'property');
+    addHintCandidate(map, member.name, kind, 54);
+  }
+}
+
+function addProjectClassMembers(map, classEntry, seen = new Set()) {
+  if (!classEntry) return;
+  const key = classEntry.name.toLowerCase();
+  if (seen.has(key)) return;
+  seen.add(key);
+  if (classEntry.parent) {
+    const parentEntry = projectClassByName(classEntry.parent);
+    if (parentEntry) {
+      addProjectClassMembers(map, parentEntry, seen);
+    } else {
+      addWclClassMembers(map, classEntry.parent);
+    }
+  }
+  for (const member of classEntry.members || []) {
+    const kind = member.kind === 'property'
+      ? 'property'
+      : (member.kind === 'field' ? 'field' : 'method');
+    addHintCandidate(map, member.name, kind, 58);
+  }
+}
+
+function addProjectSymbolHint(map, symbol, priority) {
+  const kind = symbol.kind === 'class' || symbol.kind === 'record'
+    ? 'class'
+    : (symbol.kind === 'type' ? 'type' : (symbol.kind === 'var' || symbol.kind === 'const' ? 'symbol' : 'method'));
+  addHintCandidate(map, symbol.name, kind, priority);
+}
+
+function memberHintMap(owner) {
+  const map = new Map();
+  const addProps = (list, priority) => {
+    for (const prop of list || []) {
+      addHintCandidate(map, prop.name, /^On[A-Z]/.test(prop.name) ? 'event' : 'property', priority);
+    }
+  };
+  const node = owner === 'Self'
+    ? state.roots[0]
+    : (findFormNodeByName(owner) || (state.roots[0] && state.roots[0].name === owner ? state.roots[0] : null));
+  if (node) {
+    for (const prop of node.properties || []) {
+      const name = prop.name.split('.')[0];
+      addHintCandidate(map, name, /^On[A-Z]/.test(name) ? 'event' : 'property', 60);
+    }
+    addProps(COMMON_PROPERTIES, 52);
+    const className = canonicalClassName(node.className);
+    addProps(CLASS_PROPERTIES[className], 58);
+    const classEntry = projectClassByName(className);
+    if (classEntry) addProjectClassMembers(map, classEntry);
+    else addWclClassMembers(map, className);
+    return map;
+  }
+  if (owner.toLowerCase() === 'application') {
+    for (const member of APPLICATION_MEMBERS) addHintCandidate(map, member, 'property', 60);
+    return map;
+  }
+  const variable = projectSymbolByName(owner);
+  if (variable && (variable.kind === 'var' || variable.kind === 'const')) {
+    const typeName = typeNameFromDetail(variable.detail);
+    const classEntry = projectClassByName(typeName);
+    if (classEntry) {
+      addProjectClassMembers(map, classEntry);
+      return map;
+    }
+    if (wclClassEntry(typeName)) {
+      addWclClassMembers(map, typeName);
+      return map;
+    }
+  }
+  const classEntry = projectClassByName(owner);
+  if (classEntry) {
+    addProjectClassMembers(map, classEntry);
+    return map;
+  }
+  if (wclClassEntry(owner)) {
+    addWclClassMembers(map, owner);
+    return map;
+  }
+  const unitEntry = projectUnitByName(owner);
+  if (unitEntry) {
+    const unitName = unitEntry.name.toLowerCase();
+    for (const cls of state.projectSymbols.classes || []) {
+      if (cls.unit.toLowerCase() === unitName) {
+        addHintCandidate(map, cls.name, 'class', 50);
+      }
+    }
+    for (const symbol of state.projectSymbols.symbols || []) {
+      if (symbol.unit.toLowerCase() === unitName) {
+        addProjectSymbolHint(map, symbol, 46);
+      }
+    }
+    return map;
+  }
+  addProps(COMMON_PROPERTIES, 50);
+  addProps(CLASS_PROPERTIES[owner], 55);
+  return map;
+}
+
+function hintContext(cm, cursor) {
+  const line = cm.getLine(cursor.line).slice(0, cursor.ch);
+  const wordMatch = line.match(/[A-Za-z_][A-Za-z0-9_]*$/);
+  const word = wordMatch ? wordMatch[0] : '';
+  const beforeWord = line.slice(0, line.length - word.length);
+  const member = beforeWord.match(/([A-Za-z_][A-Za-z0-9_]*)\.$/);
+  if (member) {
+    return { word, owner: member[1], member: true, uses: false };
+  }
+  const offset = cm.indexFromPos(cursor);
+  const before = cm.getValue().slice(0, offset);
+  const lower = before.toLowerCase();
+  const uses = lower.lastIndexOf('uses') > before.lastIndexOf(';');
+  return { word, owner: '', member: false, uses };
+}
+
+function pascalHint(cm) {
+  const file = state.currentUnit || currentUnitName();
+  if (file && !/\.(pas|lpr)$/i.test(file)) return null;
+  const cursor = cm.getCursor();
+  const token = cm.getTokenAt(cursor);
+  if (token.type && /comment|string/.test(token.type)) return null;
+
+  const context = hintContext(cm, cursor);
+  if (!context.member && !context.uses && context.word.length === 0) return null;
+
+  const map = new Map();
+  if (context.member) {
+    for (const [, item] of memberHintMap(context.owner)) map.set(item.text.toLowerCase(), item);
+  } else if (context.uses) {
+    addUnitHintNames(map);
+  } else {
+    addFormHintSymbols(map);
+    addUnitHintNames(map);
+    for (const item of state.manifest.classes || []) {
+      addHintCandidate(map, item.name, 'class', 40);
+    }
+    for (const name of Object.keys(state.wclSymbols.classes || {})) {
+      addHintCandidate(map, name, 'class', 36);
+    }
+    for (const unit of state.wclSymbols.units || []) {
+      addHintCandidate(map, unit, 'unit', 22);
+    }
+    for (const symbol of state.projectSymbols.symbols || []) {
+      addProjectSymbolHint(map, symbol, symbol.kind === 'class' || symbol.kind === 'record' ? 39 : 34);
+    }
+    for (const word of bufferHintWords(cm)) addHintCandidate(map, word, 'symbol', 30);
+    for (const keyword of PASCAL_KEYWORDS) addHintCandidate(map, keyword, 'keyword', 34);
+    for (const type of PASCAL_TYPES) addHintCandidate(map, type, 'type', 33);
+    for (const routine of PASCAL_ROUTINES) addHintCandidate(map, routine, 'symbol', 32);
+  }
+
+  const prefix = context.word.toLowerCase();
+  const list = [...map.values()]
+    .filter((item) => prefix === ''
+      || (item.text.toLowerCase().startsWith(prefix) && item.text.toLowerCase() !== prefix))
+    .sort((a, b) => b.priority - a.priority
+      || a.text.localeCompare(b.text, undefined, { sensitivity: 'base' }))
+    .slice(0, 200)
+    .map((item) => ({ text: item.text, className: `wcl-hint-${item.kind}` }));
+  if (list.length === 0) return null;
+  return {
+    list,
+    from: window.CodeMirror.Pos(cursor.line, cursor.ch - context.word.length),
+    to: cursor,
+  };
+}
+
 const fallbackDefaults = {
   TWButton: { width: 100, height: 30, caption: 'Button' },
   TWEdit: { width: 160, height: 28 },
@@ -352,6 +743,8 @@ const fallbackDefaults = {
   TWIntegerEdit: { width: 160, height: 28 },
   TWDateEditBox: { width: 160, height: 28 },
   TWTimeEditBox: { width: 120, height: 28 },
+  TWAction: { caption: 'Action' },
+  TMenuItem: { caption: 'MenuItem' },
 };
 
 function apiEndpoint() {
@@ -776,6 +1169,7 @@ async function saveSource({ saveForm = false } = {}) {
     updateSaveIndicator();
     setStatus(`Source saved (${result.bytes} bytes)`);
     void loadProjectFiles();
+    void loadProjectSymbols();
     persistDraftsNow(true);
     if (saveForm && state.dirty) {
       // The form may hold the event association that was just generated;
@@ -884,6 +1278,7 @@ async function saveAll() {
     }
     setStatus(message, warnings.length > 0);
     void loadProjectFiles();
+    void loadProjectSymbols();
     persistDraftsNow(true);
     return true;
   } catch (error) {
@@ -968,7 +1363,7 @@ function nodeTitle(node) {
 
 function isVisual(node, isRoot = false) {
   if (isRoot) return true;
-  const className = node.className;
+  const className = canonicalClassName(node.className);
   if (nonVisual.has(className)) return false;
   if (className === 'TMenuItem') return false;
   if (className.startsWith('TWWebDB')) return false;
@@ -1202,34 +1597,55 @@ function renderTree() {
 }
 
 function displayClassName(name) {
-  return String(name || '').replace(/^TW/, '').replace(/^T/, '') || 'Component';
+  const text = String(name || '');
+  if (text.startsWith('TW')) return text.slice(2) || 'Component';
+  if (text.startsWith('T')) return text.slice(1) || 'Component';
+  return text || 'Component';
 }
 
 function renderPalette() {
   els.palette.innerHTML = '';
   const classes = (state.manifest.classes || [])
-    .filter((item) => item.visual && item.name !== 'TWForm' && item.name !== 'TWFrame');
+    .filter((item) => item.name !== 'TWForm' && item.name !== 'TWFrame');
+  let groupAdded = false;
   for (const item of classes) {
+    const visual = item.visual !== false;
+    if (!visual && !groupAdded) {
+      const group = document.createElement('span');
+      group.className = 'palette-group';
+      group.textContent = 'Non-visual';
+      els.palette.appendChild(group);
+      groupAdded = true;
+    }
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'palette-item';
-    button.draggable = true;
+    button.className = `palette-item${visual ? '' : ' nonvisual'}`;
     button.dataset.className = item.name;
-    button.title = `${item.name}${item.unit ? ` · ${item.unit}` : ''}`;
+    const unit = item.unit ? ` · ${item.unit}` : '';
+    if (visual) {
+      button.draggable = true;
+      button.title = `${item.name}${unit} — drag onto the form`;
+    } else {
+      button.title = `${item.name}${unit} — click to add it to the form`;
+    }
     const mark = document.createElement('span');
     mark.className = 'palette-mark';
     const label = document.createElement('span');
     label.textContent = displayClassName(item.name);
     button.append(mark, label);
-    button.addEventListener('dragstart', (event) => {
-      event.dataTransfer.setData('text/plain', item.name);
-      event.dataTransfer.effectAllowed = 'copy';
-      button.classList.add('dragging');
-    });
-    button.addEventListener('dragend', () => {
-      button.classList.remove('dragging');
-      clearDropTargets();
-    });
+    if (visual) {
+      button.addEventListener('dragstart', (event) => {
+        event.dataTransfer.setData('text/plain', item.name);
+        event.dataTransfer.effectAllowed = 'copy';
+        button.classList.add('dragging');
+      });
+      button.addEventListener('dragend', () => {
+        button.classList.remove('dragging');
+        clearDropTargets();
+      });
+    } else {
+      button.addEventListener('click', () => addNonVisualComponent(item.name));
+    }
     els.palette.appendChild(button);
   }
   filterPalette();
@@ -1241,6 +1657,10 @@ function filterPalette() {
   for (const button of els.palette.querySelectorAll('.palette-item')) {
     const text = button.textContent.toLowerCase();
     button.classList.toggle('hidden-view', query !== '' && !text.includes(query));
+  }
+  const visibleNonVisual = els.palette.querySelectorAll('.palette-item.nonvisual:not(.hidden-view)').length;
+  for (const group of els.palette.querySelectorAll('.palette-group')) {
+    group.classList.toggle('hidden-view', visibleNonVisual === 0);
   }
 }
 
@@ -1354,6 +1774,52 @@ function snap(value) {
   return Math.max(0, Math.round(value / 8) * 8);
 }
 
+function isNonVisualClass(className) {
+  const canonical = canonicalClassName(className);
+  return nonVisual.has(canonical) || canonical === 'TMenuItem' || canonical.startsWith('TWWebDB');
+}
+
+function findFirstNode(predicate) {
+  const walk = (nodes) => {
+    for (const node of nodes) {
+      if (predicate(node)) return node;
+      const found = walk(node.children);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(state.roots);
+}
+
+function selectedOrAncestor(predicate) {
+  for (let node = state.selected; node; node = node.__parent) {
+    if (predicate(node)) return node;
+  }
+  return null;
+}
+
+function addNonVisualComponent(className) {
+  if (!state.roots[0]) return;
+  const canonical = canonicalClassName(className);
+  let parent = state.roots[0];
+  if (canonical === 'TMenuItem') {
+    parent = selectedOrAncestor((node) => ['TWMainMenu', 'TWPopupMenu', 'TMenuItem'].includes(node.className))
+      || findFirstNode((node) => ['TWMainMenu', 'TWPopupMenu'].includes(node.className));
+    if (!parent) {
+      setStatus('Add a TWMainMenu or TWPopupMenu first, then a menu item.', true);
+      return;
+    }
+  } else if (canonical === 'TWAction') {
+    parent = selectedOrAncestor((node) => node.className === 'TWActionList')
+      || findFirstNode((node) => node.className === 'TWActionList');
+    if (!parent) {
+      setStatus('Add a TWActionList first, then an action.', true);
+      return;
+    }
+  }
+  addComponent(className, parent, 8, 8);
+}
+
 function addComponent(className, parentNode, left, top) {
   if (!parentNode) return null;
   const defaults = defaultsFor(className);
@@ -1366,24 +1832,42 @@ function addComponent(className, parentNode, left, top) {
   };
   node.properties.push(makeProp('Left', String(snap(left))));
   node.properties.push(makeProp('Top', String(snap(top))));
-  node.properties.push(makeProp('Width', String(Math.max(1, defaults.width || 120))));
-  node.properties.push(makeProp('Height', String(Math.max(1, defaults.height || 28))));
+  if (!isNonVisualClass(className)) {
+    node.properties.push(makeProp('Width', String(Math.max(1, defaults.width || 120))));
+    node.properties.push(makeProp('Height', String(Math.max(1, defaults.height || 28))));
+  }
   if (defaults.caption) {
     node.properties.push(makeProp('Caption', encodeLfmString(defaults.caption)));
   }
   if (['TWEdit', 'TWMemo', 'TWComboBox'].includes(className)) {
     node.properties.push(makeProp('Text', encodeLfmString('')));
   }
+  const canonical = canonicalClassName(className);
+  if (canonical === 'TWTimer') {
+    node.properties.push(makeProp('Enabled', 'True'));
+    node.properties.push(makeProp('Interval', '1000'));
+  } else if (canonical === 'TWWebDBConnection') {
+    node.properties.push(makeProp('Backend', 'wbMemory'));
+    node.properties.push(makeProp('DBName', encodeLfmString('WCLDB')));
+    node.properties.push(makeProp('DBVersion', '1'));
+    node.properties.push(makeProp('StoreName', encodeLfmString('Tables')));
+  } else if (canonical === 'TWWebDBTable') {
+    node.properties.push(makeProp('AutoLoad', 'False'));
+    node.properties.push(makeProp('Progressive', 'False'));
+    node.properties.push(makeProp('PageSize', '100'));
+  }
   parentNode.children.push(node);
   assignIds(state.roots);
   state.selected = node;
   state.selection = [node];
   renderTree();
+  const treeRow = els.tree.querySelector(`.tree-row[data-id="${node.__id}"]`);
+  if (treeRow) treeRow.scrollIntoView({ block: 'nearest' });
   renderCanvas();
   renderInspector();
   updateMultiTools();
   markDirty();
-  setStatus(`Added ${node.name} (${className})`);
+  setStatus(`Added ${node.name} (${className})${isNonVisualClass(className) ? ' — non-visual component' : ''}`);
   return node;
 }
 
@@ -3730,10 +4214,53 @@ function defaultPropertyEditor(node, spec, row) {
   return finishInput(input);
 }
 
+function wclPropertySpec(className, name) {
+  const entry = wclMembersForClass(className);
+  if (!entry) return null;
+  const target = String(name || '').toLowerCase();
+  const member = (entry.members || []).find((item) => item.name.toLowerCase() === target);
+  if (!member) return null;
+  const type = String(member.type || '').toLowerCase();
+  let kind = 'raw';
+  let value = '';
+  if (member.kind === 'event' || /^On[A-Z]/.test(member.name)) {
+    kind = 'identifier';
+  } else if (type === 'string' || type === 'widestring' || type === 'ansistring' || type === 'char') {
+    kind = 'string';
+  } else if (type === 'boolean' || type === 'longbool' || type === 'bytebool' || type === 'wordbool') {
+    kind = 'boolean';
+    value = 'False';
+  } else if (['integer', 'cardinal', 'byte', 'word', 'shortint', 'smallint', 'longint', 'longword', 'int64', 'nativeint', 'nativeuint'].includes(type)) {
+    kind = 'integer';
+    value = '0';
+  } else if (['double', 'single', 'extended', 'real', 'currency'].includes(type)) {
+    kind = 'float';
+    value = '0';
+  } else {
+    const lower = member.name.toLowerCase();
+    if (/^(caption|text|texthint|title|hint|name|filter|url|passwordchar|autocomplete)$/.test(lower)) {
+      kind = 'string';
+    } else if (/^(enabled|visible|readonly|checked|parentfont|parentcolor|wordwrap|autosize|default|cancel)$/.test(lower)) {
+      kind = 'boolean';
+      value = 'False';
+    } else if (/^(width|height|left|top|taborder|maxlength|interval|pagesize|decimalplaces|position|min|max|frequency|value)$/.test(lower)) {
+      kind = 'integer';
+      value = '0';
+    } else {
+      return null;
+    }
+  }
+  return { name: member.name, kind, value };
+}
+
 function propertySuggestions(node) {
   const className = canonicalClassName(node.className);
   const names = new Set(classPropertySpecs(node).map((spec) => spec.name));
   for (const spec of nestedDefaultSpecs(node)) names.add(spec.name);
+  const wcl = wclMembersForClass(className);
+  if (wcl) {
+    for (const member of wcl.members || []) names.add(member.name);
+  }
   const walk = (nodes) => {
     for (const item of nodes) {
       if (canonicalClassName(item.className) === className) {
@@ -3799,8 +4326,10 @@ function renderAddProperty(node) {
   add.textContent = 'Add';
 
   name.addEventListener('change', () => {
-    const spec = [...classPropertySpecs(node), ...nestedDefaultSpecs(node)]
-      .find((item) => item.name === name.value.trim());
+    const propertyName = name.value.trim();
+    const spec = [...classPropertySpecs(node), ...nestedDefaultSpecs(node), wclPropertySpec(canonicalClassName(node.className), propertyName)]
+      .filter(Boolean)
+      .find((item) => item.name === propertyName);
     if (!spec) return;
     kind.value = spec.kind;
     value.value = spec.kind === 'string' ? '' : spec.value;
@@ -4869,6 +5398,8 @@ function clearProjectView() {
   state.unitCache.clear();
   state.projectFiles = [];
   state.buildFiles = [];
+  state.projectSymbols = { units: [], uses: [], classes: [], symbols: [] };
+  state.symbolSignature = '';
   els.project.value = '';
   codeEditor.setValue('');
   els.sourceName.textContent = 'No source';
@@ -5034,6 +5565,7 @@ async function saveProjectSettings() {
     if (option) option.textContent = state.project.name;
     renderActiveFile();
     renderProjectDialog();
+    void loadProjectSymbols();
     setStatus('Project settings saved');
   } catch (error) {
     setStatus(error.message, true);
@@ -5424,6 +5956,108 @@ function showBuildLog() {
   openDialog(els.buildDialog);
 }
 
+async function buildProjectOnly() {
+  if (!state.project) return false;
+  setStatus(`Building ${state.project.name}...`);
+  try {
+    const result = await api('build', {}, { project: state.project.id, mode: 'project' });
+    state.lastBuildOutput = result.output || '';
+    if (result.ok) state.buildOutputOpen = true;
+    await loadProjectFiles();
+    if (!result.ok) {
+      renderBuildOutput(result.output || 'Build failed.');
+      openDialog(els.buildDialog);
+      scrollBuildOutputToFirstError();
+      setStatus('Build failed', true);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    state.lastBuildOutput = error.message;
+    renderBuildOutput(error.message);
+    openDialog(els.buildDialog);
+    scrollBuildOutputToFirstError();
+    setStatus(error.message, true);
+    return false;
+  }
+}
+
+function updateExportHint() {
+  const built = els.exportContents.value === 'built';
+  els.exportHint.textContent = built
+    ? 'Compiles the project with the saved Build options, then packages the deployment page, compiled JavaScript, source map and project assets.'
+    : 'Packages the project files without preview/ and snapshots, for backup or re-import.';
+}
+
+function openExportDialog() {
+  if (!state.project) {
+    setStatus('No project selected.', true);
+    return;
+  }
+  const isApplication = (state.project.kind || 'application') === 'application';
+  const builtOption = [...els.exportContents.options].find((option) => option.value === 'built');
+  if (builtOption) builtOption.disabled = !isApplication;
+  els.exportContents.value = isApplication ? 'built' : 'sources';
+  updateExportHint();
+  openDialog(els.exportDialog);
+}
+
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+async function exportProjectArchive() {
+  if (!state.project) return;
+  const contents = els.exportContents.value === 'built' ? 'built' : 'sources';
+  if (contents === 'built' && (state.project.kind || 'application') !== 'application') {
+    setStatus('Built export is available for application projects.', true);
+    return;
+  }
+  els.exportConfirmBtn.disabled = true;
+  try {
+    if (hasUnsavedChanges()) {
+      const saved = await saveAll();
+      if (!saved) return;
+    }
+    if (contents === 'built') {
+      const built = await buildProjectOnly();
+      if (!built) return;
+      setStatus('Packaging the built application...');
+    } else {
+      setStatus('Packaging the project sources...');
+    }
+
+    const response = await fetch(apiUrl('export'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: state.project.id, contents }),
+    });
+    const type = response.headers.get('content-type') || '';
+    if (!response.ok || !type.includes('application/zip')) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Export failed (HTTP ${response.status}).`);
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const match = /filename="?([^";]+)"?/i.exec(disposition);
+    const filename = match ? match[1] : `${state.project.id}-${contents}.zip`;
+    saveBlob(blob, filename);
+    closeDialog(els.exportDialog);
+    setStatus(`Exported ${filename}`);
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    els.exportConfirmBtn.disabled = false;
+  }
+}
+
 async function buildPreview() {
   if (!state.project) {
     setStatus('No project selected.', true);
@@ -5516,6 +6150,32 @@ async function loadProjectFiles() {
     state.projectFiles = [];
     state.buildFiles = [];
     renderFileExplorer(error.message);
+  }
+}
+
+let symbolRequestId = 0;
+
+async function loadProjectSymbols() {
+  const request = ++symbolRequestId;
+  if (!state.project) {
+    state.projectSymbols = { units: [], uses: [], classes: [], symbols: [] };
+    state.symbolSignature = '';
+    return;
+  }
+  const project = state.project.id;
+  try {
+    const data = await api('symbols', { project });
+    if (request !== symbolRequestId) return;
+    if (!state.project || state.project.id !== project) return;
+    state.projectSymbols = {
+      units: data.units || [],
+      uses: data.uses || [],
+      classes: data.classes || [],
+      symbols: data.symbols || [],
+    };
+    state.symbolSignature = data.signature || '';
+  } catch (error) {
+    // Completion is optional: keep the previous index if the request fails.
   }
 }
 
@@ -6080,6 +6740,7 @@ async function createUnit() {
     state.forms = result.project.forms || [];
     closeProjectDialog();
     await openUnit(result.unit);
+    void loadProjectSymbols();
     setStatus(`Created ${result.unit}`);
   } catch (error) {
     setStatus(error.message, true);
@@ -6124,6 +6785,7 @@ async function deleteForm(form) {
     }
     renderActiveFile();
     renderProjectDialog();
+    void loadProjectSymbols();
     setStatus(`Removed ${label}`);
   } catch (error) {
     setStatus(error.message, true);
@@ -6155,6 +6817,7 @@ async function deleteUnit(unit) {
       if (state.view === 'source') await loadSource(true);
     }
     renderProjectDialog();
+    void loadProjectSymbols();
     setStatus(`Removed ${unit}`);
   } catch (error) {
     setStatus(error.message, true);
@@ -6190,6 +6853,8 @@ async function loadProject(id, formName = '', checkDrafts = false) {
     state.forms = data.project.forms || [];
     state.projectFiles = [];
     state.buildFiles = [];
+    state.projectSymbols = { units: [], uses: [], classes: [], symbols: [] };
+    state.symbolSignature = '';
     state.currentForm = data.form || state.forms[0] || null;
     state.currentUnit = state.currentForm
       ? state.currentForm.unit
@@ -6233,6 +6898,7 @@ async function loadProject(id, formName = '', checkDrafts = false) {
     updateMultiTools();
     setStatus(`${data.project.name} loaded`);
     void loadProjectFiles();
+    void loadProjectSymbols();
     if (checkDrafts) checkLocalDrafts(id);
     if (!state.currentForm && state.currentUnit) {
       if (state.view === 'source') {
@@ -6299,6 +6965,7 @@ async function saveProject() {
     }
     updateSaveIndicator();
     void loadProjectFiles();
+    void loadProjectSymbols();
     persistDraftsNow(true);
     const warnings = result.warnings || [];
     if (warnings.length > 0) {
@@ -6427,13 +7094,30 @@ async function deleteProject() {
 
 async function boot() {
   try {
-    const response = await fetch('manifest/components.json');
+    const response = await fetch('manifest/components.json', { cache: 'no-cache' });
     if (response.ok) {
       state.manifest = await response.json();
       for (const name of state.manifest.nonVisual || []) nonVisual.add(name);
     }
   } catch (error) {
     // The manifest is optional for the tree/canvas.
+  }
+  try {
+    const response = await fetch('manifest/wcl-symbols.json', { cache: 'no-cache' });
+    if (response.ok) {
+      const data = await response.json();
+      state.wclSymbols = {
+        classes: data.classes || {},
+        units: data.units || [],
+      };
+      const classes = state.wclSymbols.classes;
+      state.wclClassMap = new Map(Object.entries(classes).map(([name, entry]) => [
+        name.toLowerCase(),
+        { name, ...entry },
+      ]));
+    }
+  } catch (error) {
+    // Runtime member completion is optional; project symbols still work.
   }
   renderPalette();
   els.canvas.addEventListener('dragover', handleDragOver);
@@ -6507,6 +7191,10 @@ async function boot() {
   els.buildOptionsCloseBtn.addEventListener('click', () => closeDialog(els.buildOptionsDialog));
   els.saveBuildOptionsBtn.addEventListener('click', saveBuildOptions);
   els.buildSourceMap.addEventListener('change', updateBuildOptionsState);
+  els.exportProjectBtn.addEventListener('click', openExportDialog);
+  els.exportCloseBtn.addEventListener('click', () => closeDialog(els.exportDialog));
+  els.exportConfirmBtn.addEventListener('click', exportProjectArchive);
+  els.exportContents.addEventListener('change', updateExportHint);
   els.newProjectBtn.addEventListener('click', openNewProjectDialog);
   els.newProjectCloseBtn.addEventListener('click', () => closeDialog(els.newProjectDialog));
   els.newProjectCreateBtn.addEventListener('click', createNewProject);

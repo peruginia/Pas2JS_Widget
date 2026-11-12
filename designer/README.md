@@ -52,6 +52,10 @@ Make sure `designer/projects` is writable by Apache.
 - Shows a palette of visual components above the canvas in Design mode; drag
   one onto the form or into a container (panel, group box, tab sheet, page
   control) to add it.
+- Shows non-visual components (timer, menus, actions, dialogs, WebSocket,
+  WebDB and data module) in a **Non-visual** palette group; click one to add it
+  to the form or to the selected menu/action list. They appear in the component
+  tree and inspector but not on the canvas.
 - Draws a preview of the common controls and shows every tab of a page
   control, with the active tab selectable.
 - Moves and resizes components on the canvas; `Left`, `Top`, `Width` and
@@ -87,6 +91,8 @@ Make sure `designer/projects` is writable by Apache.
 - Creates application, host application and module projects.
 - Compiles the whole project (or the selected form) with pas2js, with a
   separate **Compile** action, and runs it in a preview dialog with **Run**.
+- Exports the project sources or a built application ZIP from **Export /
+  Publish…** in the main menu.
 - Imports a project from a ZIP archive (LFM, PAS, LPR, HTML and assets).
 
 Unknown properties, binary blobs and collections the designer does not decode
@@ -98,13 +104,15 @@ does not understand yet.
 - The top bar contains the project selector, the active file (form LFM in
   Design, unit/program in Source), **Save**, the build target (project or
   current form), **Compile**, **Run**, the main menu and the status message.
-  The menu holds new/import project, project settings, build options, reload,
-  save all and the last build log.
+  The menu holds new/import project, project settings, build options, export /
+  publish, reload, save all and the last build log.
 - The left panel always shows **Project files** on top and the **Components**
   tree below. Both sections scroll independently; creating forms/units,
   uploading assets and opening the project history are in the Files section.
 - In Design mode a compact component palette sits above the form, with a
-  search box and a horizontal list. It is hidden in Source mode.
+  search box and a horizontal list. Visual components are dragged onto the
+  form; non-visual components in the **Non-visual** group are added with a
+  click. The palette is hidden in Source mode.
 - The inspector remains on the right with its Properties/Events tabs and
   filter.
 
@@ -326,8 +334,8 @@ projects look alike.
 - Other `.pas` files become project units. For a module, `entry` is the last
   project unit in the program `uses` clause (falling back to the first unit).
 - An HTML file that references the compiled JS becomes `html`. A `project.json`
-  already in the archive keeps its program, HTML, output, manifest, entry and
-  module list when those values are valid.
+  already in the archive keeps its program, HTML, output, manifest, entry,
+  module list and build options when those values are valid.
 - Only the whitelisted extensions are written. Server-side files (`.php`,
   `.phtml`, `.phar`, `.htaccess`, `.ini`, ...) and paths with `..` or absolute
   names are rejected, because the project folder is served by Apache.
@@ -407,6 +415,25 @@ the Files panel. The page requests the new script with a cache-busting query, so
 the browser does not keep the previous build. Host module manifests are loaded
 as configured; building the module projects is a separate Run (there is no
 automatic dependency build yet).
+
+### Export / Publish
+
+**Export / Publish…** in the main menu downloads a ZIP:
+
+- **Built application** (application projects): saves unsaved changes,
+  compiles the project with the saved Build options, then packages the
+  deployment page (`html`, or a generated `index.html`), the compiled
+  JavaScript, its source map and the project assets. The download is
+  `<id>-publish.zip`.
+- **Project sources**: packages the project files and assets without
+  `preview/` and `.snapshots/`, for backup or re-import. The download is
+  `<id>-sources.zip`.
+
+The built archive contains only deployment files: LFM/PAS/LPR sources and
+`project.json` are left out. Host and module projects can export their sources;
+a built export is reserved for application projects because a host also needs
+its module bundles and a module is not a standalone page. Archives are limited
+to 2000 files and 64 MB and are written with zlib.
 
 ## Canvas editing
 
@@ -490,6 +517,18 @@ project: the selected form's `.pas` unit, an extra unit, or the program
   the configured program) and rendered with **CodeMirror**: Pascal syntax
   highlighting, line numbers, bracket matching, auto-indent and the search
   dialog (`Ctrl+F`);
+- code completion opens with **Ctrl+Space** or automatically after two
+  characters. It suggests Pascal keywords/types, words from the current unit,
+  form component names and event handlers, project units and WCL class names;
+  after `Component.` it lists the known properties and events, and after a
+  project class, global variable or unit name it lists the symbols from the
+  server index. Strings and comments are ignored, and completion applies to
+  `.pas`/`.lpr` files only;
+- the published members of the WCL runtime come from
+  `manifest/wcl-symbols.json`, generated from the `published` sections of
+  `widgets/*.pas` with `php designer/tools/generate-wcl-symbols.php`. The
+  same metadata feeds the **Add property** suggestions in the inspector;
+  `--check` verifies that the manifest is up to date;
 - selecting a component in the component tree scrolls to its field
   declaration when the form's unit is shown;
 - event properties (`OnClick`, `OnChange`, ...) have a **{ }** button that
@@ -683,15 +722,22 @@ designer/
   lib/PasSync.php         add-only .pas field/uses synchronisation
   lib/ModuleManifest.php  modules.json generation for -Jc- builds
   lib/SimpleZip.php       internal ZIP reader used by the project import
+  lib/ZipWriter.php       ZIP writer used by Export / Publish
+  lib/PascalSymbols.php   interface scanner for source completion
   assets/lfm.js           LFM parser + writer
   assets/lfm-binary.js    tree/list binary item codecs
   assets/app.js           palette, tree, canvas, inspector
   assets/style.css
   manifest/components.json
+  manifest/wcl-symbols.json  published WCL members for code completion
+  tools/generate-wcl-symbols.php  regenerates wcl-symbols.json
   projects/demo/          imported copy of examples/demo (unit1 + uLogin)
   tests/lfm.test.mjs      Node round-trip tests
   tests/binary.test.mjs   Node tree/list binary codec tests
   tests/pas-sync.test.php PHP .pas synchronisation test
+  tests/zip.test.php      PHP ZIP writer round-trip test
+  tests/symbols.test.php  PHP project symbol scanner test
+  tests/wcl-symbols.test.php  PHP generated WCL member manifest test
 ```
 
 ## API
@@ -707,6 +753,7 @@ headers; set `WCL_CORS_ORIGINS` on the server to restrict the allowed origins
 | `load` | GET | `project=<id>` and optional `form=<lfm>` |
 | `unit` | GET | `project=<id>` and optional `unit=<pas>` |
 | `files` | GET | `project=<id>` |
+| `symbols` | GET | `project=<id>` |
 | `readFile` | GET | `project=<id>` and `file=<path>` |
 | `readOutput` | GET | `project=<id>` and `file=preview/<path>` |
 | `writeFile` | POST | JSON `{ "project": "<id>", "file": "<path>", "source": "..." }` |
@@ -725,6 +772,7 @@ headers; set `WCL_CORS_ORIGINS` on the server to restrict the allowed origins
 | `saveBuildOptions` | POST | JSON `{ "project": "<id>", "options": { "optimize": "default\|none\|1\|2", "target": "default\|es5\|es6", "defines": "DEBUG, VERSION:=2", "sourceMap": true, "sourceMapSources": true, "assertions": false, "rebuild": false } }` |
 | `deleteProject` | POST | JSON `{ "project": "<id>" }` |
 | `build` | POST | JSON `{ "project": "<id>", "mode": "project\|form", "form": "<lfm>" }` |
+| `export` | POST | JSON `{ "project": "<id>", "contents": "built\|sources" }` (returns a ZIP stream) |
 | `importProject` | POST | multipart `id`, `name`, `kind` and `archive` (ZIP file) |
 
 `load` uses `mainForm` when `form` is omitted; `unit` uses the main form's unit
@@ -748,6 +796,14 @@ absolute paths, `..`, hidden entries and reserved folders are rejected.
 and `restoreSnapshot` first creates a safety snapshot and then replaces the
 project files.
 
+`symbols` scans the configured form units, extra units and program (files up to
+2 MB) and returns `signature`, `units`, `uses`, `classes` and `symbols`. Each
+class/record entry has `name`, `unit`, `kind`, `parent` and `members`
+(`name`, `kind`, `detail`, `visibility`); `symbols` contains classes, types,
+globals, constants and top-level routines. It is a lightweight completion
+index, not a compiler: private/protected members and implementation bodies are
+skipped.
+
 `build` returns `ok`, `url`, `kind`, `program` and `output`; a module build also
 returns `manifest`, and form mode returns `form`, `unit` and `formClass`. When
 the compiler fails, `ok` is `false` and `output` contains the compiler log (or
@@ -755,6 +811,13 @@ the reason the build could not start). The compiler flags come from the saved
 build options: `-O-`/`-O1`/`-O2`, `-Pecmascript5`/`-Pecmascript6`, `-Jm` and
 `-Jminclude`, `-Sa`, `-B` and `-d<define>`. `saveBuildOptions` validates and
 stores them in `project.json`; defaults are omitted from the file.
+
+`export` returns a ZIP stream (`application/zip`) with a
+`Content-Disposition` filename. `contents: "sources"` archives the project
+without `preview/` and `.snapshots/`; `contents: "built"` requires an
+application project and an existing build output, and packages the deployment
+page, compiled JavaScript, source map and assets. Errors are returned as JSON;
+the export is limited to 2000 files and 64 MB.
 
 `deleteProject` removes the whole project folder (forms, units, preview and
 assets). `importProject` returns `ok`, `project`, `summary` (kind, forms,
@@ -767,6 +830,10 @@ ZIP has been validated.
 node designer\tests\lfm.test.mjs
 node designer\tests\binary.test.mjs
 C:\Vario\xampp\php\php.exe designer\tests\pas-sync.test.php
+C:\Vario\xampp\php\php.exe designer\tests\zip.test.php
+C:\Vario\xampp\php\php.exe designer\tests\symbols.test.php
+C:\Vario\xampp\php\php.exe designer\tests\wcl-symbols.test.php
+C:\Vario\xampp\php\php.exe designer\tools\generate-wcl-symbols.php --check
 ```
 
 The LFM test parses and rewrites `examples/demo/unit1.lfm`, `examples/demo/uLogin.lfm` and a
@@ -774,7 +841,14 @@ synthetic form with collections, string lists and binary data, then compares
 the ASTs. The binary test decodes real Lazarus `Items.Data`/`Items.LazData`
 blobs, checks the item structure and that re-encoding reproduces the original
 bytes. The PHP test checks that missing fields and uses are added, existing
-fields are not duplicated and a second run is a no-op.
+fields are not duplicated and a second run is a no-op. The ZIP test writes a
+small archive with deflated, stored and empty entries, reads it back with the
+project importer's reader and checks that traversal names are rejected. The
+symbols test checks unit/uses extraction, public class members, records, global
+variables, constants and routines on a synthetic unit and on
+`examples/demo/uLogin.pas`. The WCL test loads `manifest/wcl-symbols.json` and
+checks inherited published members such as `TWButton.OnClick`; the generator
+`--check` mode fails when the manifest is older than the runtime sources.
 
 ## Notes / next steps
 
@@ -785,6 +859,15 @@ fields are not duplicated and a second run is a no-op.
   with the **+** button in the inspector.
 - The tree/list item editor changes text and structure only; image indexes
   and subitem images keep their decoded values and cannot be edited yet.
+- Non-visual components are shown in the component tree and inspector but not
+  on the canvas. A menu item is added to the selected menu (or the first menu),
+  and an action to the selected action list (or the first list).
+- Source completion uses a lightweight symbol scanner over the project units
+  and form classes, plus the generated WCL member manifest. It does not
+  resolve complex expressions or generics; regenerate `wcl-symbols.json` after
+  changing the published properties in `widgets/*.pas`.
+- A built export is available for application projects; host and module
+  projects can export their sources.
 - The project preview follows `kind`: a host does not build its module
   projects, it loads the manifests configured in its settings, and a module
   preview is a load test (its screens appear when a host loads it). There is no

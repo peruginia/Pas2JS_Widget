@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'PasSync.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'ModuleManifest.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'SimpleZip.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'ZipWriter.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'PascalSymbols.php';
 
 // Cross-origin access for a static frontend hosted elsewhere. Set
 // WCL_CORS_ORIGINS to a comma-separated list of origins (for example
@@ -24,6 +26,7 @@ if ($corsOrigins === false || trim($corsOrigins) === '') {
 }
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Expose-Headers: Content-Disposition');
 header('Access-Control-Max-Age: 86400');
 if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
     header('Access-Control-Allow-Private-Network: true');
@@ -357,6 +360,132 @@ function listBuildFiles(string $dir): array
     $walk('');
     usort($files, static fn(array $a, array $b): int => strnatcasecmp($a['path'], $b['path']));
     return $files;
+}
+
+/**
+ * Add project files to a ZIP, skipping preview/, hidden entries and anything
+ * rejected by the filter. Limits the archive to 2000 files / 64 MB.
+ *
+ * @param callable(string,string):bool|null $filter receives relative and full path
+ */
+function addProjectFilesToZip(ZipWriter $zip, string $dir, ?callable $filter = null): int
+{
+    $count = 0;
+    $total = 0;
+    $walk = static function (string $relativeDir) use (&$walk, &$count, &$total, $zip, $dir, $filter): void {
+        $fullDir = $relativeDir === ''
+            ? $dir
+            : $dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
+        foreach (scandir($fullDir) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..' || str_starts_with($entry, '.')) {
+                continue;
+            }
+            if ($relativeDir === '' && strcasecmp($entry, 'preview') === 0) {
+                continue;
+            }
+            $relative = $relativeDir === '' ? $entry : $relativeDir . '/' . $entry;
+            $full = $fullDir . DIRECTORY_SEPARATOR . $entry;
+            if (is_dir($full)) {
+                $walk($relative);
+                continue;
+            }
+            if (!is_file($full)) {
+                continue;
+            }
+            if ($filter !== null && !$filter($relative, $full)) {
+                continue;
+            }
+            $size = (int) filesize($full);
+            $total += $size;
+            if ($count >= 2000 || $total > 64 * 1024 * 1024) {
+                throw new RuntimeException('The project is too large to export (limit 2000 files / 64 MB).');
+            }
+            $content = file_get_contents($full);
+            if ($content === false) {
+                throw new RuntimeException("Cannot read {$relative} for export.");
+            }
+            $zip->add($relative, $content, filemtime($full) ?: null);
+            $count++;
+        }
+    };
+    $walk('');
+    return $count;
+}
+
+/** @return array{0:string,1:string} ZIP contents and download suffix. */
+function exportProjectSources(string $dir): array
+{
+    $zip = new ZipWriter();
+    if (addProjectFilesToZip($zip, $dir) === 0) {
+        throw new RuntimeException('The project has no files to export.');
+    }
+    return [$zip->finish(), 'sources'];
+}
+
+/** @return array{0:string,1:string} ZIP contents and download suffix. */
+function exportBuiltProject(string $dir, array $config): array
+{
+    if (($config['kind'] ?? 'application') !== 'application') {
+        throw new RuntimeException('Built export is available for application projects. Export the project sources instead.');
+    }
+
+    $programName = $config['program'] !== '' ? $config['program'] : 'preview.lpr';
+    $outputName = $config['output'] !== ''
+        ? $config['output']
+        : (string) preg_replace('/\.lpr$/i', '.js', basename($programName));
+    $previewDir = $dir . DIRECTORY_SEPARATOR . 'preview';
+    $builtPath = $previewDir . DIRECTORY_SEPARATOR . $outputName;
+    if (!is_file($builtPath)) {
+        throw new RuntimeException('Build the project before publishing it.');
+    }
+
+    $htmlName = $config['html'] !== '' ? $config['html'] : 'index.html';
+    $htmlPath = $dir . DIRECTORY_SEPARATOR . $htmlName;
+    if ($config['html'] !== '' && is_file($htmlPath)) {
+        $html = file_get_contents($htmlPath);
+        if ($html === false) {
+            throw new RuntimeException("Cannot read {$htmlName} for export.");
+        }
+    } else {
+        $htmlName = 'index.html';
+        $html = newApplicationHtml($config['name'], $outputName);
+    }
+
+    $zip = new ZipWriter();
+    $zip->add($htmlName, $html);
+    $built = file_get_contents($builtPath);
+    if ($built === false) {
+        throw new RuntimeException("Cannot read the compiled JavaScript {$outputName}.");
+    }
+    $zip->add($outputName, $built, filemtime($builtPath) ?: null);
+    $mapName = $outputName . '.map';
+    $mapPath = $previewDir . DIRECTORY_SEPARATOR . $mapName;
+    if (is_file($mapPath)) {
+        $map = file_get_contents($mapPath);
+        if ($map === false) {
+            throw new RuntimeException("Cannot read the source map {$mapName}.");
+        }
+        $zip->add($mapName, $map, filemtime($mapPath) ?: null);
+    }
+
+    $filter = static function (string $relative) use ($htmlName, $outputName, $mapName): bool {
+        if (strcasecmp($relative, 'project.json') === 0) {
+            return false;
+        }
+        $extension = strtolower((string) pathinfo($relative, PATHINFO_EXTENSION));
+        if (in_array($extension, [
+            'lfm', 'pas', 'lpr', 'lpi', 'lps', 'lpk', 'dpr', 'dpk', 'res', 'compiled',
+        ], true)) {
+            return false;
+        }
+        return strcasecmp($relative, $htmlName) !== 0
+            && strcasecmp($relative, 'index.html') !== 0
+            && strcasecmp($relative, $outputName) !== 0
+            && strcasecmp($relative, $mapName) !== 0;
+    };
+    addProjectFilesToZip($zip, $dir, $filter);
+
+    return [$zip->finish(), 'publish'];
 }
 
 function projectSnapshotRoot(string $dir): string
@@ -1558,7 +1687,7 @@ function importRootPrefix(array $entries): string
     return $best === '' ? '' : $best . '/';
 }
 
-/** @return array{program: string, html: string, output: string, manifest: string, entry: string, modules: list<string>} */
+/** @return array{program: string, html: string, output: string, manifest: string, entry: string, modules: list<string>, build: array} */
 function importProjectSettings(string $dir): array
 {
     $settings = [
@@ -1568,6 +1697,7 @@ function importProjectSettings(string $dir): array
         'manifest' => '',
         'entry' => '',
         'modules' => [],
+        'build' => defaultBuildOptions(),
     ];
     $file = $dir . DIRECTORY_SEPARATOR . 'project.json';
     if (!is_file($file)) {
@@ -1613,6 +1743,7 @@ function importProjectSettings(string $dir): array
         }
         $settings['modules'] = array_values(array_unique($modules));
     }
+    $settings['build'] = normalizeBuildOptions($json['build'] ?? []);
     return $settings;
 }
 
@@ -1899,6 +2030,7 @@ function inferProjectConfig(string $dir, string $id, string $name, string $kind,
         'manifest' => $imported['manifest'] !== '' ? $imported['manifest'] : ($kind === 'module' ? 'modules.json' : ''),
         'entry' => $entry,
         'modules' => $imported['modules'],
+        'build' => $imported['build'] ?? defaultBuildOptions(),
     ];
     return ['config' => $config, 'warnings' => $warnings];
 }
@@ -2038,6 +2170,71 @@ try {
             echo json_encode([
                 'files' => listProjectFiles($dir),
                 'build' => listBuildFiles($dir),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'symbols': {
+            $id = projectId((string) ($_GET['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $config = readProject($dir, $id);
+            $sourceFiles = [];
+            foreach ($config['forms'] as $form) {
+                $sourceFiles[$form['unit']] = true;
+            }
+            foreach ($config['units'] as $unit) {
+                $sourceFiles[$unit] = true;
+            }
+            if ($config['program'] !== '') {
+                $sourceFiles[$config['program']] = true;
+            }
+
+            $units = [];
+            $uses = [];
+            $classes = [];
+            $symbols = [];
+            $signatureParts = [];
+            foreach (array_keys($sourceFiles) as $relative) {
+                $full = $dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+                if (!is_file($full)) {
+                    continue;
+                }
+                $size = (int) filesize($full);
+                if ($size > 2 * 1024 * 1024) {
+                    continue;
+                }
+                $source = file_get_contents($full);
+                if ($source === false) {
+                    continue;
+                }
+                $parsed = PascalSymbols::parse($source, $relative);
+                $units[$parsed['unit']] = ['name' => $parsed['unit'], 'file' => $relative];
+                foreach ($parsed['uses'] as $unit) {
+                    $uses[$unit] = true;
+                }
+                foreach ($parsed['classes'] as $class) {
+                    if (count($classes) < 500) {
+                        $classes[] = $class;
+                    }
+                }
+                foreach ($parsed['symbols'] as $symbol) {
+                    if ($symbol['name'] !== '' && count($symbols) < 5000) {
+                        $symbols[] = $symbol;
+                    }
+                }
+                $signatureParts[] = $relative . '|' . (int) filemtime($full) . '|' . $size;
+            }
+
+            echo json_encode([
+                'ok' => true,
+                'signature' => sha1(implode('|', $signatureParts)),
+                'units' => array_values($units),
+                'uses' => array_keys($uses),
+                'classes' => $classes,
+                'symbols' => $symbols,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             break;
         }
@@ -2693,6 +2890,38 @@ try {
                 'ok' => true,
                 'build' => $config['build'],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+        }
+
+        case 'export': {
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                fail('POST required.', 405);
+            }
+            $data = jsonBody();
+            $id = projectId((string) ($data['project'] ?? ''));
+            $dir = projectDir($projectsDir, $id);
+            if (!is_dir($dir)) {
+                fail('Project not found.', 404);
+            }
+            $contents = (string) ($data['contents'] ?? 'sources');
+            $config = readProject($dir, $id);
+            try {
+                if ($contents === 'built') {
+                    [$zip, $suffix] = exportBuiltProject($dir, $config);
+                } elseif ($contents === 'sources') {
+                    [$zip, $suffix] = exportProjectSources($dir);
+                } else {
+                    fail('Invalid export contents.');
+                }
+            } catch (Throwable $error) {
+                fail($error->getMessage(), 400);
+            }
+            $filename = $id . '-' . $suffix . '.zip';
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Length: ' . strlen($zip));
+            header('X-Content-Type-Options: nosniff');
+            echo $zip;
             break;
         }
 

@@ -1,8 +1,9 @@
 {
   "nonVisual": [
     "TWTimer", "TWWebSocketClient", "TWWebDBConnection", "TWWebDBTable",
-    "TWMainMenu", "TWPopupMenu", "TMenuItem", "TAction", "TActionList",
-    "TWDataModule", "TOpenDialog", "TSaveDialog", "TColorDialog", "TFontDialog"
+    "TWMainMenu", "TWPopupMenu", "TMenuItem", "TAction", "TWAction",
+    "TActionList", "TWActionList", "TWDataModule",
+    "TOpenDialog", "TSaveDialog", "TColorDialog", "TFontDialog"
   ],
   "aliases": {
     "TButton": "TWButton",
@@ -34,11 +35,7 @@
     "TMainMenu": "TWMainMenu",
     "TPopupMenu": "TWPopupMenu",
     "TMenuItem": "TMenuItem",
-    "TTimer": "TWTimer",
-    "TOpenDialog": "TWOpenDialog",
-    "TSaveDialog": "TWSaveDialog",
-    "TColorDialog": "TWColorDialog",
-    "TFontDialog": "TWFontDialog"
+    "TTimer": "TWTimer"
   },
   "classes": [
     { "name": "TWButton", "unit": "WebCtrls", "visual": true },
@@ -84,6 +81,11 @@
     { "name": "TWActionList", "unit": "WebCtrls", "visual": false },
     { "name": "TWWebDBConnection", "unit": "WebCtrls", "visual": false },
     { "name": "TWWebDBTable", "unit": "WebCtrls", "visual": false },
-    { "name": "TWDataModule", "unit": "WebCtrls", "visual": false }
+    { "name": "TWDataModule", "unit": "WebCtrls", "visual": false },
+    { "name": "TWWebSocketClient", "unit": "WebCtrls", "visual": false },
+    { "name": "TOpenDialog", "unit": "Dialogs", "visual": false },
+    { "name": "TSaveDialog", "unit": "Dialogs", "visual": false },
+    { "name": "TColorDialog", "unit": "Dialogs", "visual": false },
+    { "name": "TFontDialog", "unit": "Dialogs", "visual": false }
   ]
 }

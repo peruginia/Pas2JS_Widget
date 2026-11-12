@@ -314,6 +314,27 @@ body {
   white-space: nowrap;
 }
 
+.palette-bar .palette-item.nonvisual {
+  border-style: dashed;
+}
+
+.palette-item.nonvisual .palette-mark {
+  background: #8a97a6;
+}
+
+.palette-group {
+  flex: none;
+  align-self: center;
+  padding: 0 4px 0 10px;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .components-title {
   border-top: 1px solid var(--line);
 }
@@ -996,6 +1017,70 @@ body {
   border-radius: 3px;
   padding: 2px 5px;
   font: inherit;
+}
+
+.CodeMirror-hints {
+  z-index: 140;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(31, 45, 61, 0.22);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  max-height: 18em;
+}
+
+.CodeMirror-hint {
+  padding: 3px 6px;
+  border-radius: 3px;
+}
+
+.CodeMirror-hints li.CodeMirror-hint-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.CodeMirror-hint.wcl-hint-keyword {
+  color: #0000cc;
+  font-weight: 600;
+}
+
+.CodeMirror-hint.wcl-hint-type {
+  color: #0b7285;
+}
+
+.CodeMirror-hint.wcl-hint-unit {
+  color: #1565c0;
+}
+
+.CodeMirror-hint.wcl-hint-class {
+  color: #2e7d32;
+}
+
+.CodeMirror-hint.wcl-hint-component {
+  color: #34495e;
+  font-weight: 600;
+}
+
+.CodeMirror-hint.wcl-hint-property {
+  color: #8a5a00;
+}
+
+.CodeMirror-hint.wcl-hint-field {
+  color: #6d4c41;
+}
+
+.CodeMirror-hint.wcl-hint-method {
+  color: #6a1b9a;
+}
+
+.CodeMirror-hint.wcl-hint-event {
+  color: #a23e48;
+}
+
+.CodeMirror-hint.wcl-hint-symbol {
+  color: #4b5b6b;
 }
 
 .property-editor-with-action {
