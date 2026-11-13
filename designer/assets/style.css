@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #f4f6f8;
   --panel: #ffffff;
   --line: #d9dee5;
@@ -439,13 +439,13 @@ body {
 }
 
 .file-dir > summary::before {
-  content: '▸';
+  content: 'â–¸';
   color: var(--muted);
   font-size: 9px;
 }
 
 .file-dir[open] > summary::before {
-  content: '▾';
+  content: 'â–¾';
 }
 
 .file-dir-body {
@@ -479,6 +479,43 @@ body {
 .file-row.active {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.file-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+}
+
+.file-row-wrap .file-row {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+.file-form-btn {
+  flex: none;
+  padding: 1px 4px;
+  border: 1px solid #cfd6de;
+  border-radius: 3px;
+  background: #fafbfc;
+  color: #1565c0;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.file-form-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.file-form-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
 }
 
 .file-row.generated .file-name {
@@ -1169,8 +1206,21 @@ body.dragging {
 }
 
 .designer-component.hidden {
-  opacity: 0.35;
   border-style: dotted;
+  border-color: #d97706;
+}
+
+.designer-component.hidden::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  z-index: 60;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d97706;
+  pointer-events: none;
 }
 
 .designer-component.aligned {
@@ -1278,7 +1328,7 @@ body.dragging {
 
 .designer-component.kind-panel:not(.selected) {
   border: 1px solid #c7d0d9;
-  background: #f7f9fb;
+  background: #f4f4f4;
 }
 
 .designer-component.kind-group:not(.selected) {
@@ -1465,7 +1515,16 @@ body.dragging {
     linear-gradient(-45deg, transparent 75%, #e6e6e6 75%);
   background-size: 12px 12px;
   background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  overflow: hidden;
   pointer-events: none;
+}
+
+.preview-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 
 .preview-grid {
@@ -1477,6 +1536,23 @@ body.dragging {
   table-layout: fixed;
   font-size: 10px;
   pointer-events: none;
+}
+
+.preview-datagrid {
+  height: auto;
+}
+
+.preview-datagrid th {
+  height: 20px;
+}
+
+.preview-datagrid td {
+  height: 18px;
+}
+
+.preview-datagrid th,
+.preview-datagrid td {
+  line-height: 16px;
 }
 
 .preview-grid td,
@@ -2016,13 +2092,13 @@ body.dragging {
 }
 
 .collection-font > summary::before {
-  content: '▸';
+  content: 'â–¸';
   color: var(--muted);
   font-size: 10px;
 }
 
 .collection-font[open] > summary::before {
-  content: '▾';
+  content: 'â–¾';
 }
 
 .collection-font-note {
@@ -2336,13 +2412,13 @@ textarea.property-input {
 }
 
 .property-group > summary::before {
-  content: '▸';
+  content: 'â–¸';
   color: var(--muted);
   font-size: 10px;
 }
 
 .property-group[open] > summary::before {
-  content: '▾';
+  content: 'â–¾';
 }
 
 .property-group-note {
@@ -2497,6 +2573,10 @@ textarea.property-input {
   padding: 4px 0;
 }
 
+.editor-options-dialog .dialog-check {
+  padding: 4px 0;
+}
+
 .build-line {
   min-height: 1.45em;
   white-space: pre-wrap;
@@ -2559,4 +2639,9 @@ textarea.property-input {
   .canvas-scroll {
     min-height: 360px;
   }
+}
+
+.designer-component.hidden:not(.selected) {
+  border-style: dotted;
+  border-color: #d97706;
 }

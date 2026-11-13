@@ -56,12 +56,35 @@ const state = {
   buildOutputOpen: false,
   projectSymbols: { units: [], uses: [], classes: [], symbols: [] },
   symbolSignature: '',
+  fileTreeOpen: new Set(),
   draftTimer: null,
   draftQuotaWarned: false,
   pendingDrafts: null,
+  pendingSession: null,
   lastBuildOutput: '',
   outputUrl: '',
 };
+
+const EDITOR_PREFERENCES_KEY = 'wcl.editor.v1';
+
+function loadEditorPreferences() {
+  const defaults = { indentUnit: 2, useTabs: false, showComponentBadges: false };
+  try {
+    const raw = window.localStorage.getItem(EDITOR_PREFERENCES_KEY);
+    if (!raw) return defaults;
+    const data = JSON.parse(raw);
+    const indent = Number(data.indentUnit);
+    return {
+      indentUnit: Number.isInteger(indent) && indent >= 1 && indent <= 8 ? indent : 2,
+      useTabs: data.useTabs === true,
+      showComponentBadges: data.showComponentBadges === true,
+    };
+  } catch (error) {
+    return defaults;
+  }
+}
+
+let editorPreferences = loadEditorPreferences();
 
 const els = {
   project: document.getElementById('projectSelect'),
@@ -108,6 +131,13 @@ const els = {
   exportHint: document.getElementById('exportHint'),
   exportConfirmBtn: document.getElementById('exportConfirmBtn'),
   exportCloseBtn: document.getElementById('exportCloseBtn'),
+  editorOptionsBtn: document.getElementById('editorOptionsBtn'),
+  editorOptionsDialog: document.getElementById('editorOptionsDialog'),
+  editorIndentUnit: document.getElementById('editorIndentUnit'),
+  editorUseTabs: document.getElementById('editorUseTabs'),
+  editorShowBadges: document.getElementById('editorShowBadges'),
+  editorOptionsSaveBtn: document.getElementById('editorOptionsSaveBtn'),
+  editorOptionsCloseBtn: document.getElementById('editorOptionsCloseBtn'),
   importBtn: document.getElementById('importBtn'),
   status: document.getElementById('status'),
   palette: document.getElementById('palette'),
@@ -242,9 +272,9 @@ function createCodeEditor(textarea) {
     mode: 'text/x-pascal',
     lineNumbers: true,
     lineWrapping: false,
-    indentUnit: 2,
-    tabSize: 2,
-    indentWithTabs: false,
+    indentUnit: editorPreferences.indentUnit,
+    tabSize: editorPreferences.indentUnit,
+    indentWithTabs: editorPreferences.useTabs,
     matchBrackets: true,
     autoCloseBrackets: true,
     styleActiveLine: true,
@@ -360,6 +390,10 @@ const containerClasses = new Set([
   'TWForm', 'TWFrame', 'TWPanel', 'TWGroupBox', 'TWScrollBox',
   'TWPageControl', 'TTabSheet',
 ]);
+
+// Containers show only their caption on the canvas; an empty caption means no
+// text at all (matching the runtime), never a fallback to the component name.
+const CAPTION_ONLY_TEXT = new Set(['TWPanel', 'TWGroupBox', 'TWScrollBox']);
 
 const PASCAL_KEYWORDS = [
   'and', 'array', 'as', 'asm', 'begin', 'case', 'class', 'const', 'constructor',
@@ -1043,6 +1077,7 @@ function setView(view) {
   updateMultiTools();
   renderFileExplorer();
   renderActiveFile();
+  saveSession();
 }
 
 function currentUnitName() {
@@ -1199,6 +1234,40 @@ async function saveCachedUnit(unit) {
   return result;
 }
 
+function collectFormRenames(roots, savedLfm) {
+  if (!savedLfm || String(savedLfm).trim() === '') return [];
+  let oldRoots;
+  try {
+    oldRoots = parseLfm(savedLfm);
+  } catch (error) {
+    return [];
+  }
+  const oldNames = new Set([...collectNames(oldRoots)].map((name) => name.toLowerCase()));
+  const newNames = new Set([...collectNames(roots)].map((name) => name.toLowerCase()));
+  const renames = [];
+  const walk = (beforeNodes, afterNodes) => {
+    const count = Math.min(beforeNodes.length, afterNodes.length);
+    for (let index = 0; index < count; index += 1) {
+      const before = beforeNodes[index];
+      const after = afterNodes[index];
+      if (before.className !== after.className) continue;
+      const oldName = String(before.name || '');
+      const newName = String(after.name || '');
+      if (oldName !== '' && newName !== '' && oldName !== newName) {
+        const oldLower = oldName.toLowerCase();
+        const newLower = newName.toLowerCase();
+        const caseOnly = oldLower === newLower;
+        if (caseOnly || (!newNames.has(oldLower) && !oldNames.has(newLower))) {
+          renames.push({ old: oldName, new: newName });
+        }
+      }
+      walk(before.children || [], after.children || []);
+    }
+  };
+  walk(oldRoots, roots);
+  return renames.slice(0, 200);
+}
+
 async function saveAll() {
   if (!state.project) {
     setStatus('No project selected.', true);
@@ -1241,12 +1310,14 @@ async function saveAll() {
       const lfm = writeLfm(cache.roots);
       const formClass = cache.roots[0] ? cache.roots[0].className : '';
       const components = collectComponents(cache.roots, false);
+      const renames = collectFormRenames(cache.roots, cache.savedLfm || '');
       const result = await api('save', {}, {
         project: state.project.id,
         form: formFile,
         lfm,
         formClass,
         components,
+        renames,
       });
       state.formCache.delete(formFile);
       if (state.currentForm && state.currentForm.form === formFile) {
@@ -1389,6 +1460,7 @@ function displayText(node) {
   if (caption) return caption;
   const text = propText(node, 'Text');
   if (text) return text;
+  if (CAPTION_ONLY_TEXT.has(canonicalClassName(node.className))) return '';
   return node.name || node.className;
 }
 
@@ -2184,7 +2256,7 @@ function renderCanvas() {
     renderCanvasNode(child, form, frames.get(child) || null, rootFont, rootColor);
   }
   els.canvas.appendChild(form);
-  els.formTitle.textContent = `${root.name || root.className} · ${root.className}`;
+  els.formTitle.textContent = propText(root, 'Caption');
 }
 
 const TAB_STRIP_HEIGHT = 28;
@@ -2914,13 +2986,15 @@ function ensureOwnFont(node) {
 
 // The control background follows Color / ParentColor.  clDefault and clNone
 // leave the element transparent, as the runtime does.
-function resolveNodeColor(node, inherited = null) {
+function resolveNodeColor(node, inherited = null, defaultColor = null) {
   if (getPropertyValue(node, 'ParentColor', false) === true && inherited) {
     return inherited;
   }
   const prop = getProperty(node, 'Color');
-  if (!prop) return null;
-  return colorHex(prop.raw);
+  if (!prop) return defaultColor;
+  const raw = String(prop.raw ?? prop.value ?? '').trim();
+  if (/^clNone$/i.test(raw)) return null;
+  return colorHex(raw) || defaultColor;
 }
 
 function ensureOwnColor(node) {
@@ -2991,6 +3065,109 @@ function resolvedNodeFont(node) {
     font = resolveNodeFont(chain[index], font);
   }
   return font || {};
+}
+
+function projectAssetUrl(value) {
+  const text = String(value || '').trim().replace(/\\/g, '/');
+  if (!text) return '';
+  if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|\/)/i.test(text)) return text;
+  if (!state.project) return text;
+  return previewUrl(`projects/${state.project.id}/${text.replace(/^\.\//, '')}`).href;
+}
+
+function imageMimeFromBytes(bytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.length < 4) return '';
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return 'image/png';
+  if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return 'image/jpeg';
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return 'image/gif';
+  if (bytes[0] === 0x42 && bytes[1] === 0x4D) return 'image/bmp';
+  if (bytes[0] === 0x00 && bytes[1] === 0x00 && bytes[2] === 0x01 && bytes[3] === 0x00) return 'image/x-icon';
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    && bytes.length > 11 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+    return 'image/webp';
+  }
+  for (let index = 0; index < Math.min(bytes.length, 64); index += 1) {
+    const byte = bytes[index];
+    if (byte === 0x20 || byte === 0x09 || byte === 0x0A || byte === 0x0D) continue;
+    if (byte === 0x3C) return 'image/svg+xml';
+    break;
+  }
+  return '';
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  const chunk = 0x4000;
+  for (let index = 0; index < bytes.length; index += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
+  }
+  return window.btoa(binary);
+}
+
+function pictureDataUrl(node) {
+  const prop = getProperty(node, 'Picture.Data') || getProperty(node, 'Picture');
+  if (!prop || prop.kind !== 'binary' || !(prop.bytes instanceof Uint8Array) || prop.bytes.length === 0) {
+    return '';
+  }
+  if (prop.__previewBytes === prop.bytes && prop.__previewUrl) return prop.__previewUrl;
+  const mime = imageMimeFromBytes(prop.bytes);
+  if (!mime) return '';
+  try {
+    prop.__previewBytes = prop.bytes;
+    prop.__previewUrl = `data:${mime};base64,${bytesToBase64(prop.bytes)}`;
+    return prop.__previewUrl;
+  } catch (error) {
+    return '';
+  }
+}
+
+function previewImageContent(node) {
+  const wrapper = skinElement('div', 'preview-image');
+  wrapper.style.overflow = 'hidden';
+  const source = projectAssetUrl(propText(node, 'URL')) || pictureDataUrl(node);
+  if (!source) return wrapper;
+  const image = document.createElement('img');
+  image.alt = '';
+  image.draggable = false;
+  image.decoding = 'async';
+  image.src = source;
+  image.style.display = 'block';
+  image.style.width = '100%';
+  image.style.height = '100%';
+  image.style.maxWidth = '100%';
+  image.style.maxHeight = '100%';
+  const stretch = /^true$/i.test(propText(node, 'Stretch').trim());
+  const proportional = /^true$/i.test(propText(node, 'Proportional').trim());
+  image.style.objectFit = proportional ? 'contain' : (stretch ? 'fill' : 'contain');
+  image.style.objectPosition = 'center center';
+  image.addEventListener('error', () => image.remove());
+  wrapper.appendChild(image);
+  return wrapper;
+}
+
+function applyLabelTextLayout(text, node) {
+  const alignment = String(getPropertyValue(node, 'Alignment', 'taLeftJustify')).toLowerCase();
+  const layout = String(getPropertyValue(node, 'Layout', 'tlTop')).toLowerCase();
+  const wordWrap = getPropertyValue(node, 'WordWrap', false) === true;
+  // Use the full label box (the default text inset clips short labels such as
+  // Height = 15 with the inherited 1.4 line height) and a tighter leading so
+  // the glyphs fit inside; horizontal insets would also truncate narrow labels.
+  text.style.top = '-1px';
+  text.style.bottom = '-1px';
+  text.style.left = '0px';
+  text.style.right = '0px';
+  text.style.lineHeight = '1.2';
+  text.style.display = 'flex';
+  text.style.flexDirection = 'column';
+  text.style.justifyContent = layout === 'tlcenter'
+    ? 'center'
+    : (layout === 'tlbottom' ? 'flex-end' : 'flex-start');
+  text.style.alignItems = 'stretch';
+  text.style.textAlign = alignment === 'tacenter'
+    ? 'center'
+    : (alignment === 'tarightjustify' ? 'right' : 'left');
+  text.style.whiteSpace = wordWrap ? 'normal' : 'nowrap';
+  text.style.overflowWrap = wordWrap ? 'anywhere' : 'normal';
 }
 
 function renderComponentSkin(node, font = {}) {
@@ -3085,7 +3262,7 @@ function renderComponentSkin(node, font = {}) {
     }
 
     case 'TWImage':
-      return skinElement('div', 'preview-image');
+      return previewImageContent(node);
 
     case 'TWStringGrid': {
       const cells = stringList(node, 'Cells.Strings');
@@ -3144,7 +3321,9 @@ function renderComponentSkin(node, font = {}) {
       }
 
       const alternate = colorHex(String(getPropertyValue(node, 'AlternateRowColor', '15921906') ?? ''));
-      for (let row = 0; row < 3; row++) {
+      const gridHeight = Math.max(20, propNumber(node, 'Height', 200));
+      const rowCount = Math.max(1, Math.min(30, Math.floor((gridHeight - 22) / 18)));
+      for (let row = 0; row < rowCount; row++) {
         const tr = document.createElement('tr');
         for (const item of columns) {
           const cell = document.createElement('td');
@@ -3242,7 +3421,13 @@ function renderCanvasNode(node, parent, frame = null, inheritedFont = null, inhe
   el.dataset.id = node.__id;
   el.title = nodeTitle(node);
   const font = resolveNodeFont(node, inheritedFont);
-  const color = resolveNodeColor(node, inheritedColor);
+  const className = canonicalClassName(node.className);
+  const isPanel = className === 'TWPanel';
+  const isTransparentLabel = className === 'TWLabel'
+    && getPropertyValue(node, 'Transparent', true) === true;
+  const color = isTransparentLabel
+    ? null
+    : resolveNodeColor(node, inheritedColor, isPanel ? '#f4f4f4' : null);
 
   const geometry = frame || {
     left: propNumber(node, 'Left', 0),
@@ -3256,9 +3441,12 @@ function renderCanvasNode(node, parent, frame = null, inheritedFont = null, inhe
   el.style.height = `${Math.max(1, geometry.height)}px`;
   if (getPropertyValue(node, 'Visible', true) === false) {
     el.classList.add('hidden');
+    el.title = `${nodeTitle(node)} · hidden`;
   }
   if (state.selection.includes(node)) el.classList.add('selected');
   if (state.selected === node) el.classList.add('primary');
+  if (isTransparentLabel) el.style.backgroundColor = 'transparent';
+  if (isPanel && !color) el.style.backgroundColor = 'transparent';
 
   const chrome = !frame || frame.chrome !== false;
   const aligned = !!(frame && frame.aligned);
@@ -3281,11 +3469,12 @@ function renderCanvasNode(node, parent, frame = null, inheritedFont = null, inhe
       text.className = 'component-text';
       text.textContent = displayText(node);
       applyNodeFont(text, font);
+      if (className === 'TWLabel') applyLabelTextLayout(text, node);
       el.appendChild(text);
     }
     if (!skin && color) el.style.backgroundColor = color;
 
-    if (!isPageControl) {
+    if (!isPageControl && editorPreferences.showComponentBadges) {
       const badge = document.createElement('span');
       badge.className = 'component-badge';
       badge.textContent = node.className;
@@ -3471,6 +3660,97 @@ function renderInspector() {
   renderInspectorBody();
 }
 
+function findNodeByName(name, except = null) {
+  const target = String(name || '').toLowerCase();
+  if (!target) return null;
+  const walk = (nodes) => {
+    for (const node of nodes) {
+      if (node !== except && (node.name || '').toLowerCase() === target) return node;
+      const found = walk(node.children);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(state.roots);
+}
+
+function renameNodeReferences(oldName, newName) {
+  const target = oldName.toLowerCase();
+  const walk = (nodes) => {
+    for (const node of nodes) {
+      for (const prop of node.properties) {
+        if (isEventProperty(prop)) continue;
+        if (prop.kind !== 'identifier') continue;
+        if (String(prop.value ?? prop.raw ?? '').trim().toLowerCase() === target) {
+          setPropertyValue(prop, newName, 'identifier');
+        }
+      }
+      walk(node.children);
+    }
+  };
+  walk(state.roots);
+}
+
+function renameNode(node, rawName) {
+  if (!node) return false;
+  if (node === state.roots[0]) {
+    setStatus('The form variable name is used by the unit and program; rename it there.', true);
+    return false;
+  }
+  const newName = String(rawName || '').trim();
+  if (newName === node.name) return true;
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(newName)) {
+    setStatus('Invalid component name. Use letters, digits and _.', true);
+    return false;
+  }
+  if (PASCAL_KEYWORDS.some((keyword) => keyword.toLowerCase() === newName.toLowerCase())) {
+    setStatus(`"${newName}" is a Pascal keyword.`, true);
+    return false;
+  }
+  const duplicate = findNodeByName(newName, node);
+  if (duplicate) {
+    setStatus(`The name ${newName} is already used by ${duplicate.name}.`, true);
+    return false;
+  }
+  const oldName = node.name;
+  node.name = newName;
+  renameNodeReferences(oldName, newName);
+  markDirty();
+  renderTree();
+  renderCanvas();
+  renderInspector();
+  setStatus(`Renamed ${oldName} to ${newName}`);
+  return true;
+}
+
+function renderNameEditor(node) {
+  const row = propertyRow('Name', 'identifier');
+  const input = finishInput(document.createElement('input'));
+  input.type = 'text';
+  input.value = node.name || '';
+  input.spellcheck = false;
+  if (node === state.roots[0]) {
+    input.disabled = true;
+    input.title = 'The form variable name is defined by its unit and program.';
+  } else {
+    input.title = 'Component name (field in the form unit)';
+    input.addEventListener('change', () => {
+      if (!renameNode(node, input.value)) input.value = node.name || '';
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        input.blur();
+      } else if (event.key === 'Escape') {
+        input.value = node.name || '';
+        input.blur();
+      }
+    });
+  }
+  row.appendChild(input);
+  return row;
+}
+
 function renderInspectorBody() {
   els.inspectorBody.innerHTML = '';
   const node = state.selected;
@@ -3501,6 +3781,10 @@ function renderInspectorBody() {
     rows.push({ name: spec.name, spec, isDefault: true });
   }
   const matched = rows.filter((row) => inspectorRowMatches(row.name, filter));
+
+  if (!eventsOnly && inspectorRowMatches('Name', filter)) {
+    els.inspectorBody.appendChild(renderNameEditor(node));
+  }
 
   const table = document.createElement('div');
   table.className = 'property-list';
@@ -5400,6 +5684,7 @@ function clearProjectView() {
   state.buildFiles = [];
   state.projectSymbols = { units: [], uses: [], classes: [], symbols: [] };
   state.symbolSignature = '';
+  state.fileTreeOpen.clear();
   els.project.value = '';
   codeEditor.setValue('');
   els.sourceName.textContent = 'No source';
@@ -5432,7 +5717,17 @@ async function loadProjects(loadFirst = true) {
     return;
   }
   if (loadFirst) {
-    await loadProject(state.projects[0].id, '', true);
+    const session = readSession();
+    const project = (session && state.projects.find((entry) => entry.id === session.project))
+      || state.projects[0];
+    const forms = project.forms || [];
+    const form = session && session.project === project.id
+      && forms.some((entry) => entry.form === session.form)
+      ? session.form
+      : '';
+    state.pendingSession = session && session.project === project.id ? session : null;
+    await loadProject(project.id, form, true);
+    if (!state.pendingDrafts) await applyPendingSession();
   }
 }
 
@@ -5630,6 +5925,42 @@ async function saveBuildOptions() {
   } finally {
     els.saveBuildOptionsBtn.disabled = false;
   }
+}
+
+function applyEditorPreferences() {
+  if (!codeEditor.cm) return;
+  codeEditor.cm.setOption('indentUnit', editorPreferences.indentUnit);
+  codeEditor.cm.setOption('tabSize', editorPreferences.indentUnit);
+  codeEditor.cm.setOption('indentWithTabs', editorPreferences.useTabs);
+  codeEditor.cm.refresh();
+}
+
+function openEditorOptionsDialog() {
+  els.editorIndentUnit.value = String(editorPreferences.indentUnit);
+  els.editorUseTabs.checked = editorPreferences.useTabs;
+  els.editorShowBadges.checked = editorPreferences.showComponentBadges;
+  openDialog(els.editorOptionsDialog);
+}
+
+function saveEditorOptions() {
+  const previousBadges = editorPreferences.showComponentBadges;
+  const indentUnit = Math.max(1, Math.min(8, Number(els.editorIndentUnit.value) || 2));
+  editorPreferences = {
+    indentUnit,
+    useTabs: els.editorUseTabs.checked,
+    showComponentBadges: els.editorShowBadges.checked,
+  };
+  try {
+    window.localStorage.setItem(EDITOR_PREFERENCES_KEY, JSON.stringify(editorPreferences));
+  } catch (error) {
+    // The preference still applies to this session when storage is unavailable.
+  }
+  applyEditorPreferences();
+  if (previousBadges !== editorPreferences.showComponentBadges) renderCanvas();
+  closeDialog(els.editorOptionsDialog);
+  setStatus(editorPreferences.useTabs
+    ? `Editor indentation: tabs, width ${indentUnit}`
+    : `Editor indentation: ${indentUnit} spaces`);
 }
 
 function renderProjectDialog() {
@@ -6125,6 +6456,7 @@ async function openUnit(unit) {
   } else {
     setView('source');
   }
+  saveSession();
 }
 
 function isProjectSourceFile(file) {
@@ -6206,8 +6538,20 @@ function renderFileExplorer(error = '') {
     return;
   }
 
+  const unitPaths = new Set(
+    state.projectFiles.filter((file) => file.kind === 'source').map((file) => file.path.toLowerCase()),
+  );
+  const formByUnit = new Map();
+  const hiddenForms = new Set();
+  for (const form of state.forms || []) {
+    if (!unitPaths.has(form.unit.toLowerCase())) continue;
+    formByUnit.set(form.unit.toLowerCase(), form);
+    hiddenForms.add(form.form.toLowerCase());
+  }
+
   const root = { dirs: new Map(), files: [] };
   for (const file of state.projectFiles) {
+    if (hiddenForms.has(file.path.toLowerCase())) continue;
     const parts = file.path.split('/');
     let folder = root;
     for (let index = 0; index < parts.length - 1; index += 1) {
@@ -6235,32 +6579,41 @@ function renderFileExplorer(error = '') {
 
   const list = document.createElement('div');
   list.className = 'file-tree';
-  const renderFolder = (folder, container, generated = false) => {
+  const renderFolder = (folder, container, generated = false, pathPrefix = '') => {
     const directories = [...folder.dirs.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     for (const [name, child] of directories) {
+      const path = pathPrefix ? `${pathPrefix}/${name}` : name;
       const details = document.createElement('details');
       details.className = 'file-dir';
-      details.open = true;
+      details.open = state.fileTreeOpen.has(path);
+      details.addEventListener('toggle', () => {
+        if (details.open) state.fileTreeOpen.add(path);
+        else state.fileTreeOpen.delete(path);
+      });
       const summary = document.createElement('summary');
       summary.textContent = name;
       details.appendChild(summary);
       const body = document.createElement('div');
       body.className = 'file-dir-body';
-      renderFolder(child, body, generated);
+      renderFolder(child, body, generated, path);
       details.appendChild(body);
       container.appendChild(details);
     }
     const files = [...folder.files].sort((a, b) => a.path.localeCompare(b.path));
     for (const file of files) {
+      const formEntry = file.kind === 'source' ? formByUnit.get(file.path.toLowerCase()) : null;
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'file-row';
       if (generated) row.classList.add('generated');
       const active = file.kind === 'form'
         ? (state.currentForm?.form === file.path && state.view === 'design')
-        : (state.currentUnit === file.path && state.view === 'source');
+        : (formEntry
+          ? ((state.currentForm?.form === formEntry.form && state.view === 'design')
+            || (state.currentUnit === file.path && state.view === 'source'))
+          : (state.currentUnit === file.path && state.view === 'source'));
       if (active) row.classList.add('active');
-      row.title = `${file.path} · ${formatFileSize(file.size)}`;
+      row.title = `${file.path} · ${formatFileSize(file.size)}${formEntry ? ` · ${formEntry.title || formEntry.form}` : ''}`;
       const badge = document.createElement('span');
       badge.className = `file-badge kind-${file.kind}`;
       badge.textContent = file.kind === 'settings'
@@ -6274,7 +6627,27 @@ function renderFileExplorer(error = '') {
       size.textContent = formatFileSize(file.size);
       row.append(badge, name, size);
       row.addEventListener('click', () => (generated ? openBuildOutput(file) : openExplorerFile(file)));
-      container.appendChild(row);
+
+      if (!generated && formEntry) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'file-row-wrap';
+        const formButton = document.createElement('button');
+        formButton.type = 'button';
+        formButton.className = 'file-form-btn';
+        formButton.textContent = 'LFM';
+        formButton.title = `Open form ${formEntry.title || formEntry.form}`;
+        if (state.view === 'design' && state.currentForm?.form === formEntry.form) {
+          formButton.classList.add('active');
+        }
+        formButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          openFormFile(formEntry.form);
+        });
+        wrapper.append(row, formButton);
+        container.appendChild(wrapper);
+      } else {
+        container.appendChild(row);
+      }
     }
   };
   renderFolder(root, list);
@@ -6291,7 +6664,7 @@ function renderFileExplorer(error = '') {
     details.appendChild(summary);
     const body = document.createElement('div');
     body.className = 'file-dir-body';
-    renderFolder(buildRoot, body, true);
+    renderFolder(buildRoot, body, true, 'preview');
     details.appendChild(body);
     list.appendChild(details);
   }
@@ -6321,6 +6694,14 @@ async function openBuildOutput(file) {
   }
 }
 
+async function openFormFile(formPath) {
+  if (!state.project) return;
+  if (!state.forms.some((entry) => entry.form === formPath)) return;
+  await loadForm(formPath);
+  setView('design');
+  renderFileExplorer();
+}
+
 async function openExplorerFile(file) {
   if (!state.project) return;
   if (file.kind === 'settings') {
@@ -6328,10 +6709,7 @@ async function openExplorerFile(file) {
     return;
   }
   if (file.kind === 'form') {
-    if (!state.forms.some((entry) => entry.form === file.path)) return;
-    await loadForm(file.path);
-    setView('design');
-    renderFileExplorer();
+    await openFormFile(file.path);
     return;
   }
   if (file.kind === 'source' || file.kind === 'text') {
@@ -6356,6 +6734,7 @@ async function openExplorerSource(file) {
   }
   setView('source');
   renderFileExplorer();
+  saveSession();
 }
 
 function formatSnapshotDate(created) {
@@ -6461,9 +6840,70 @@ async function uploadProjectAsset(file) {
 }
 
 const DRAFT_KEY_PREFIX = 'wcl.drafts.v1.';
+const SESSION_KEY = 'wcl.session.v1';
 
 function draftStorageKey(projectId) {
   return `${DRAFT_KEY_PREFIX}${projectId}`;
+}
+
+function readSession() {
+  try {
+    const raw = window.localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const project = String(data?.project || '').trim();
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(project)) return null;
+    return {
+      project,
+      form: typeof data.form === 'string' ? data.form.trim() : '',
+      unit: typeof data.unit === 'string' ? data.unit.trim() : '',
+      view: data.view === 'source' ? 'source' : 'design',
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function saveSession() {
+  if (!state.project || state.pendingSession) return;
+  try {
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify({
+      project: state.project.id,
+      form: state.currentForm ? state.currentForm.form : '',
+      unit: state.currentUnit || '',
+      view: state.view,
+    }));
+  } catch (error) {
+    // A missing preference is not fatal.
+  }
+}
+
+async function applySessionView(session) {
+  if (!session || !state.project || state.project.id !== session.project) return;
+  if (session.view === 'source' && session.unit) {
+    if (state.currentUnit !== session.unit || state.source === null) {
+      await openUnit(session.unit);
+    } else {
+      setView('source');
+    }
+  } else if (session.form && state.forms.some((form) => form.form === session.form)) {
+    if (!state.currentForm || state.currentForm.form !== session.form) {
+      await loadForm(session.form);
+    }
+    setView('design');
+  } else if (state.currentForm) {
+    setView('design');
+  } else if (state.currentUnit) {
+    setView('source');
+  }
+  saveSession();
+}
+
+async function applyPendingSession() {
+  const session = state.pendingSession;
+  state.pendingSession = null;
+  if (session) await applySessionView(session);
+  else saveSession();
 }
 
 function scheduleDraftSave() {
@@ -6690,6 +7130,7 @@ async function restoreDrafts(drafts) {
     updateSaveIndicator();
     state.pendingDrafts = null;
     persistDraftsNow(true);
+    await applyPendingSession();
     setStatus('Unsaved changes restored. Save them or discard them with Reload.');
   } catch (error) {
     setStatus(`Cannot restore the local draft: ${error.message}`, true);
@@ -6698,11 +7139,12 @@ async function restoreDrafts(drafts) {
   }
 }
 
-function discardDrafts(projectId) {
+async function discardDrafts(projectId) {
   if (!projectId) return;
   clearDrafts(projectId);
   closeDialog(els.draftDialog);
   state.pendingDrafts = null;
+  await applyPendingSession();
   setStatus('Local drafts discarded');
 }
 
@@ -6836,6 +7278,7 @@ function defaultProjectUnit(project) {
 }
 
 async function loadProject(id, formName = '', checkDrafts = false) {
+  const previousProject = state.project ? state.project.id : '';
   state.inspectorFilter = '';
   try {
     setStatus(`Loading ${id}...`);
@@ -6855,6 +7298,7 @@ async function loadProject(id, formName = '', checkDrafts = false) {
     state.buildFiles = [];
     state.projectSymbols = { units: [], uses: [], classes: [], symbols: [] };
     state.symbolSignature = '';
+    if (previousProject !== data.project.id) state.fileTreeOpen.clear();
     state.currentForm = data.form || state.forms[0] || null;
     state.currentUnit = state.currentForm
       ? state.currentForm.unit
@@ -6909,6 +7353,7 @@ async function loadProject(id, formName = '', checkDrafts = false) {
     } else if (state.view === 'source') {
       loadSource(true);
     }
+    saveSession();
   } catch (error) {
     renderActiveFile();
     if (state.project) els.project.value = state.project.id;
@@ -6945,12 +7390,14 @@ async function saveProject() {
     const lfm = writeLfm(state.roots);
     const formClass = state.roots[0] ? state.roots[0].className : '';
     const components = collectComponents(state.roots, false);
+    const renames = collectFormRenames(state.roots, state.savedLfm);
     const result = await api('save', {}, {
       project: state.project.id,
       form: state.currentForm.form,
       lfm,
       formClass,
       components,
+      renames,
     });
     state.formCache.delete(state.currentForm.form);
     state.savedLfm = lfm;
@@ -7195,6 +7642,9 @@ async function boot() {
   els.exportCloseBtn.addEventListener('click', () => closeDialog(els.exportDialog));
   els.exportConfirmBtn.addEventListener('click', exportProjectArchive);
   els.exportContents.addEventListener('change', updateExportHint);
+  els.editorOptionsBtn.addEventListener('click', openEditorOptionsDialog);
+  els.editorOptionsCloseBtn.addEventListener('click', () => closeDialog(els.editorOptionsDialog));
+  els.editorOptionsSaveBtn.addEventListener('click', saveEditorOptions);
   els.newProjectBtn.addEventListener('click', openNewProjectDialog);
   els.newProjectCloseBtn.addEventListener('click', () => closeDialog(els.newProjectDialog));
   els.newProjectCreateBtn.addEventListener('click', createNewProject);
@@ -7338,7 +7788,10 @@ async function boot() {
   });
   els.historyCloseBtn.addEventListener('click', () => closeDialog(els.historyDialog));
   els.createSnapshotBtn.addEventListener('click', createSnapshotManually);
-  els.draftCloseBtn.addEventListener('click', () => closeDialog(els.draftDialog));
+  els.draftCloseBtn.addEventListener('click', () => {
+    closeDialog(els.draftDialog);
+    applyPendingSession();
+  });
   els.draftDiscardBtn.addEventListener('click', () => {
     discardDrafts(state.pendingDrafts?.project || state.project?.id);
   });

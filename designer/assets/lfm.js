@@ -396,6 +396,10 @@ function writeNode(node, level) {
   const header = node.name ? `${node.kind} ${node.name}: ${node.className}` : `${node.kind} ${node.className}`;
   const lines = [`${pad}${header}`];
   for (const prop of node.properties) {
+    if (level === 0 && prop.name === 'Caption' && prop.kind === 'string'
+      && String(prop.value ?? '') === '') {
+      continue;
+    }
     const raw = prop.kind === 'binary' && prop.bytes instanceof Uint8Array
       ? formatHexBytes(prop.bytes, `${pad}  `)
       : (prop.raw ?? '');

@@ -37,6 +37,7 @@
           <button id="importBtn" type="button">Import project…</button>
           <button id="projectBtn" type="button">Project settings…</button>
           <button id="buildOptionsBtn" type="button">Build options…</button>
+          <button id="editorOptionsBtn" type="button">Editor options…</button>
           <button id="exportProjectBtn" type="button">Export / Publish…</button>
           <div class="menu-sep"></div>
           <button id="reloadBtn" type="button">Reload</button>
@@ -331,6 +332,42 @@
     </div>
     <div class="dialog-foot">
       <button id="exportConfirmBtn" type="button" class="dialog-primary">Export</button>
+    </div>
+  </dialog>
+
+  <dialog id="editorOptionsDialog" class="project-dialog editor-options-dialog">
+    <div class="dialog-head">
+      <h2>Editor options</h2>
+      <button id="editorOptionsCloseBtn" type="button">Close</button>
+    </div>
+    <div class="dialog-section">
+      <div class="dialog-form">
+        <label class="dialog-field">
+          <span>Indent width</span>
+          <select id="editorIndentUnit">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+          </select>
+        </label>
+        <label class="dialog-check">
+          <input id="editorUseTabs" type="checkbox">
+          <span>Indent with tabs</span>
+        </label>
+        <label class="dialog-check">
+          <input id="editorShowBadges" type="checkbox">
+          <span>Show component type badges on the canvas</span>
+        </label>
+        <p class="dialog-hint">The indentation setting applies to the source editor for every file and is stored in this browser. With spaces it is the number of spaces per indentation level; with tabs it is also the tab display width. The type badges are the small class names drawn in the canvas corners.</p>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button id="editorOptionsSaveBtn" type="button" class="dialog-primary">Save</button>
     </div>
   </dialog>
 

@@ -4,9 +4,10 @@ declare(strict_types=1);
 /**
  * Conservative .pas updater used by the designer save action.
  *
- * It only adds missing units to the interface uses clause and missing fields
- * to the form class. It never removes code, rewrites existing declarations or
- * touches the implementation section.
+ * It adds missing units to the interface uses clause, adds missing fields to
+ * the form class and can rename component identifiers in code and
+ * declarations. It never removes other code or rewrites the implementation
+ * beyond the requested component renames.
  */
 
 function pasIdentifier(string $value, bool $allowDots = false): ?string
@@ -112,9 +113,118 @@ function pasAddFields(string $pas, string $formClass, array $fields, array &$war
 }
 
 /**
+ * Rename Pascal identifiers outside strings and comments. Used when a
+ * component is renamed in the designer so its field and code references stay
+ * in sync.
+ *
+ * @param list<array{old:string,new:string}> $renames
+ */
+function pasRenameIdentifiers(string $pas, array $renames, array &$warnings): string
+{
+    $count = 0;
+    foreach ($renames as $rename) {
+        if (++$count > 200) {
+            $warnings[] = 'Too many component renames; the remaining ones were skipped.';
+            break;
+        }
+        if (!is_array($rename)) {
+            continue;
+        }
+        $old = pasIdentifier((string) ($rename['old'] ?? ''));
+        $new = pasIdentifier((string) ($rename['new'] ?? ''));
+        if ($old === null || $new === null) {
+            $warnings[] = 'Invalid component rename skipped.';
+            continue;
+        }
+        if ($old === $new) {
+            continue;
+        }
+        $pas = pasRenameIdentifier($pas, $old, $new);
+    }
+    return $pas;
+}
+
+function pasRenameIdentifier(string $pas, string $old, string $new): string
+{
+    $length = strlen($pas);
+    $result = '';
+    $index = 0;
+    while ($index < $length) {
+        $char = $pas[$index];
+
+        if ($char === "'") {
+            $result .= $char;
+            $index++;
+            while ($index < $length) {
+                $next = $pas[$index];
+                $result .= $next;
+                $index++;
+                if ($next === "'") {
+                    if ($index < $length && $pas[$index] === "'") {
+                        $result .= $pas[$index];
+                        $index++;
+                        continue;
+                    }
+                    break;
+                }
+            }
+            continue;
+        }
+
+        if ($char === '{') {
+            $end = strpos($pas, '}', $index);
+            if ($end === false) {
+                $result .= substr($pas, $index);
+                break;
+            }
+            $result .= substr($pas, $index, $end - $index + 1);
+            $index = $end + 1;
+            continue;
+        }
+
+        if ($char === '(' && ($pas[$index + 1] ?? '') === '*') {
+            $end = strpos($pas, '*)', $index + 2);
+            if ($end === false) {
+                $result .= substr($pas, $index);
+                break;
+            }
+            $result .= substr($pas, $index, $end - $index + 2);
+            $index = $end + 2;
+            continue;
+        }
+
+        if ($char === '/' && ($pas[$index + 1] ?? '') === '/') {
+            $end = strpos($pas, "\n", $index);
+            if ($end === false) {
+                $result .= substr($pas, $index);
+                break;
+            }
+            $result .= substr($pas, $index, $end - $index + 1);
+            $index = $end + 1;
+            continue;
+        }
+
+        if (preg_match('/[A-Za-z_]/', $char)) {
+            $start = $index;
+            $index++;
+            while ($index < $length && preg_match('/[A-Za-z0-9_]/', $pas[$index])) {
+                $index++;
+            }
+            $word = substr($pas, $start, $index - $start);
+            $result .= strcasecmp($word, $old) === 0 ? $new : $word;
+            continue;
+        }
+
+        $result .= $char;
+        $index++;
+    }
+    return $result;
+}
+
+/**
  * @return array{pas: string, warnings: list<string>}
  */
-function syncPasUnit(string $pas, string $formClass, array $components): array
+function syncPasUnit(string $pas, string $formClass, array $components, array $renames = []): array
 {
     $warnings = [];
     $fields = [];
@@ -142,6 +252,9 @@ function syncPasUnit(string $pas, string $formClass, array $components): array
         }
     }
 
+    if (count($renames) > 0) {
+        $pas = pasRenameIdentifiers($pas, $renames, $warnings);
+    }
     $pas = pasAddUses($pas, $units, $warnings);
     $pas = pasAddFields($pas, $formClass, $fields, $warnings);
     return ['pas' => $pas, 'warnings' => $warnings];

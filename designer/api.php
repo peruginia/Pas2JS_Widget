@@ -2503,6 +2503,10 @@ try {
             $pasChanged = false;
             $formClass = trim((string) ($data['formClass'] ?? ''));
             $components = $data['components'] ?? [];
+            $renames = $data['renames'] ?? [];
+            if (!is_array($renames)) {
+                $renames = [];
+            }
             if ($formClass !== '' && is_array($components)) {
                 $unitPath = $dir . DIRECTORY_SEPARATOR . $formEntry['unit'];
                 if (is_file($unitPath)) {
@@ -2510,7 +2514,7 @@ try {
                     if ($pas === false) {
                         $warnings[] = 'Cannot read the unit file; .pas was not synchronized.';
                     } else {
-                        $sync = syncPasUnit($pas, $formClass, $components);
+                        $sync = syncPasUnit($pas, $formClass, $components, $renames);
                         $warnings = array_merge($warnings, $sync['warnings']);
                         if ($sync['pas'] !== $pas) {
                             if (file_put_contents($unitPath, $sync['pas']) === false) {

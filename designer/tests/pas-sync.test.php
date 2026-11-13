@@ -37,6 +37,55 @@ if ($second['pas'] !== $updated) {
     exit(1);
 }
 
+$renameSource = <<<'PAS'
+unit RenameTest;
+
+interface
+
+type
+  TForm1 = class(TForm)
+    Button1: TButton;
+    procedure Button1Click(Sender: TObject);
+  end;
+
+var
+  Form1: TForm1;
+
+implementation
+
+procedure TForm1.Button1Click(Sender: TObject);
+begin
+  Button1.Caption := 'Button1';
+  // Button1 stays in this comment
+end;
+
+end.
+PAS;
+
+$renamed = syncPasUnit(
+    $renameSource,
+    'TForm1',
+    [['name' => 'Button2', 'className' => 'TButton', 'unit' => 'StdCtrls']],
+    [['old' => 'Button1', 'new' => 'Button2']],
+);
+$renameResult = $renamed['pas'];
+foreach ([
+    'Button2: TButton;',
+    'Button2.Caption',
+    'procedure Button1Click',
+    "'Button1'",
+    '// Button1 stays in this comment',
+] as $needle) {
+    if (!str_contains($renameResult, $needle)) {
+        fwrite(STDERR, "Rename missing expected text: $needle\n");
+        exit(1);
+    }
+}
+if (str_contains($renameResult, 'Button1: TButton;')) {
+    fwrite(STDERR, "Old field was not renamed\n");
+    exit(1);
+}
+
 if (count($result['warnings']) > 0) {
     fwrite(STDERR, "Unexpected warnings: " . implode('; ', $result['warnings']) . "\n");
     exit(1);
